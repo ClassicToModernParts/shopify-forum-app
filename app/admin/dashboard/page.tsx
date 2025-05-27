@@ -60,7 +60,6 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
@@ -90,7 +89,6 @@ export default function AdminDashboard() {
       </header>
 
       <div className="container mx-auto px-6 py-8">
-        {/* Stats Overview */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
           <div className="bg-white rounded-lg shadow-sm border p-6">
             <div className="flex items-center justify-between mb-2">
@@ -129,7 +127,6 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Quick Actions */}
         <div className="bg-white rounded-lg shadow-sm border p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
           <div className="grid gap-4 md:grid-cols-3">
@@ -149,39 +146,6 @@ export default function AdminDashboard() {
               <Settings className="h-8 w-8 text-purple-600 mb-2" />
               <h3 className="font-medium text-gray-900">Forum Settings</h3>
               <p className="text-sm text-gray-600">Configure forum preferences</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Recent Activity */}
-        <div className="mt-8 bg-white rounded-lg shadow-sm border p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h2>
-          <div className="space-y-4">
-            <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <div>
-                <p className="text-sm font-medium text-gray-900">New post created</p>
-                <p className="text-xs text-gray-600">User posted in "Product Support" category</p>
-              </div>
-              <span className="text-xs text-gray-500 ml-auto">2 minutes ago</span>
-            </div>
-
-            <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-              <div>
-                <p className="text-sm font-medium text-gray-900">New user registered</p>
-                <p className="text-xs text-gray-600">Welcome new community member</p>
-              </div>
-              <span className="text-xs text-gray-500 ml-auto">15 minutes ago</span>
-            </div>
-
-            <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-              <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-              <div>
-                <p className="text-sm font-medium text-gray-900">Post reported</p>
-                <p className="text-xs text-gray-600">Requires moderator attention</p>
-              </div>
-              <span className="text-xs text-gray-500 ml-auto">1 hour ago</span>
             </div>
           </div>
         </div>
