@@ -1,617 +1,194 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Users, MessageSquare, Settings, BarChart3, Shield, Plus, Edit, Trash2, Pin, Lock, Eye, EyeOff } from 'lucide-react'
+import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { Users, MessageSquare, Settings, BarChart3, Shield, LogOut } from 'lucide-react'
 
-interface Category {
-  id: string
-  name: string
-  description: string
-  postCount: number
-  color: string
-  icon: string
-  isPrivate: boolean
-}
-
-interface Post {
-  id: string
-  title: string
-  content: string
-  author: string
-  categoryId: string
-  createdAt: string
-  replies: number
-  views: number
-  likes: number
-  isPinned: boolean
-  isLocked: boolean
-  status: string
-}
-
-export default function AdminPage() {
-  const [categories, setCategories] = useState<Category[]>([])
-  const [posts, setPosts] = useState<Post[]>([])
+export default function AdminDashboard() {
   const [stats, setStats] = useState({
-    totalPosts: 0,
-    totalUsers: 0,
-    totalCategories: 0,
-    activeToday: 0,
+    totalPosts: 127,
+    totalUsers: 45,
+    totalCategories: 5,
+    activeToday: 12,
   })
-  const [showNewCategoryForm, setShowNewCategoryForm] = useState(false)
-  const [newCategory, setNewCategory] = useState({
-    name: "",
-    description: "",
-    color: "#3B82F6",
-    icon: "MessageSquare",
-  })
+  const [loading, setLoading] = useState(true)
+  const router = useRouter()
 
   useEffect(() => {
-    loadData()
+    checkAuth()
+    loadStats()
   }, [])
 
-  const loadData = async () => {
-    try {
-      // Load categories
-      const categoriesResponse = await fetch("/api/forum?type=categories&shop_id=demo")
-      const categoriesData = await categoriesResponse.json()
-      if (categoriesData.success) {
-        setCategories(categoriesData.data)
-      }
-
-      // Load posts
-      const postsResponse = await fetch("/api/forum?type=posts&shop_id=demo")
-      const postsData = await postsResponse.json()
-      if (postsData.success) {
-        setPosts(postsData.data)
-      }
-
-      // Load stats
-      const statsResponse = await fetch("/api/forum/stats?shop_id=demo")
-      const statsData = await statsResponse.json()
-      if (statsData.success) {
-        setStats(statsData.data)
-      }
-    } catch (error) {
-      console.error("Error loading admin data:", error)
-    }
-  }
-
-  const createCategory = async () => {
-    if (!newCategory.name || !newCategory.description) {
-      alert("Please fill in all required fields")
+  const checkAuth = () => {
+    const token = localStorage.getItem("admin_token")
+    if (!token) {
+      router.push("/admin/login")
       return
     }
+  }
 
+  const handleLogout = () => {
+    localStorage.removeItem("admin_token")
+    router.push("/admin/login")
+  }
+
+  const loadStats = async () => {
     try {
-      const response = await fetch("/api/forum", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "create_category",
-          shopId: "demo",
-          ...newCategory,
-        }),
-      })
-
+      const response = await fetch("/api/forum/stats?shop_id=demo")
       const data = await response.json()
       if (data.success) {
-        setNewCategory({ name: "", description: "", color: "#3B82F6", icon: "MessageSquare" })
-        setShowNewCategoryForm(false)
-        loadData()
+        setStats(data.data)
       }
     } catch (error) {
-      console.error("Error creating category:", error)
+      console.error("Error loading stats:", error)
+    } finally {
+      setLoading(false)
     }
   }
 
-  const togglePostPin = async (postId: string) => {
-    try {
-      const response = await fetch("/api/forum", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "pin_post",
-          shopId: "demo",
-          postId,
-        }),
-      })
-
-      if (response.ok) {
-        loadData()
-      }
-    } catch (error) {
-      console.error("Error toggling post pin:", error)
-    }
-  }
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    })
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading admin dashboard...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Forum Administration</h1>
-          <p className="text-muted-foreground">Manage your community forum</p>
-        </div>
-        <Badge variant="outline" className="px-3 py-1">
-          <Shield className="h-4 w-4 mr-1" />
-          Admin Access
-        </Badge>
-      </div>
-
-      {/* Stats Overview */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Posts</CardTitle>
-            <MessageSquare className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalPosts}</div>
-            <p className="text-xs text-muted-foreground">+12% from last month</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalUsers}</div>
-            <p className="text-xs text-muted-foreground">+5% from last month</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Categories</CardTitle>
-            <Settings className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalCategories}</div>
-            <p className="text-xs text-muted-foreground">{categories.length} active</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Today</CardTitle>
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.activeToday}</div>
-            <p className="text-xs text-muted-foreground">Users active today</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Tabs defaultValue="categories" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="categories">Categories</TabsTrigger>
-          <TabsTrigger value="posts">Posts</TabsTrigger>
-          <TabsTrigger value="users">Users</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="users" className="space-y-4">
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b">
+        <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">User Management</h2>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm">
-                <Users className="h-4 w-4 mr-2" />
-                Export Users
-              </Button>
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Add User
-              </Button>
-            </div>
-          </div>
-
-          {/* User Stats */}
-          <div className="grid gap-4 md:grid-cols-4">
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Total Users</p>
-                    <p className="text-2xl font-bold">45</p>
-                  </div>
-                  <Users className="h-8 w-8 text-blue-500" />
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Active Today</p>
-                    <p className="text-2xl font-bold">12</p>
-                  </div>
-                  <div className="h-2 w-2 bg-green-500 rounded-full" />
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">New This Week</p>
-                    <p className="text-2xl font-bold">8</p>
-                  </div>
-                  <div className="h-2 w-2 bg-blue-500 rounded-full" />
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">Moderators</p>
-                    <p className="text-2xl font-bold">3</p>
-                  </div>
-                  <Shield className="h-8 w-8 text-purple-500" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* User List */}
-          <Card>
-            <CardHeader>
-              <CardTitle>All Users</CardTitle>
-              <CardDescription>Manage user accounts and permissions</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {[
-                  {
-                    id: 1,
-                    name: "Store Admin",
-                    email: "admin@store.com",
-                    role: "Admin",
-                    posts: 15,
-                    joined: "2024-01-01",
-                    status: "online",
-                  },
-                  {
-                    id: 2,
-                    name: "Sarah Johnson",
-                    email: "sarah@example.com",
-                    role: "Customer",
-                    posts: 8,
-                    joined: "2024-01-05",
-                    status: "offline",
-                  },
-                  {
-                    id: 3,
-                    name: "Mike Chen",
-                    email: "mike@example.com",
-                    role: "Customer",
-                    posts: 3,
-                    joined: "2024-01-13",
-                    status: "online",
-                  },
-                  {
-                    id: 4,
-                    name: "Emma Wilson",
-                    email: "emma@example.com",
-                    role: "Moderator",
-                    posts: 12,
-                    joined: "2024-01-08",
-                    status: "offline",
-                  },
-                  {
-                    id: 5,
-                    name: "David Lee",
-                    email: "david@example.com",
-                    role: "Customer",
-                    posts: 5,
-                    joined: "2024-01-12",
-                    status: "online",
-                  },
-                ].map((user) => (
-                  <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex items-center space-x-4">
-                      <div className="relative">
-                        <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-medium">
-                          {user.name.charAt(0)}
-                        </div>
-                        {user.status === "online" && (
-                          <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white rounded-full" />
-                        )}
-                      </div>
-                      <div>
-                        <h3 className="font-medium text-gray-900">{user.name}</h3>
-                        <p className="text-sm text-gray-500">{user.email}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-6 text-sm text-gray-500">
-                      <div className="text-center">
-                        <p className="font-medium text-gray-900">{user.posts}</p>
-                        <p>Posts</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="font-medium text-gray-900">{user.role}</p>
-                        <p>Role</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="font-medium text-gray-900">{new Date(user.joined).toLocaleDateString()}</p>
-                        <p>Joined</p>
-                      </div>
-                      <div className="flex gap-1">
-                        <Button size="sm" variant="ghost">
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost">
-                          <Settings className="h-4 w-4" />
-                        </Button>
-                        {user.role !== "Admin" && (
-                          <Button size="sm" variant="ghost">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+            <div className="flex items-center space-x-4">
+              <div className="w-10 h-10 bg-gradient-to-r from-red-600 to-pink-600 rounded-lg flex items-center justify-center">
+                <Shield className="h-6 w-6 text-white" />
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="settings" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Forum Settings</h2>
-            <Button>Save All Changes</Button>
-          </div>
-
-          <div className="grid gap-6 md:grid-cols-2">
-            {/* General Settings */}
-            <Card>
-              <CardHeader>
-                <CardTitle>General Settings</CardTitle>
-                <CardDescription>Configure basic forum settings</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Forum Name</label>
-                  <Input defaultValue="Community Forum" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Description</label>
-                  <Textarea defaultValue="Connect with other customers and get support" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Welcome Message</label>
-                  <Textarea defaultValue="Welcome to our community! Please read the guidelines before posting." />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Contact Email</label>
-                  <Input defaultValue="support@yourstore.com" type="email" />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Moderation Settings */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Moderation</CardTitle>
-                <CardDescription>Configure moderation and security settings</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-sm font-medium">Require approval for new posts</span>
-                    <p className="text-xs text-gray-500">All posts need admin approval before being visible</p>
-                  </div>
-                  <input type="checkbox" className="rounded" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-sm font-medium">Enable automatic spam detection</span>
-                    <p className="text-xs text-gray-500">Automatically flag potential spam posts</p>
-                  </div>
-                  <input type="checkbox" defaultChecked className="rounded" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-sm font-medium">Allow anonymous posting</span>
-                    <p className="text-xs text-gray-500">Users can post without providing their name</p>
-                  </div>
-                  <input type="checkbox" className="rounded" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-sm font-medium">Enable user reporting</span>
-                    <p className="text-xs text-gray-500">Allow users to report inappropriate content</p>
-                  </div>
-                  <input type="checkbox" defaultChecked className="rounded" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Maximum post length</label>
-                  <Input defaultValue="5000" type="number" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        {/* Keep existing categories and posts tabs */}
-        <TabsContent value="categories" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Manage Categories</h2>
-            <Button onClick={() => setShowNewCategoryForm(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              New Category
-            </Button>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {categories.map((category) => (
-              <Card key={category.id} className="border-l-4" style={{ borderLeftColor: category.color }}>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">{category.name}</CardTitle>
-                    <div className="flex gap-1">
-                      <Button size="sm" variant="ghost">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button size="sm" variant="ghost">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                  <CardDescription>{category.description}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-between text-sm">
-                    <span>{category.postCount} posts</span>
-                    <div className="flex gap-1">
-                      {category.isPrivate && (
-                        <Badge variant="secondary" className="text-xs">
-                          <Lock className="h-3 w-3 mr-1" />
-                          Private
-                        </Badge>
-                      )}
-                      <Badge variant="outline" className="text-xs">
-                        {category.icon}
-                      </Badge>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          {/* New Category Form */}
-          {showNewCategoryForm && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Create New Category</CardTitle>
-                <CardDescription>Add a new discussion category to your forum</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Name *</label>
-                    <Input
-                      placeholder="Category name..."
-                      value={newCategory.name}
-                      onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Color</label>
-                    <Input
-                      type="color"
-                      value={newCategory.color}
-                      onChange={(e) => setNewCategory({ ...newCategory, color: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Description *</label>
-                  <Textarea
-                    placeholder="Describe what this category is for..."
-                    value={newCategory.description}
-                    onChange={(e) => setNewCategory({ ...newCategory, description: e.target.value })}
-                  />
-                </div>
-
-                <div className="flex gap-2">
-                  <Button onClick={createCategory}>Create Category</Button>
-                  <Button variant="outline" onClick={() => setShowNewCategoryForm(false)}>
-                    Cancel
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-
-        <TabsContent value="posts" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Manage Posts</h2>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm">
-                <Eye className="h-4 w-4 mr-2" />
-                Show All
-              </Button>
-              <Button variant="outline" size="sm">
-                <EyeOff className="h-4 w-4 mr-2" />
-                Hidden Only
-              </Button>
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">Admin Dashboard</h1>
+                <p className="text-sm text-gray-500">Forum Management & Moderation</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-4">
+              <Link href="/forum" className="text-gray-600 hover:text-gray-900">
+                View Forum
+              </Link>
+              <Link href="/admin" className="text-gray-600 hover:text-gray-900">
+                Full Admin Panel
+              </Link>
+              <button
+                onClick={handleLogout}
+                className="flex items-center space-x-2 px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                <LogOut className="h-4 w-4" />
+                <span>Logout</span>
+              </button>
             </div>
           </div>
+        </div>
+      </header>
 
-          <div className="space-y-4">
-            {posts.map((post) => (
-              <Card key={post.id}>
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        {post.isPinned && <Pin className="h-4 w-4 text-blue-500" />}
-                        {post.isLocked && <Lock className="h-4 w-4 text-red-500" />}
-                        <h3 className="font-medium">{post.title}</h3>
-                      </div>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground mb-2">
-                        <span>by {post.author}</span>
-                        <span>{formatDate(post.createdAt)}</span>
-                        <Badge variant="outline" className="text-xs">
-                          {categories.find((c) => c.id === post.categoryId)?.name}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground line-clamp-2">{post.content}</p>
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground mt-2">
-                        <span>{post.replies} replies</span>
-                        <span>{post.views} views</span>
-                        <span>{post.likes} likes</span>
-                      </div>
-                    </div>
-                    <div className="flex gap-1 ml-4">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => togglePostPin(post.id)}
-                        className={post.isPinned ? "text-blue-600" : ""}
-                      >
-                        <Pin className="h-4 w-4" />
-                      </Button>
-                      <Button size="sm" variant="ghost">
-                        <Lock className="h-4 w-4" />
-                      </Button>
-                      <Button size="sm" variant="ghost">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button size="sm" variant="ghost">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+      <div className="container mx-auto px-6 py-8">
+        {/* Stats Overview */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-gray-600">Total Posts</h3>
+              <MessageSquare className="h-4 w-4 text-gray-400" />
+            </div>
+            <div className="text-2xl font-bold text-gray-900">{stats.totalPosts}</div>
+            <p className="text-xs text-gray-500">+12% from last month</p>
           </div>
-        </TabsContent>
-      </Tabs>
+
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-gray-600">Total Users</h3>
+              <Users className="h-4 w-4 text-gray-400" />
+            </div>
+            <div className="text-2xl font-bold text-gray-900">{stats.totalUsers}</div>
+            <p className="text-xs text-gray-500">+5% from last month</p>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-gray-600">Categories</h3>
+              <Settings className="h-4 w-4 text-gray-400" />
+            </div>
+            <div className="text-2xl font-bold text-gray-900">{stats.totalCategories}</div>
+            <p className="text-xs text-gray-500">Active categories</p>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-gray-600">Active Today</h3>
+              <BarChart3 className="h-4 w-4 text-gray-400" />
+            </div>
+            <div className="text-2xl font-bold text-gray-900">{stats.activeToday}</div>
+            <p className="text-xs text-gray-500">Users active today</p>
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="bg-white rounded-lg shadow-sm border p-6 mb-8">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
+          <div className="grid gap-4 md:grid-cols-3">
+            <Link href="/forum" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+              <MessageSquare className="h-8 w-8 text-blue-600 mb-2" />
+              <h3 className="font-medium text-gray-900">View Forum</h3>
+              <p className="text-sm text-gray-600">Browse all forum posts and discussions</p>
+            </Link>
+
+            <Link href="/admin" className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+              <Users className="h-8 w-8 text-green-600 mb-2" />
+              <h3 className="font-medium text-gray-900">Full Admin Panel</h3>
+              <p className="text-sm text-gray-600">Access complete admin features</p>
+            </Link>
+
+            <div className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
+              <Settings className="h-8 w-8 text-purple-600 mb-2" />
+              <h3 className="font-medium text-gray-900">Forum Settings</h3>
+              <p className="text-sm text-gray-600">Configure forum preferences</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Activity */}
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h2>
+          <div className="space-y-4">
+            <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <div>
+                <p className="text-sm font-medium text-gray-900">New post created</p>
+                <p className="text-xs text-gray-600">User posted in "Product Support" category</p>
+              </div>
+              <span className="text-xs text-gray-500 ml-auto">2 minutes ago</span>
+            </div>
+
+            <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+              <div>
+                <p className="text-sm font-medium text-gray-900">New user registered</p>
+                <p className="text-xs text-gray-600">Welcome new community member</p>
+              </div>
+              <span className="text-xs text-gray-500 ml-auto">15 minutes ago</span>
+            </div>
+
+            <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+              <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+              <div>
+                <p className="text-sm font-medium text-gray-900">Post reported</p>
+                <p className="text-xs text-gray-600">Requires moderator attention</p>
+              </div>
+              <span className="text-xs text-gray-500 ml-auto">1 hour ago</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
