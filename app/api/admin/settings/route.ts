@@ -28,6 +28,7 @@ interface ForumSettings {
   lastUpdated: string
 }
 
+// Store settings in memory (for demo purposes)
 let currentSettings: ForumSettings = {
   general: {
     forumName: "Community Forum",
@@ -89,37 +90,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!settings.general?.forumName || !settings.general?.contactEmail) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Forum name and contact email are required",
-        },
-        { status: 400 },
-      )
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(settings.general.contactEmail)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Invalid email format",
-        },
-        { status: 400 },
-      )
-    }
-
-    if (settings.moderation?.maxPostLength && settings.moderation.maxPostLength < 100) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Maximum post length must be at least 100 characters",
-        },
-        { status: 400 },
-      )
-    }
-
+    // Update settings
     currentSettings = {
       ...settings,
       lastUpdated: new Date().toISOString(),
