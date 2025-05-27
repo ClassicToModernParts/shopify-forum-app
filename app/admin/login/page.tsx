@@ -2,10 +2,6 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Shield, Eye, EyeOff, AlertCircle } from 'lucide-react'
 
 export default function AdminLoginPage() {
@@ -44,15 +40,16 @@ export default function AdminLoginPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
+      <div className="w-full max-w-md bg-white rounded-lg shadow-lg">
+        <div className="p-6 text-center">
           <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
             <Shield className="h-8 w-8 text-white" />
           </div>
-          <CardTitle className="text-2xl">Admin Login</CardTitle>
-          <CardDescription>Access the forum administration panel</CardDescription>
-        </CardHeader>
-        <CardContent>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Admin Login</h1>
+          <p className="text-gray-600">Access the forum administration panel</p>
+        </div>
+
+        <div className="p-6">
           <form onSubmit={handleLogin} className="space-y-4">
             {error && (
               <div className="flex items-center space-x-2 text-red-600 bg-red-50 p-3 rounded-lg">
@@ -62,26 +59,32 @@ export default function AdminLoginPage() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
-              <Input
+              <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+                Username
+              </label>
+              <input
                 id="username"
                 type="text"
                 placeholder="Enter admin username"
                 value={credentials.username}
                 onChange={(e) => setCredentials({ ...credentials, username: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                Password
+              </label>
               <div className="relative">
-                <Input
+                <input
                   id="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="Enter admin password"
                   value={credentials.password}
                   onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   required
                 />
                 <button
@@ -94,9 +97,13 @@ export default function AdminLoginPage() {
               </div>
             </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
               {loading ? "Signing in..." : "Sign In"}
-            </Button>
+            </button>
           </form>
 
           <div className="mt-6 p-4 bg-blue-50 rounded-lg">
@@ -104,8 +111,8 @@ export default function AdminLoginPage() {
             <p className="text-xs text-blue-600">Username: admin</p>
             <p className="text-xs text-blue-600">Password: admin123</p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   )
 }
