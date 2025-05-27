@@ -1,6 +1,6 @@
 import Link from "next/link"
-import { MessageSquare, Users, Zap, Shield } from "lucide-react"
-import { AdminNavigation } from "@/components/AdminNavigation"
+import { MessageSquare, Users, Zap, Shield } from 'lucide-react'
+import AdminNavigation from "@/components/AdminNavigation"
 
 export default function HomePage() {
   return (
