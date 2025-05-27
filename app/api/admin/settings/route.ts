@@ -29,7 +29,6 @@ interface ForumSettings {
 }
 
 // Store settings in memory (for demo purposes)
-// In production, you'd use a database
 let currentSettings: ForumSettings = {
   general: {
     forumName: "Community Forum",
