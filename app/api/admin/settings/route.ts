@@ -28,7 +28,6 @@ interface ForumSettings {
   lastUpdated: string
 }
 
-// Store settings in memory (for demo purposes)
 let currentSettings: ForumSettings = {
   general: {
     forumName: "Community Forum",
@@ -90,7 +89,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate required fields
     if (!settings.general?.forumName || !settings.general?.contactEmail) {
       return NextResponse.json(
         {
@@ -101,7 +99,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!emailRegex.test(settings.general.contactEmail)) {
       return NextResponse.json(
@@ -113,7 +110,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate max post length
     if (settings.moderation?.maxPostLength && settings.moderation.maxPostLength < 100) {
       return NextResponse.json(
         {
@@ -124,7 +120,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Update settings in memory
     currentSettings = {
       ...settings,
       lastUpdated: new Date().toISOString(),
