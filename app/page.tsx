@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { MessageSquare, Users, Zap, Shield } from "lucide-react"
+import { AdminNavigation } from "@/components/AdminNavigation"
 
 export default function HomePage() {
   return (
@@ -13,16 +14,19 @@ export default function HomePage() {
                 <MessageSquare className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Community Hub</h1>
+                <h1 className="text-xl font-bold text-gray-900">Community Hub - UPDATED VERSION</h1>
                 <p className="text-sm text-gray-500">Connect • Share • Grow</p>
               </div>
             </div>
-            <Link
-              href="/forum"
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-            >
-              Enter Forum
-            </Link>
+            <div className="flex items-center space-x-3">
+              <AdminNavigation />
+              <Link
+                href="/forum"
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              >
+                Enter Forum
+              </Link>
+            </div>
           </div>
         </div>
       </header>
