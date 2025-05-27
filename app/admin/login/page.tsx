@@ -1,16 +1,22 @@
 "use client"
 
-import type React from "react"
-import { useState } from "react"
+import React, { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Shield, Eye, EyeOff, AlertCircle } from 'lucide-react'
+
+interface DebugInfo {
+  receivedUsername: string
+  receivedPasswordLength: number
+  expectedUsername: string
+  expectedPasswordLength: number
+}
 
 export default function AdminLoginPage() {
   const [credentials, setCredentials] = useState({ username: "", password: "" })
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
-  const [debugInfo, setDebugInfo] = useState(null)
+  const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null)
   const router = useRouter()
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -20,22 +26,16 @@ export default function AdminLoginPage() {
     setDebugInfo(null)
 
     try {
-      console.log("Attempting login with:", { 
-        username: credentials.username, 
-        password: credentials.password ? "***" : "empty" 
-      })
-
       const response = await fetch("/api/admin/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           username: credentials.username.trim(),
-          password: credentials.password.trim()
+          password: credentials.password.trim(),
         }),
       })
 
       const data = await response.json()
-      console.log("Login response:", data)
 
       if (data.success) {
         localStorage.setItem("admin_token", data.token)
@@ -54,7 +54,6 @@ export default function AdminLoginPage() {
     }
   }
 
-  // Auto-fill demo credentials
   const fillDemoCredentials = () => {
     setCredentials({ username: "admin", password: "admin123" })
   }
@@ -79,8 +78,12 @@ export default function AdminLoginPage() {
                   <span className="text-sm">{error}</span>
                   {debugInfo && (
                     <div className="text-xs mt-1 font-mono">
-                      <div>Username: "{debugInfo.receivedUsername}" (expected: "{debugInfo.expectedUsername}")</div>
-                      <div>Password length: {debugInfo.receivedPasswordLength} (expected: {debugInfo.expectedPasswordLength})</div>
+                      <div>
+                        Username: "{debugInfo.receivedUsername}" (expected: "{debugInfo.expectedUsername}")
+                      </div>
+                      <div>
+                        Password length: {debugInfo.receivedPasswordLength} (expected: {debugInfo.expectedPasswordLength})
+                      </div>
                     </div>
                   )}
                 </div>
