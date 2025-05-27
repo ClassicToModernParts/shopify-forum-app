@@ -8,20 +8,36 @@ const ADMIN_CREDENTIALS = {
 
 export async function POST(request: NextRequest) {
   try {
-    const { username, password } = await request.json()
+    const body = await request.json()
+    const { username, password } = body
 
-    if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
+    console.log("Login attempt:", { username, password: password ? "***" : "empty" })
+    console.log("Expected:", { username: ADMIN_CREDENTIALS.username, password: "***" })
+
+    // Trim whitespace and check
+    const trimmedUsername = username?.trim()
+    const trimmedPassword = password?.trim()
+
+    if (trimmedUsername === ADMIN_CREDENTIALS.username && trimmedPassword === ADMIN_CREDENTIALS.password) {
       const token = crypto.randomBytes(32).toString("hex")
+      console.log("Login successful for:", trimmedUsername)
       return NextResponse.json({
         success: true,
         token,
         message: "Login successful",
       })
     } else {
+      console.log("Login failed - credentials don't match")
       return NextResponse.json(
         {
           success: false,
           error: "Invalid username or password",
+          debug: {
+            receivedUsername: trimmedUsername,
+            receivedPasswordLength: trimmedPassword?.length || 0,
+            expectedUsername: ADMIN_CREDENTIALS.username,
+            expectedPasswordLength: ADMIN_CREDENTIALS.password.length
+          }
         },
         { status: 401 },
       )
@@ -32,6 +48,7 @@ export async function POST(request: NextRequest) {
       {
         success: false,
         error: "Authentication failed",
+        details: error.message
       },
       { status: 500 },
     )

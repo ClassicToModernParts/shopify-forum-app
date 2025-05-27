@@ -10,33 +10,53 @@ export default function AdminLoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [debugInfo, setDebugInfo] = useState(null)
   const router = useRouter()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError("")
+    setDebugInfo(null)
 
     try {
+      console.log("Attempting login with:", { 
+        username: credentials.username, 
+        password: credentials.password ? "***" : "empty" 
+      })
+
       const response = await fetch("/api/admin/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(credentials),
+        body: JSON.stringify({
+          username: credentials.username.trim(),
+          password: credentials.password.trim()
+        }),
       })
 
       const data = await response.json()
+      console.log("Login response:", data)
 
       if (data.success) {
         localStorage.setItem("admin_token", data.token)
         router.push("/admin/dashboard")
       } else {
         setError(data.error || "Invalid credentials")
+        if (data.debug) {
+          setDebugInfo(data.debug)
+        }
       }
     } catch (error) {
+      console.error("Login error:", error)
       setError("Login failed. Please try again.")
     } finally {
       setLoading(false)
     }
+  }
+
+  // Auto-fill demo credentials
+  const fillDemoCredentials = () => {
+    setCredentials({ username: "admin", password: "admin123" })
   }
 
   return (
@@ -55,7 +75,15 @@ export default function AdminLoginPage() {
             {error && (
               <div className="flex items-center space-x-2 text-red-600 bg-red-50 p-3 rounded-lg">
                 <AlertCircle className="h-4 w-4" />
-                <span className="text-sm">{error}</span>
+                <div>
+                  <span className="text-sm">{error}</span>
+                  {debugInfo && (
+                    <div className="text-xs mt-1 font-mono">
+                      <div>Username: "{debugInfo.receivedUsername}" (expected: "{debugInfo.expectedUsername}")</div>
+                      <div>Password length: {debugInfo.receivedPasswordLength} (expected: {debugInfo.expectedPasswordLength})</div>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -109,8 +137,14 @@ export default function AdminLoginPage() {
 
           <div className="mt-6 p-4 bg-blue-50 rounded-lg">
             <p className="text-sm text-blue-800 font-medium mb-2">Demo Credentials:</p>
-            <p className="text-xs text-blue-600">Username: admin</p>
-            <p className="text-xs text-blue-600">Password: admin123</p>
+            <p className="text-xs text-blue-600 mb-2">Username: admin</p>
+            <p className="text-xs text-blue-600 mb-3">Password: admin123</p>
+            <button
+              onClick={fillDemoCredentials}
+              className="w-full px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
+            >
+              Auto-fill Demo Credentials
+            </button>
           </div>
         </div>
       </div>
