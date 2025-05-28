@@ -121,23 +121,45 @@ export default function AdminPage() {
   const [dataLoading, setDataLoading] = useState(true)
   const [apiErrors, setApiErrors] = useState<string[]>([])
 
-  const { isAdmin, logout } = useAuth()
+  const { isAdmin, loading, logout, checkAuthStatus } = useAuth()
 
   useEffect(() => {
     const tabParam = searchParams.get("tab")
-    if (tabParam) {
+    if (tabParam && ["categories", "posts", "users", "settings"].includes(tabParam)) {
       setActiveTab(tabParam)
+    } else {
+      setActiveTab("categories") // Default to categories if no valid tab
     }
   }, [searchParams])
 
   useEffect(() => {
+    console.log("🏛️ Admin page effect triggered:")
+    console.log("  - isAdmin:", isAdmin)
+    console.log("  - loading:", loading)
+
+    // Don't redirect while still loading
+    if (loading) {
+      console.log("  ⏳ Still loading, waiting...")
+      return
+    }
+
+    // Only redirect if definitely not admin
     if (!isAdmin) {
+      console.log("  🚫 Not admin, redirecting to login")
       router.push("/admin/login")
       return
     }
+
+    console.log("  ✅ Admin confirmed, loading data")
     loadData()
     loadSettings()
-  }, [isAdmin, router])
+  }, [isAdmin, loading, router])
+
+  // Add a manual auth check button for debugging
+  const handleManualAuthCheck = () => {
+    console.log("🔄 Manual auth check triggered")
+    checkAuthStatus()
+  }
 
   const addApiError = (error: string) => {
     setApiErrors((prev) => [...prev, error])
@@ -420,6 +442,21 @@ export default function AdminPage() {
     })
   }
 
+  // Show loading while checking authentication
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Card>
+          <CardContent className="p-8 text-center">
+            <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
+            <p className="text-gray-600">Checking authentication...</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Show access denied if not admin
   if (!isAdmin) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -428,9 +465,14 @@ export default function AdminPage() {
             <Shield className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
             <p className="text-gray-600 mb-4">You need admin privileges to access this page.</p>
-            <Link href="/admin/login" className="text-blue-600 hover:underline">
-              Go to Admin Login
-            </Link>
+            <div className="space-y-2">
+              <Link href="/admin/login" className="block text-blue-600 hover:underline">
+                Go to Admin Login
+              </Link>
+              <Button variant="outline" size="sm" onClick={handleManualAuthCheck}>
+                Check Auth Status
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -452,6 +494,10 @@ export default function AdminPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleManualAuthCheck}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Check Auth
+          </Button>
           <Link
             href="/admin/debug"
             className="flex items-center space-x-2 px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
@@ -569,7 +615,17 @@ export default function AdminPage() {
         </Card>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => {
+          setActiveTab(value)
+          // Update URL without page reload
+          const url = new URL(window.location.href)
+          url.searchParams.set("tab", value)
+          window.history.replaceState({}, "", url.toString())
+        }}
+        className="space-y-4"
+      >
         <TabsList>
           <TabsTrigger value="categories">Categories</TabsTrigger>
           <TabsTrigger value="posts">Posts</TabsTrigger>
@@ -585,6 +641,69 @@ export default function AdminPage() {
               {actionLoading === "create-category" ? "Creating..." : "New Category"}
             </Button>
           </div>
+
+          {/* Edit Category Form */}
+          {editingCategory && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Edit Category</CardTitle>
+                <CardDescription>Update category information</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Name *</label>
+                    <Input
+                      value={editingCategory.name}
+                      onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Color</label>
+                    <input
+                      type="color"
+                      className="w-full h-10 border rounded-lg"
+                      value={editingCategory.color}
+                      onChange={(e) => setEditingCategory({ ...editingCategory, color: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Description *</label>
+                  <Textarea
+                    rows={3}
+                    value={editingCategory.description}
+                    onChange={(e) => setEditingCategory({ ...editingCategory, description: e.target.value })}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm font-medium">Private Category</span>
+                    <p className="text-xs text-gray-500">Only visible to moderators and admins</p>
+                  </div>
+                  <Switch
+                    checked={editingCategory.isPrivate}
+                    onCheckedChange={(checked) => setEditingCategory({ ...editingCategory, isPrivate: checked })}
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => updateCategory(editingCategory.id, editingCategory)}
+                    disabled={actionLoading?.startsWith(`update-${editingCategory.id}`)}
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    {actionLoading?.startsWith(`update-${editingCategory.id}`) ? "Saving..." : "Save Changes"}
+                  </Button>
+                  <Button variant="outline" onClick={() => setEditingCategory(null)}>
+                    Cancel
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {categories.length === 0 && !dataLoading ? (
             <Card>
@@ -703,69 +822,6 @@ export default function AdminPage() {
                     {actionLoading === "create-category" ? "Creating..." : "Create Category"}
                   </Button>
                   <Button variant="outline" onClick={() => setShowNewCategoryForm(false)}>
-                    Cancel
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Edit Category Form */}
-          {editingCategory && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Edit Category</CardTitle>
-                <CardDescription>Update category information</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Name *</label>
-                    <Input
-                      value={editingCategory.name}
-                      onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Color</label>
-                    <input
-                      type="color"
-                      className="w-full h-10 border rounded-lg"
-                      value={editingCategory.color}
-                      onChange={(e) => setEditingCategory({ ...editingCategory, color: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Description *</label>
-                  <Textarea
-                    rows={3}
-                    value={editingCategory.description}
-                    onChange={(e) => setEditingCategory({ ...editingCategory, description: e.target.value })}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-sm font-medium">Private Category</span>
-                    <p className="text-xs text-gray-500">Only visible to moderators and admins</p>
-                  </div>
-                  <Switch
-                    checked={editingCategory.isPrivate}
-                    onCheckedChange={(checked) => setEditingCategory({ ...editingCategory, isPrivate: checked })}
-                  />
-                </div>
-
-                <div className="flex gap-2">
-                  <Button
-                    onClick={() => updateCategory(editingCategory.id, editingCategory)}
-                    disabled={actionLoading?.startsWith(`update-${editingCategory.id}`)}
-                  >
-                    <Save className="h-4 w-4 mr-2" />
-                    {actionLoading?.startsWith(`update-${editingCategory.id}`) ? "Saving..." : "Save Changes"}
-                  </Button>
-                  <Button variant="outline" onClick={() => setEditingCategory(null)}>
                     Cancel
                   </Button>
                 </div>
