@@ -32,6 +32,33 @@ import Link from "next/link"
 import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/hooks/useAuth"
 
+interface ForumSettings {
+  general: {
+    forumName: string
+    description: string
+    welcomeMessage: string
+    contactEmail: string
+  }
+  moderation: {
+    requireApproval: boolean
+    autoSpamDetection: boolean
+    allowAnonymous: boolean
+    enableReporting: boolean
+    maxPostLength: number
+  }
+  appearance: {
+    primaryColor: string
+    accentColor: string
+    darkMode: boolean
+    customCSS: string
+  }
+  notifications: {
+    emailNotifications: boolean
+    newPostNotifications: boolean
+    moderationAlerts: boolean
+  }
+}
+
 interface Category {
   id: string
   name: string
@@ -87,7 +114,7 @@ export default function AdminPage() {
     isPrivate: false,
   })
 
-  const [settings, setSettings] = useState({
+  const [settings, setSettings] = useState<ForumSettings>({
     general: {
       forumName: "Community Forum",
       description: "Connect with other customers and get support",
@@ -248,13 +275,10 @@ export default function AdminPage() {
   }
 
   const updateSettings = (section: string, key: string, value: any) => {
-    setSettings((prev) => ({
-      ...prev,
-      [section]: {
-        ...prev[section as keyof typeof prev],
-        [key]: value,
-      },
-    }))
+    setSettings((prev) => {
+      const updatedSection = { ...prev[section as keyof ForumSettings], [key]: value }
+      return { ...prev, [section as keyof ForumSettings]: updatedSection }
+    })
   }
 
   const saveSettings = async () => {
