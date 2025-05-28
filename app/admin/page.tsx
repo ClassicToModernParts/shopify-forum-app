@@ -6,31 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import {
-  Users,
-  MessageSquare,
-  Settings,
-  BarChart3,
-  Shield,
-  Plus,
-  Edit,
-  Trash2,
-  Pin,
-  Lock,
-  EyeOff,
-  ArrowLeft,
-  CheckCircle,
-  AlertCircle,
-  RefreshCw,
-  X,
-  Bug,
-  Save,
-} from "lucide-react"
+import { Users, MessageSquare, Settings, BarChart3, Shield, Plus, Edit, Trash2, Pin, Lock, Eye, EyeOff, ArrowLeft } from 'lucide-react'
 import Link from "next/link"
-import { Switch } from "@/components/ui/switch"
-import { useAuth } from "@/hooks/useAuth"
 
 interface Category {
   id: string
@@ -40,8 +17,6 @@ interface Category {
   color: string
   icon: string
   isPrivate: boolean
-  createdAt: string
-  updatedAt: string
 }
 
 interface Post {
@@ -61,352 +36,110 @@ interface Post {
 
 export default function AdminPage() {
   const searchParams = useSearchParams()
+  const defaultTab = searchParams.get("tab") || "categories"
   const router = useRouter()
 
-  const [activeTab, setActiveTab] = useState("categories")
   const [categories, setCategories] = useState<Category[]>([])
   const [posts, setPosts] = useState<Post[]>([])
-  const [selectedPosts, setSelectedPosts] = useState<string[]>([])
-  const [editingPost, setEditingPost] = useState<Post | null>(null)
-  const [editForm, setEditForm] = useState({ title: "", content: "" })
-
   const [stats, setStats] = useState({
     totalPosts: 0,
     totalUsers: 0,
     totalCategories: 0,
     activeToday: 0,
   })
-
   const [showNewCategoryForm, setShowNewCategoryForm] = useState(false)
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null)
   const [newCategory, setNewCategory] = useState({
     name: "",
     description: "",
     color: "#3B82F6",
     icon: "MessageSquare",
-    isPrivate: false,
   })
 
-  const [settings, setSettings] = useState({
-    general: {
-      forumName: "Community Forum",
-      description: "Connect with other customers and get support",
-      welcomeMessage: "Welcome to our community! Please read the guidelines before posting.",
-      contactEmail: "support@yourstore.com",
-    },
-    moderation: {
-      requireApproval: false,
-      autoSpamDetection: true,
-      allowAnonymous: false,
-      enableReporting: true,
-      maxPostLength: 5000,
-    },
-    appearance: {
-      primaryColor: "#3B82F6",
-      accentColor: "#10B981",
-      darkMode: false,
-      customCSS: "",
-    },
-    notifications: {
-      emailNotifications: true,
-      newPostNotifications: true,
-      moderationAlerts: true,
-    },
-  })
-
-  const [settingsLoading, setSettingsLoading] = useState(false)
-  const [settingsMessage, setSettingsMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
-  const [lastSaved, setLastSaved] = useState<string | null>(null)
-  const [actionLoading, setActionLoading] = useState<string | null>(null)
-  const [dataLoading, setDataLoading] = useState(true)
-  const [apiErrors, setApiErrors] = useState<string[]>([])
-
-  const { isAdmin, logout } = useAuth()
-
   useEffect(() => {
-    const tabParam = searchParams.get("tab")
-    if (tabParam) {
-      setActiveTab(tabParam)
-    }
-  }, [searchParams])
+    checkAuth()
+    loadData()
+  }, [])
 
-  useEffect(() => {
-    if (!isAdmin) {
+  const checkAuth = () => {
+    const token = localStorage.getItem("admin_token")
+    if (!token) {
       router.push("/admin/login")
       return
     }
-    loadData()
-    loadSettings()
-  }, [isAdmin, router])
-
-  const addApiError = (error: string) => {
-    setApiErrors((prev) => [...prev, error])
-    console.error("API Error:", error)
-  }
-
-  const clearApiErrors = () => {
-    setApiErrors([])
   }
 
   const loadData = async () => {
-    setDataLoading(true)
-    setApiErrors([])
-
     try {
-      // Load categories from admin API
-      try {
-        const categoriesResponse = await fetch("/api/admin/categories?include_private=true")
-        if (!categoriesResponse.ok) {
-          throw new Error(`Categories API failed: ${categoriesResponse.status}`)
-        }
-        const categoriesData = await categoriesResponse.json()
-        if (categoriesData.success) {
-          setCategories(categoriesData.data)
-        } else {
-          addApiError(`Categories: ${categoriesData.error}`)
-        }
-      } catch (error) {
-        addApiError(`Categories: ${error instanceof Error ? error.message : "Unknown error"}`)
+      // Load categories
+      const categoriesResponse = await fetch("/api/forum?type=categories&shop_id=demo")
+      const categoriesData = await categoriesResponse.json()
+      if (categoriesData.success) {
+        setCategories(categoriesData.data)
       }
 
-      // Load posts from admin API
-      try {
-        const postsResponse = await fetch("/api/admin/posts")
-        if (!postsResponse.ok) {
-          throw new Error(`Admin posts API failed: ${postsResponse.status}`)
-        }
-        const postsData = await postsResponse.json()
-        if (postsData.success) {
-          setPosts(postsData.data)
-        } else {
-          addApiError(`Posts: ${postsData.error}`)
-        }
-      } catch (error) {
-        addApiError(`Posts: ${error instanceof Error ? error.message : "Unknown error"}`)
+      // Load posts
+      const postsResponse = await fetch("/api/forum?type=posts&shop_id=demo")
+      const postsData = await postsResponse.json()
+      if (postsData.success) {
+        setPosts(postsData.data)
       }
 
       // Load stats
-      try {
-        const statsResponse = await fetch("/api/forum/stats?shop_id=demo")
-        if (!statsResponse.ok) {
-          throw new Error(`Stats API failed: ${statsResponse.status}`)
-        }
-        const statsData = await statsResponse.json()
-        if (statsData.success) {
-          setStats(statsData.data)
-        } else {
-          addApiError(`Stats: ${statsData.error}`)
-        }
-      } catch (error) {
-        addApiError(`Stats: ${error instanceof Error ? error.message : "Unknown error"}`)
+      const statsResponse = await fetch("/api/forum/stats?shop_id=demo")
+      const statsData = await statsResponse.json()
+      if (statsData.success) {
+        setStats(statsData.data)
       }
     } catch (error) {
-      addApiError(`General: ${error instanceof Error ? error.message : "Unknown error"}`)
-    } finally {
-      setDataLoading(false)
+      console.error("Error loading admin data:", error)
     }
   }
 
-  const loadSettings = async () => {
-    try {
-      const response = await fetch("/api/admin/settings")
-      if (!response.ok) {
-        throw new Error(`Settings API failed: ${response.status}`)
-      }
-      const data = await response.json()
-      if (data.success) {
-        setSettings(data.data)
-        setLastSaved(data.data.lastUpdated)
-      } else {
-        addApiError(`Settings load: ${data.error}`)
-      }
-    } catch (error) {
-      addApiError(`Settings load: ${error instanceof Error ? error.message : "Unknown error"}`)
-    }
-  }
-
-  const updateSettings = (section: string, key: string, value: any) => {
-    setSettings((prev) => ({
-      ...prev,
-      [section]: {
-        ...prev[section as keyof typeof prev],
-        [key]: value,
-      },
-    }))
-  }
-
-  const saveSettings = async () => {
-    setSettingsLoading(true)
-    setSettingsMessage(null)
-
-    try {
-      const response = await fetch("/api/admin/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ settings }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`Settings save failed: ${response.status}`)
-      }
-
-      const data = await response.json()
-
-      if (data.success) {
-        setSettingsMessage({ type: "success", text: "Settings saved successfully!" })
-        setLastSaved(new Date().toISOString())
-        setTimeout(() => setSettingsMessage(null), 3000)
-      } else {
-        setSettingsMessage({ type: "error", text: data.error || "Failed to save settings" })
-        addApiError(`Settings save: ${data.error}`)
-      }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : "Unknown error"
-      setSettingsMessage({ type: "error", text: "Failed to save settings" })
-      addApiError(`Settings save: ${errorMsg}`)
-    } finally {
-      setSettingsLoading(false)
-    }
-  }
-
-  // Category management functions
   const createCategory = async () => {
     if (!newCategory.name || !newCategory.description) {
-      setSettingsMessage({ type: "error", text: "Please fill in all required fields" })
+      alert("Please fill in all required fields")
       return
     }
 
-    setActionLoading("create-category")
     try {
-      const response = await fetch("/api/admin/categories", {
+      const response = await fetch("/api/forum", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newCategory),
+        body: JSON.stringify({
+          type: "create_category",
+          shopId: "demo",
+          ...newCategory,
+        }),
       })
-
-      if (!response.ok) {
-        throw new Error(`Create category failed: ${response.status}`)
-      }
 
       const data = await response.json()
       if (data.success) {
-        setNewCategory({ name: "", description: "", color: "#3B82F6", icon: "MessageSquare", isPrivate: false })
+        setNewCategory({ name: "", description: "", color: "#3B82F6", icon: "MessageSquare" })
         setShowNewCategoryForm(false)
-        setSettingsMessage({ type: "success", text: "Category created successfully!" })
         loadData()
-        setTimeout(() => setSettingsMessage(null), 3000)
-      } else {
-        setSettingsMessage({ type: "error", text: data.error || "Failed to create category" })
-        addApiError(`Create category: ${data.error}`)
       }
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : "Unknown error"
-      setSettingsMessage({ type: "error", text: "Failed to create category" })
-      addApiError(`Create category: ${errorMsg}`)
-    } finally {
-      setActionLoading(null)
+      console.error("Error creating category:", error)
     }
   }
 
-  const updateCategory = async (categoryId: string, updates: Partial<Category>) => {
-    setActionLoading(`update-${categoryId}`)
+  const togglePostPin = async (postId: string) => {
     try {
-      const response = await fetch("/api/admin/categories", {
-        method: "PUT",
+      const response = await fetch("/api/forum", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ categoryId, updates }),
+        body: JSON.stringify({
+          type: "pin_post",
+          shopId: "demo",
+          postId,
+        }),
       })
 
-      if (!response.ok) {
-        throw new Error(`Update category failed: ${response.status}`)
-      }
-
-      const data = await response.json()
-      if (data.success) {
-        setSettingsMessage({ type: "success", text: "Category updated successfully!" })
-        setEditingCategory(null)
+      if (response.ok) {
         loadData()
-        setTimeout(() => setSettingsMessage(null), 3000)
-      } else {
-        setSettingsMessage({ type: "error", text: data.error || "Failed to update category" })
-        addApiError(`Update category: ${data.error}`)
       }
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : "Unknown error"
-      setSettingsMessage({ type: "error", text: "Failed to update category" })
-      addApiError(`Update category: ${errorMsg}`)
-    } finally {
-      setActionLoading(null)
-    }
-  }
-
-  const deleteCategory = async (categoryId: string) => {
-    const category = categories.find((c) => c.id === categoryId)
-    if (!category) return
-
-    if (!confirm(`Are you sure you want to delete "${category.name}"? This action cannot be undone.`)) return
-
-    setActionLoading(`delete-${categoryId}`)
-    try {
-      const response = await fetch("/api/admin/categories", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ categoryId }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`Delete category failed: ${response.status}`)
-      }
-
-      const data = await response.json()
-      if (data.success) {
-        setSettingsMessage({ type: "success", text: "Category deleted successfully!" })
-        loadData()
-        setTimeout(() => setSettingsMessage(null), 3000)
-      } else {
-        setSettingsMessage({ type: "error", text: data.error || "Failed to delete category" })
-        addApiError(`Delete category: ${data.error}`)
-      }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : "Unknown error"
-      setSettingsMessage({ type: "error", text: "Failed to delete category" })
-      addApiError(`Delete category: ${errorMsg}`)
-    } finally {
-      setActionLoading(null)
-    }
-  }
-
-  // Post management functions
-  const deletePost = async (postId: string) => {
-    if (!confirm("Are you sure you want to delete this post?")) return
-
-    setActionLoading(`delete-${postId}`)
-    try {
-      const response = await fetch("/api/admin/posts", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ postId }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`Delete failed: ${response.status}`)
-      }
-
-      const data = await response.json()
-      if (data.success) {
-        setSettingsMessage({ type: "success", text: "Post deleted successfully!" })
-        loadData()
-        setTimeout(() => setSettingsMessage(null), 3000)
-      } else {
-        setSettingsMessage({ type: "error", text: data.error || "Failed to delete post" })
-        addApiError(`Delete post: ${data.error}`)
-      }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : "Unknown error"
-      setSettingsMessage({ type: "error", text: "Failed to delete post" })
-      addApiError(`Delete post: ${errorMsg}`)
-    } finally {
-      setActionLoading(null)
+      console.error("Error toggling post pin:", error)
     }
   }
 
@@ -418,23 +151,6 @@ export default function AdminPage() {
       hour: "2-digit",
       minute: "2-digit",
     })
-  }
-
-  if (!isAdmin) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Card>
-          <CardContent className="p-8 text-center">
-            <Shield className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
-            <p className="text-gray-600 mb-4">You need admin privileges to access this page.</p>
-            <Link href="/admin/login" className="text-blue-600 hover:underline">
-              Go to Admin Login
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
-    )
   }
 
   return (
@@ -451,76 +167,11 @@ export default function AdminPage() {
             <p className="text-gray-600">Manage your community forum</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/admin/debug"
-            className="flex items-center space-x-2 px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
-          >
-            <Bug className="h-4 w-4" />
-            <span>Debug Panel</span>
-          </Link>
-          <Badge variant="outline" className="px-3 py-1">
-            <Shield className="h-4 w-4 mr-1" />
-            Admin Access
-          </Badge>
-        </div>
+        <Badge variant="outline" className="px-3 py-1">
+          <Shield className="h-4 w-4 mr-1" />
+          Admin Access
+        </Badge>
       </div>
-
-      {/* API Errors */}
-      {apiErrors.length > 0 && (
-        <Card className="border-red-500 bg-red-50">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-red-800 flex items-center gap-2">
-                <AlertCircle className="h-5 w-5" />
-                API Errors Detected ({apiErrors.length})
-              </CardTitle>
-              <Button variant="outline" size="sm" onClick={clearApiErrors}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {apiErrors.map((error, index) => (
-                <div key={index} className="text-sm text-red-700 bg-red-100 p-2 rounded">
-                  {error}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Status Messages */}
-      {settingsMessage && (
-        <Card
-          className={`border-l-4 ${settingsMessage.type === "success" ? "border-green-500 bg-green-50" : "border-red-500 bg-red-50"}`}
-        >
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              {settingsMessage.type === "success" ? (
-                <CheckCircle className="h-4 w-4 text-green-600" />
-              ) : (
-                <AlertCircle className="h-4 w-4 text-red-600" />
-              )}
-              <p className={`text-sm ${settingsMessage.type === "success" ? "text-green-800" : "text-red-800"}`}>
-                {settingsMessage.text}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Loading State */}
-      {dataLoading && (
-        <Card>
-          <CardContent className="p-8 text-center">
-            <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
-            <p className="text-gray-600">Loading admin data...</p>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Stats Overview */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -530,7 +181,7 @@ export default function AdminPage() {
             <MessageSquare className="h-4 w-4 text-gray-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{posts.length}</div>
+            <div className="text-2xl font-bold">{stats.totalPosts}</div>
             <p className="text-xs text-gray-500">+12% from last month</p>
           </CardContent>
         </Card>
@@ -552,7 +203,7 @@ export default function AdminPage() {
             <Settings className="h-4 w-4 text-gray-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{categories.length}</div>
+            <div className="text-2xl font-bold">{stats.totalCategories}</div>
             <p className="text-xs text-gray-500">{categories.length} active</p>
           </CardContent>
         </Card>
@@ -569,7 +220,7 @@ export default function AdminPage() {
         </Card>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs defaultValue={defaultTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="categories">Categories</TabsTrigger>
           <TabsTrigger value="posts">Posts</TabsTrigger>
@@ -579,75 +230,49 @@ export default function AdminPage() {
 
         <TabsContent value="categories" className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Manage Categories ({categories.length})</h2>
-            <Button onClick={() => setShowNewCategoryForm(true)} disabled={actionLoading === "create-category"}>
+            <h2 className="text-xl font-semibold">Manage Categories</h2>
+            <Button onClick={() => setShowNewCategoryForm(true)}>
               <Plus className="h-4 w-4 mr-2" />
-              {actionLoading === "create-category" ? "Creating..." : "New Category"}
+              New Category
             </Button>
           </div>
 
-          {categories.length === 0 && !dataLoading ? (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <p className="text-gray-500 mb-4">No categories found. Create your first category to get started.</p>
-                <Button onClick={() => setShowNewCategoryForm(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create First Category
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {categories.map((category) => (
-                <Card key={category.id} className="border-l-4" style={{ borderLeftColor: category.color }}>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">{category.name}</CardTitle>
-                      <div className="flex gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setEditingCategory(category)}
-                          disabled={actionLoading?.startsWith(`update-${category.id}`)}
-                          title="Edit category"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => deleteCategory(category.id)}
-                          disabled={actionLoading === `delete-${category.id}` || category.postCount > 0}
-                          className="text-red-600 hover:text-red-700"
-                          title={category.postCount > 0 ? "Cannot delete category with posts" : "Delete category"}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {categories.map((category) => (
+              <Card key={category.id} className="border-l-4" style={{ borderLeftColor: category.color }}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">{category.name}</CardTitle>
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost">
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button size="sm" variant="ghost">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
-                    <CardDescription>{category.description}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center justify-between text-sm mb-2">
-                      <span>{category.postCount} posts</span>
-                      <div className="flex gap-1">
-                        {category.isPrivate && (
-                          <Badge variant="secondary" className="text-xs">
-                            <Lock className="h-3 w-3 mr-1" />
-                            Private
-                          </Badge>
-                        )}
-                        <Badge variant="outline" className="text-xs">
-                          {category.icon}
+                  </div>
+                  <CardDescription>{category.description}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between text-sm">
+                    <span>{category.postCount} posts</span>
+                    <div className="flex gap-1">
+                      {category.isPrivate && (
+                        <Badge variant="secondary" className="text-xs">
+                          <Lock className="h-3 w-3 mr-1" />
+                          Private
                         </Badge>
-                      </div>
+                      )}
+                      <Badge variant="outline" className="text-xs">
+                        {category.icon}
+                      </Badge>
                     </div>
-                    <p className="text-xs text-gray-500">Created: {formatDate(category.createdAt)}</p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
 
           {/* New Category Form */}
           {showNewCategoryForm && (
@@ -660,7 +285,8 @@ export default function AdminPage() {
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Name *</label>
-                    <Input
+                    <input
+                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="Category name..."
                       value={newCategory.name}
                       onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })}
@@ -679,7 +305,8 @@ export default function AdminPage() {
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Description *</label>
-                  <Textarea
+                  <textarea
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     rows={3}
                     placeholder="Describe what this category is for..."
                     value={newCategory.description}
@@ -687,85 +314,9 @@ export default function AdminPage() {
                   />
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-sm font-medium">Private Category</span>
-                    <p className="text-xs text-gray-500">Only visible to moderators and admins</p>
-                  </div>
-                  <Switch
-                    checked={newCategory.isPrivate}
-                    onCheckedChange={(checked) => setNewCategory({ ...newCategory, isPrivate: checked })}
-                  />
-                </div>
-
                 <div className="flex gap-2">
-                  <Button onClick={createCategory} disabled={actionLoading === "create-category"}>
-                    {actionLoading === "create-category" ? "Creating..." : "Create Category"}
-                  </Button>
+                  <Button onClick={createCategory}>Create Category</Button>
                   <Button variant="outline" onClick={() => setShowNewCategoryForm(false)}>
-                    Cancel
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Edit Category Form */}
-          {editingCategory && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Edit Category</CardTitle>
-                <CardDescription>Update category information</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Name *</label>
-                    <Input
-                      value={editingCategory.name}
-                      onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Color</label>
-                    <input
-                      type="color"
-                      className="w-full h-10 border rounded-lg"
-                      value={editingCategory.color}
-                      onChange={(e) => setEditingCategory({ ...editingCategory, color: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Description *</label>
-                  <Textarea
-                    rows={3}
-                    value={editingCategory.description}
-                    onChange={(e) => setEditingCategory({ ...editingCategory, description: e.target.value })}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-sm font-medium">Private Category</span>
-                    <p className="text-xs text-gray-500">Only visible to moderators and admins</p>
-                  </div>
-                  <Switch
-                    checked={editingCategory.isPrivate}
-                    onCheckedChange={(checked) => setEditingCategory({ ...editingCategory, isPrivate: checked })}
-                  />
-                </div>
-
-                <div className="flex gap-2">
-                  <Button
-                    onClick={() => updateCategory(editingCategory.id, editingCategory)}
-                    disabled={actionLoading?.startsWith(`update-${editingCategory.id}`)}
-                  >
-                    <Save className="h-4 w-4 mr-2" />
-                    {actionLoading?.startsWith(`update-${editingCategory.id}`) ? "Saving..." : "Save Changes"}
-                  </Button>
-                  <Button variant="outline" onClick={() => setEditingCategory(null)}>
                     Cancel
                   </Button>
                 </div>
@@ -776,87 +327,233 @@ export default function AdminPage() {
 
         <TabsContent value="posts" className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Manage Posts ({posts.length})</h2>
-            <Button variant="outline" size="sm" onClick={loadData}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
+            <h2 className="text-xl font-semibold">Manage Posts</h2>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm">
+                <Eye className="h-4 w-4 mr-2" />
+                Show All
+              </Button>
+              <Button variant="outline" size="sm">
+                <EyeOff className="h-4 w-4 mr-2" />
+                Hidden Only
+              </Button>
+            </div>
           </div>
 
-          {posts.length === 0 && !dataLoading ? (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500 mb-4">No posts found. This might indicate an API issue.</p>
-                <Button onClick={loadData} variant="outline">
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Retry Loading
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-4">
-              {posts.map((post) => (
-                <Card key={post.id}>
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          {post.isPinned && <Pin className="h-4 w-4 text-blue-500" />}
-                          {post.isLocked && <Lock className="h-4 w-4 text-red-500" />}
-                          {post.status === "hidden" && <EyeOff className="h-4 w-4 text-gray-500" />}
-                          <h3 className="font-medium">{post.title}</h3>
-                        </div>
-                        <div className="flex items-center gap-4 text-sm text-gray-500 mb-2">
-                          <span>by {post.author}</span>
-                          <span>{formatDate(post.createdAt)}</span>
-                          <Badge variant="outline" className="text-xs">
-                            {categories.find((c) => c.id === post.categoryId)?.name || "Unknown Category"}
-                          </Badge>
-                          <Badge variant={post.status === "active" ? "default" : "secondary"} className="text-xs">
-                            {post.status}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-gray-600 line-clamp-2">{post.content}</p>
-                        <div className="flex items-center gap-4 text-xs text-gray-500 mt-2">
-                          <span>{post.replies} replies</span>
-                          <span>{post.views} views</span>
-                          <span>{post.likes} likes</span>
-                        </div>
+          <div className="space-y-4">
+            {posts.map((post) => (
+              <Card key={post.id}>
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        {post.isPinned && <Pin className="h-4 w-4 text-blue-500" />}
+                        {post.isLocked && <Lock className="h-4 w-4 text-red-500" />}
+                        <h3 className="font-medium">{post.title}</h3>
                       </div>
-                      <div className="flex gap-1 ml-4">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => deletePost(post.id)}
-                          disabled={actionLoading === `delete-${post.id}`}
-                          className="text-red-600 hover:text-red-700"
-                          title="Delete post"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                      <div className="flex items-center gap-4 text-sm text-gray-500 mb-2">
+                        <span>by {post.author}</span>
+                        <span>{formatDate(post.createdAt)}</span>
+                        <Badge variant="outline" className="text-xs">
+                          {categories.find((c) => c.id === post.categoryId)?.name}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-gray-600 line-clamp-2">{post.content}</p>
+                      <div className="flex items-center gap-4 text-xs text-gray-500 mt-2">
+                        <span>{post.replies} replies</span>
+                        <span>{post.views} views</span>
+                        <span>{post.likes} likes</span>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
+                    <div className="flex gap-1 ml-4">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => togglePostPin(post.id)}
+                        className={post.isPinned ? "text-blue-600" : ""}
+                      >
+                        <Pin className="h-4 w-4" />
+                      </Button>
+                      <Button size="sm" variant="ghost">
+                        <Lock className="h-4 w-4" />
+                      </Button>
+                      <Button size="sm" variant="ghost">
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button size="sm" variant="ghost">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </TabsContent>
 
         <TabsContent value="users" className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold">User Management</h2>
-            <Button size="sm">
-              <Plus className="h-4 w-4 mr-2" />
-              Add User
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm">
+                <Users className="h-4 w-4 mr-2" />
+                Export Users
+              </Button>
+              <Button size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                Add User
+              </Button>
+            </div>
           </div>
 
+          {/* User Stats */}
+          <div className="grid gap-4 md:grid-cols-4">
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Total Users</p>
+                    <p className="text-2xl font-bold">45</p>
+                  </div>
+                  <Users className="h-8 w-8 text-blue-500" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Active Today</p>
+                    <p className="text-2xl font-bold">12</p>
+                  </div>
+                  <div className="h-2 w-2 bg-green-500 rounded-full" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">New This Week</p>
+                    <p className="text-2xl font-bold">8</p>
+                  </div>
+                  <div className="h-2 w-2 bg-blue-500 rounded-full" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Moderators</p>
+                    <p className="text-2xl font-bold">3</p>
+                  </div>
+                  <Shield className="h-8 w-8 text-purple-500" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* User List */}
           <Card>
-            <CardContent className="p-8 text-center">
-              <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">User management functionality coming soon...</p>
+            <CardHeader>
+              <CardTitle>All Users</CardTitle>
+              <CardDescription>Manage user accounts and permissions</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {[
+                  {
+                    id: 1,
+                    name: "Store Admin",
+                    email: "admin@store.com",
+                    role: "Admin",
+                    posts: 15,
+                    joined: "2024-01-01",
+                    status: "online",
+                  },
+                  {
+                    id: 2,
+                    name: "Sarah Johnson",
+                    email: "sarah@example.com",
+                    role: "Customer",
+                    posts: 8,
+                    joined: "2024-01-05",
+                    status: "offline",
+                  },
+                  {
+                    id: 3,
+                    name: "Mike Chen",
+                    email: "mike@example.com",
+                    role: "Customer",
+                    posts: 3,
+                    joined: "2024-01-13",
+                    status: "online",
+                  },
+                  {
+                    id: 4,
+                    name: "Emma Wilson",
+                    email: "emma@example.com",
+                    role: "Moderator",
+                    posts: 12,
+                    joined: "2024-01-08",
+                    status: "offline",
+                  },
+                  {
+                    id: 5,
+                    name: "David Lee",
+                    email: "david@example.com",
+                    role: "Customer",
+                    posts: 5,
+                    joined: "2024-01-12",
+                    status: "online",
+                  },
+                ].map((user) => (
+                  <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex items-center space-x-4">
+                      <div className="relative">
+                        <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-medium">
+                          {user.name.charAt(0)}
+                        </div>
+                        {user.status === "online" && (
+                          <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white rounded-full" />
+                        )}
+                      </div>
+                      <div>
+                        <h3 className="font-medium text-gray-900">{user.name}</h3>
+                        <p className="text-sm text-gray-500">{user.email}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-6 text-sm text-gray-500">
+                      <div className="text-center">
+                        <p className="font-medium text-gray-900">{user.posts}</p>
+                        <p>Posts</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="font-medium text-gray-900">{user.role}</p>
+                        <p>Role</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="font-medium text-gray-900">{new Date(user.joined).toLocaleDateString()}</p>
+                        <p>Joined</p>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="ghost">
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button size="sm" variant="ghost">
+                          <Settings className="h-4 w-4" />
+                        </Button>
+                        {user.role !== "Admin" && (
+                          <Button size="sm" variant="ghost">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -864,15 +561,7 @@ export default function AdminPage() {
         <TabsContent value="settings" className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold">Forum Settings</h2>
-            <div className="flex gap-2">
-              <Button onClick={loadSettings} variant="outline" size="sm">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Reload
-              </Button>
-              <Button onClick={saveSettings} disabled={settingsLoading}>
-                {settingsLoading ? "Saving..." : "Save All Changes"}
-              </Button>
-            </div>
+            <Button>Save All Changes</Button>
           </div>
 
           <div className="grid gap-6 md:grid-cols-2">
@@ -884,26 +573,34 @@ export default function AdminPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Forum Name *</label>
-                  <Input
-                    value={settings.general.forumName}
-                    onChange={(e) => updateSettings("general", "forumName", e.target.value)}
+                  <label className="text-sm font-medium">Forum Name</label>
+                  <input
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    defaultValue="Community Forum"
                   />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Description</label>
-                  <Textarea
+                  <textarea
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     rows={3}
-                    value={settings.general.description}
-                    onChange={(e) => updateSettings("general", "description", e.target.value)}
+                    defaultValue="Connect with other customers and get support"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Contact Email *</label>
-                  <Input
+                  <label className="text-sm font-medium">Welcome Message</label>
+                  <textarea
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={3}
+                    defaultValue="Welcome to our community! Please read the guidelines before posting."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Contact Email</label>
+                  <input
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     type="email"
-                    value={settings.general.contactEmail}
-                    onChange={(e) => updateSettings("general", "contactEmail", e.target.value)}
+                    defaultValue="support@yourstore.com"
                   />
                 </div>
               </CardContent>
@@ -921,35 +618,40 @@ export default function AdminPage() {
                     <span className="text-sm font-medium">Require approval for new posts</span>
                     <p className="text-xs text-gray-500">All posts need admin approval before being visible</p>
                   </div>
-                  <Switch
-                    checked={settings.moderation.requireApproval}
-                    onCheckedChange={(checked) => updateSettings("moderation", "requireApproval", checked)}
-                  />
+                  <input type="checkbox" className="rounded" />
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="text-sm font-medium">Enable automatic spam detection</span>
                     <p className="text-xs text-gray-500">Automatically flag potential spam posts</p>
                   </div>
-                  <Switch
-                    checked={settings.moderation.autoSpamDetection}
-                    onCheckedChange={(checked) => updateSettings("moderation", "autoSpamDetection", checked)}
+                  <input type="checkbox" defaultChecked className="rounded" />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm font-medium">Allow anonymous posting</span>
+                    <p className="text-xs text-gray-500">Users can post without providing their name</p>
+                  </div>
+                  <input type="checkbox" className="rounded" />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm font-medium">Enable user reporting</span>
+                    <p className="text-xs text-gray-500">Allow users to report inappropriate content</p>
+                  </div>
+                  <input type="checkbox" defaultChecked className="rounded" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Maximum post length</label>
+                  <input
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    type="number"
+                    defaultValue="5000"
                   />
                 </div>
               </CardContent>
             </Card>
           </div>
-
-          {lastSaved && (
-            <Card className="bg-green-50 border-green-200">
-              <CardContent className="p-4">
-                <p className="text-sm text-green-800">
-                  <CheckCircle className="h-4 w-4 inline mr-2" />
-                  Settings last saved: {formatDate(lastSaved)}
-                </p>
-              </CardContent>
-            </Card>
-          )}
         </TabsContent>
       </Tabs>
     </div>

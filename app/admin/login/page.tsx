@@ -1,26 +1,20 @@
 "use client"
 
 import type React from "react"
+
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Shield, Eye, EyeOff, AlertCircle } from "lucide-react"
-import { useAuth } from "@/hooks/useAuth"
-
-interface DebugInfo {
-  receivedUsername: string
-  receivedPasswordLength: number
-  expectedUsername: string
-  expectedPasswordLength: number
-}
 
 export default function AdminLoginPage() {
   const [credentials, setCredentials] = useState({ username: "", password: "" })
-  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
-  const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null)
+  const [debugInfo, setDebugInfo] = useState<any>(null)
   const router = useRouter()
-  const { login } = useAuth()
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCredentials({ ...credentials, [e.target.name]: e.target.value })
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -47,12 +41,13 @@ export default function AdminLoginPage() {
       console.log("Login response:", data)
 
       if (data.success) {
-        login(data.token) // Use the auth hook
+        localStorage.setItem("admin_token", data.token)
+        console.log("Token saved, redirecting to dashboard")
         router.push("/admin/dashboard")
       } else {
         setError(data.error || "Invalid credentials")
         if (data.debug) {
-          setDebugInfo(data.debug as DebugInfo)
+          setDebugInfo(data.debug)
         }
       }
     } catch (error) {
@@ -63,104 +58,55 @@ export default function AdminLoginPage() {
     }
   }
 
-  // Auto-fill demo credentials
-  const fillDemoCredentials = () => {
-    setCredentials({ username: "admin", password: "admin123" })
-  }
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white rounded-lg shadow-lg">
-        <div className="p-6 text-center">
-          <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Shield className="h-8 w-8 text-white" />
+    <div className="flex justify-center items-center h-screen bg-gray-100">
+      <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
+        <h2 className="block text-gray-700 text-sm font-bold mb-2">Admin Login</h2>
+        <form onSubmit={handleLogin}>
+          <div className="mb-4">
+            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="username">
+              Username
+            </label>
+            <input
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              id="username"
+              name="username"
+              type="text"
+              placeholder="Username"
+              value={credentials.username}
+              onChange={handleChange}
+            />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Admin Login</h1>
-          <p className="text-gray-600">Access the forum administration panel</p>
-        </div>
-
-        <div className="p-6">
-          <form onSubmit={handleLogin} className="space-y-4">
-            {error && (
-              <div className="flex items-center space-x-2 text-red-600 bg-red-50 p-3 rounded-lg">
-                <AlertCircle className="h-4 w-4" />
-                <div>
-                  <span className="text-sm">{error}</span>
-                  {debugInfo && (
-                    <div className="text-xs mt-1 font-mono">
-                      <div>
-                        Username: "{debugInfo.receivedUsername}" (expected: "{debugInfo.expectedUsername}")
-                      </div>
-                      <div>
-                        Password length: {debugInfo.receivedPasswordLength} (expected:{" "}
-                        {debugInfo.expectedPasswordLength})
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <label htmlFor="username" className="block text-sm font-medium text-gray-700">
-                Username
-              </label>
-              <input
-                id="username"
-                type="text"
-                placeholder="Enter admin username"
-                value={credentials.username}
-                onChange={(e) => setCredentials({ ...credentials, username: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Enter admin password"
-                  value={credentials.password}
-                  onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-            </div>
-
+          <div className="mb-6">
+            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="password">
+              Password
+            </label>
+            <input
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 mb-3 leading-tight focus:outline-none focus:shadow-outline"
+              id="password"
+              name="password"
+              type="password"
+              placeholder="Password"
+              value={credentials.password}
+              onChange={handleChange}
+            />
+          </div>
+          {error && <p className="text-red-500 text-xs italic">{error}</p>}
+          {debugInfo && (
+            <pre className="text-xs text-gray-600 mt-2 p-2 bg-gray-100 rounded">
+              {JSON.stringify(debugInfo, null, 2)}
+            </pre>
+          )}
+          <div className="flex items-center justify-between">
             <button
+              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
               type="submit"
               disabled={loading}
-              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {loading ? "Signing in..." : "Sign In"}
-            </button>
-          </form>
-
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-            <p className="text-sm text-blue-800 font-medium mb-2">Demo Credentials:</p>
-            <p className="text-xs text-blue-600 mb-2">Username: admin</p>
-            <p className="text-xs text-blue-600 mb-3">Password: admin123</p>
-            <button
-              onClick={fillDemoCredentials}
-              className="w-full px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
-            >
-              Auto-fill Demo Credentials
+              {loading ? "Logging in..." : "Login"}
             </button>
           </div>
-        </div>
+        </form>
       </div>
     </div>
   )

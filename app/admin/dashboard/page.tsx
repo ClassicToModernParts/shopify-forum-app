@@ -4,7 +4,6 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Users, MessageSquare, Settings, BarChart3, Shield, LogOut } from "lucide-react"
-import { useAuth } from "@/hooks/useAuth"
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
@@ -14,19 +13,23 @@ export default function AdminDashboard() {
     activeToday: 12,
   })
   const [loading, setLoading] = useState(true)
-  const { isAdmin, logout } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
-    if (!isAdmin) {
+    checkAuth()
+    loadStats()
+  }, [])
+
+  const checkAuth = () => {
+    const token = localStorage.getItem("admin_token")
+    if (!token) {
       router.push("/admin/login")
       return
     }
-    loadStats()
-  }, [isAdmin, router])
+  }
 
   const handleLogout = () => {
-    logout()
+    localStorage.removeItem("admin_token")
     router.push("/admin/login")
   }
 
