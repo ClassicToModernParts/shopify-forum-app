@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { AlertCircle, CheckCircle, RefreshCw } from 'lucide-react'
+import { AlertCircle, CheckCircle, RefreshCw } from "lucide-react"
 
 interface TestResult {
   name: string
@@ -76,6 +76,22 @@ export default function AdminDebugPage() {
     await testEndpoint("Admin Auth", "/api/admin/auth", "POST", {
       username: "admin",
       password: "admin123",
+    })
+
+    // Test admin post actions
+    await testEndpoint("Admin Post Pin", "/api/admin/posts", "POST", {
+      action: "pin",
+      postId: "1",
+    })
+
+    // Test settings save
+    await testEndpoint("Admin Settings Save", "/api/admin/settings", "POST", {
+      settings: {
+        general: { forumName: "Test Forum" },
+        moderation: { requireApproval: false },
+        appearance: { primaryColor: "#3B82F6" },
+        notifications: { emailNotifications: true },
+      },
     })
 
     setTesting(false)
@@ -154,6 +170,29 @@ export default function AdminDebugPage() {
           </CardContent>
         </Card>
       )}
+
+      <Card className="bg-blue-50 border-blue-200">
+        <CardHeader>
+          <CardTitle className="text-blue-900">Debug Instructions</CardTitle>
+        </CardHeader>
+        <CardContent className="text-blue-800 text-sm space-y-2">
+          <p>
+            <strong>1.</strong> Run all tests to see which endpoints are failing
+          </p>
+          <p>
+            <strong>2.</strong> Check the browser console for JavaScript errors
+          </p>
+          <p>
+            <strong>3.</strong> Verify you're logged in as admin first
+          </p>
+          <p>
+            <strong>4.</strong> Look for 404 errors indicating missing API routes
+          </p>
+          <p>
+            <strong>5.</strong> Check for CORS or authentication issues
+          </p>
+        </CardContent>
+      </Card>
     </div>
   )
 }

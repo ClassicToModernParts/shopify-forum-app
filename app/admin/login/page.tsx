@@ -1,8 +1,10 @@
 "use client"
 
-import React, { useState } from "react"
+import type React from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Shield, Eye, EyeOff, AlertCircle } from 'lucide-react'
+import { Shield, Eye, EyeOff, AlertCircle } from "lucide-react"
+import { useAuth } from "@/hooks/useAuth"
 
 interface DebugInfo {
   receivedUsername: string
@@ -18,6 +20,7 @@ export default function AdminLoginPage() {
   const [loading, setLoading] = useState(false)
   const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null)
   const router = useRouter()
+  const { login } = useAuth()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -26,6 +29,11 @@ export default function AdminLoginPage() {
     setDebugInfo(null)
 
     try {
+      console.log("Attempting login with:", {
+        username: credentials.username,
+        password: credentials.password ? "***" : "empty",
+      })
+
       const response = await fetch("/api/admin/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -36,14 +44,15 @@ export default function AdminLoginPage() {
       })
 
       const data = await response.json()
+      console.log("Login response:", data)
 
       if (data.success) {
-        localStorage.setItem("admin_token", data.token)
+        login(data.token) // Use the auth hook
         router.push("/admin/dashboard")
       } else {
         setError(data.error || "Invalid credentials")
         if (data.debug) {
-          setDebugInfo(data.debug)
+          setDebugInfo(data.debug as DebugInfo)
         }
       }
     } catch (error) {
@@ -54,6 +63,7 @@ export default function AdminLoginPage() {
     }
   }
 
+  // Auto-fill demo credentials
   const fillDemoCredentials = () => {
     setCredentials({ username: "admin", password: "admin123" })
   }
@@ -82,7 +92,8 @@ export default function AdminLoginPage() {
                         Username: "{debugInfo.receivedUsername}" (expected: "{debugInfo.expectedUsername}")
                       </div>
                       <div>
-                        Password length: {debugInfo.receivedPasswordLength} (expected: {debugInfo.expectedPasswordLength})
+                        Password length: {debugInfo.receivedPasswordLength} (expected:{" "}
+                        {debugInfo.expectedPasswordLength})
                       </div>
                     </div>
                   )}

@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Shield } from 'lucide-react'
+import { Shield } from "lucide-react"
 
 export function AdminLink() {
   return (

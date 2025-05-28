@@ -1,10 +1,39 @@
 import { type NextRequest, NextResponse } from "next/server"
 
-let currentSettings = {
+interface ForumSettings {
+  general: {
+    forumName: string
+    description: string
+    welcomeMessage: string
+    contactEmail: string
+  }
+  moderation: {
+    requireApproval: boolean
+    autoSpamDetection: boolean
+    allowAnonymous: boolean
+    enableReporting: boolean
+    maxPostLength: number
+  }
+  appearance: {
+    primaryColor: string
+    accentColor: string
+    darkMode: boolean
+    customCSS: string
+  }
+  notifications: {
+    emailNotifications: boolean
+    newPostNotifications: boolean
+    moderationAlerts: boolean
+  }
+  lastUpdated: string
+}
+
+// Store settings in memory (for demo purposes)
+let currentSettings: ForumSettings = {
   general: {
     forumName: "Community Forum",
     description: "Connect with other customers and get support",
-    welcomeMessage: "Welcome to our community!",
+    welcomeMessage: "Welcome to our community! Please read the guidelines before posting.",
     contactEmail: "support@yourstore.com",
   },
   moderation: {
@@ -28,12 +57,22 @@ let currentSettings = {
   lastUpdated: new Date().toISOString(),
 }
 
-export async function GET() {
-  return NextResponse.json({
-    success: true,
-    data: currentSettings,
-    message: "Settings retrieved successfully",
-  })
+export async function GET(request: NextRequest) {
+  try {
+    return NextResponse.json({
+      success: true,
+      data: currentSettings,
+      message: "Settings retrieved successfully",
+    })
+  } catch (error) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Failed to retrieve settings",
+      },
+      { status: 500 },
+    )
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -43,11 +82,15 @@ export async function POST(request: NextRequest) {
 
     if (!settings) {
       return NextResponse.json(
-        { success: false, error: "Settings data is required" },
-        { status: 400 }
+        {
+          success: false,
+          error: "Settings data is required",
+        },
+        { status: 400 },
       )
     }
 
+    // Update settings
     currentSettings = {
       ...settings,
       lastUpdated: new Date().toISOString(),
@@ -60,8 +103,11 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     return NextResponse.json(
-      { success: false, error: "Failed to save settings" },
-      { status: 500 }
+      {
+        success: false,
+        error: "Failed to save settings",
+      },
+      { status: 500 },
     )
   }
 }

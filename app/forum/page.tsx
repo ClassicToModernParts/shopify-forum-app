@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Search, Plus, MessageSquare, Eye, Heart, Pin, Lock, Filter, ArrowLeft, Send, X } from "lucide-react"
+import { AdminNavigation } from "@/components/AdminNavigation"
 
 interface Category {
   id: string
@@ -453,13 +454,16 @@ export default function ForumPage() {
                 </div>
               </Link>
             </div>
-            <button
-              onClick={() => setShowNewPostModal(true)}
-              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              <Plus className="h-4 w-4" />
-              <span>New Post</span>
-            </button>
+            <div className="flex items-center space-x-3">
+              <AdminNavigation variant="link" />
+              <button
+                onClick={() => setShowNewPostModal(true)}
+                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                <Plus className="h-4 w-4" />
+                <span>New Post</span>
+              </button>
+            </div>
           </div>
         </div>
       </header>
