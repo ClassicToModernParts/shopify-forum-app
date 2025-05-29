@@ -48,9 +48,9 @@ interface Reply {
 }
 
 interface ForumData {
-  categories: Category[]
   totalPosts: number
   totalUsers: number
+  totalCategories: number
   onlineUsers: number
 }
 
@@ -76,7 +76,12 @@ export default function ForumPage() {
     content: "",
     author: "",
   })
-  const [forumData, setForumData] = useState<ForumData | null>(null)
+  const [forumData, setForumData] = useState<ForumData>({
+    totalPosts: 0,
+    totalUsers: 0,
+    totalCategories: 0,
+    onlineUsers: 0,
+  })
   const [isLoading, setIsLoading] = useState(true)
   const { user, isAuthenticated, logout } = useUserAuth()
   const [error, setError] = useState<string | null>(null)
@@ -84,27 +89,58 @@ export default function ForumPage() {
   useEffect(() => {
     loadCategories()
     loadPosts()
+    loadForumStats()
   }, [])
 
-  useEffect(() => {
-    const fetchForumData = async () => {
-      try {
-        const response = await fetch("/api/forum/stats")
-        if (!response.ok) {
-          throw new Error(`Stats API failed: ${response.status}`)
-        }
-        const data = await response.json()
-        setForumData(data)
-      } catch (error) {
-        console.error("Error fetching forum data:", error)
-        setError("Failed to load forum data. Please try again later.")
-      } finally {
-        setIsLoading(false)
+  const loadForumStats = async () => {
+    try {
+      console.log("📊 Loading forum stats...")
+      const response = await fetch("/api/forum/stats")
+
+      if (!response.ok) {
+        console.warn(`⚠️ Stats API returned ${response.status}, using defaults`)
+        setForumData({
+          totalPosts: 0,
+          totalUsers: 0,
+          totalCategories: 0,
+          onlineUsers: 0,
+        })
+        return
       }
-    }
 
-    fetchForumData()
-  }, [])
+      const result = await response.json()
+      console.log("📊 Stats API response:", result)
+
+      if (result.success && result.data) {
+        setForumData({
+          totalPosts: result.data.totalPosts || 0,
+          totalUsers: result.data.totalUsers || 0,
+          totalCategories: result.data.totalCategories || 0,
+          onlineUsers: result.data.onlineUsers || result.data.activeToday || 0,
+        })
+        console.log("✅ Forum stats loaded successfully")
+      } else {
+        console.warn("⚠️ Stats API returned invalid data, using defaults")
+        setForumData({
+          totalPosts: 0,
+          totalUsers: 0,
+          totalCategories: 0,
+          onlineUsers: 0,
+        })
+      }
+    } catch (error) {
+      console.error("❌ Error loading forum stats:", error)
+      // Use default values instead of showing error
+      setForumData({
+        totalPosts: 0,
+        totalUsers: 0,
+        totalCategories: 0,
+        onlineUsers: 0,
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const loadCategories = async () => {
     try {
@@ -243,6 +279,7 @@ export default function ForumPage() {
         setShowNewPostModal(false)
         loadPosts(selectedCategory || undefined, searchQuery, sortBy)
         loadCategories()
+        loadForumStats() // Refresh stats after creating post
         setError(null)
       } else {
         console.error("❌ Create post API returned error:", data.error)
@@ -637,7 +674,7 @@ export default function ForumPage() {
                 <MessageSquare className="h-8 w-8 text-blue-600" />
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Total Posts</p>
-                  <p className="text-2xl font-bold text-gray-900">{forumData?.totalPosts || 0}</p>
+                  <p className="text-2xl font-bold text-gray-900">{forumData.totalPosts}</p>
                 </div>
               </div>
             </CardContent>
@@ -649,7 +686,7 @@ export default function ForumPage() {
                 <Users className="h-8 w-8 text-green-600" />
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Total Users</p>
-                  <p className="text-2xl font-bold text-gray-900">{forumData?.totalUsers || 0}</p>
+                  <p className="text-2xl font-bold text-gray-900">{forumData.totalUsers}</p>
                 </div>
               </div>
             </CardContent>
@@ -661,7 +698,7 @@ export default function ForumPage() {
                 <Clock className="h-8 w-8 text-orange-600" />
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Online Now</p>
-                  <p className="text-2xl font-bold text-gray-900">{forumData?.onlineUsers || 0}</p>
+                  <p className="text-2xl font-bold text-gray-900">{forumData.onlineUsers}</p>
                 </div>
               </div>
             </CardContent>
