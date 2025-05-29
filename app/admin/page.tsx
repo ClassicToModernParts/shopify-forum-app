@@ -263,6 +263,7 @@ export default function AdminPage() {
         throw new Error(`Settings API failed: ${response.status}`)
       }
       const data = await response.json()
+      console.log("Loaded settings:", data)
       if (data.success) {
         setSettings(data.data)
         setLastSaved(data.data.lastUpdated)
@@ -276,7 +277,9 @@ export default function AdminPage() {
 
   const updateSettings = (section: string, key: string, value: any) => {
     setSettings((prev) => {
+      // Create a deep copy of the section
       const updatedSection = { ...prev[section as keyof ForumSettings], [key]: value }
+      // Return a new object with the updated section
       return { ...prev, [section as keyof ForumSettings]: updatedSection }
     })
   }
@@ -286,6 +289,7 @@ export default function AdminPage() {
     setSettingsMessage(null)
 
     try {
+      console.log("Saving settings:", settings)
       const response = await fetch("/api/admin/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -297,10 +301,11 @@ export default function AdminPage() {
       }
 
       const data = await response.json()
+      console.log("Settings save response:", data)
 
       if (data.success) {
         setSettingsMessage({ type: "success", text: "Settings saved successfully!" })
-        setLastSaved(new Date().toISOString())
+        setLastSaved(data.data.lastUpdated)
         setTimeout(() => setSettingsMessage(null), 3000)
       } else {
         setSettingsMessage({ type: "error", text: data.error || "Failed to save settings" })
