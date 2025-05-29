@@ -179,7 +179,6 @@ export default function ForumPage() {
         console.log("📂 Categories data:", data.data)
         console.log("📊 Categories count:", Array.isArray(data.data) ? data.data.length : "Not an array")
 
-        // Ensure data.data is an array
         const categoriesArray = Array.isArray(data.data) ? data.data : []
         setCategories(categoriesArray)
 
@@ -188,12 +187,12 @@ export default function ForumPage() {
         }
       } else {
         console.error("❌ Categories API returned error:", data.error)
-        setCategories([]) // Set empty array on error
+        setCategories([])
         setError("Failed to load categories. Please try again later.")
       }
     } catch (error) {
       console.error("❌ Error loading categories:", error)
-      setCategories([]) // Set empty array on error
+      setCategories([])
       setError("Failed to load categories. Please try again later.")
     }
   }
@@ -217,7 +216,6 @@ export default function ForumPage() {
 
       if (data.success) {
         console.log("✅ Posts loaded:", data.data)
-        // Ensure data.data is an array
         const postsArray = Array.isArray(data.data) ? data.data : []
         setPosts(postsArray)
 
@@ -230,14 +228,14 @@ export default function ForumPage() {
         }
       } else {
         console.error("❌ Posts API returned error:", data.error)
-        setPosts([]) // Set empty array on error
-        setCategoryPosts([]) // Set empty array on error
+        setPosts([])
+        setCategoryPosts([])
         setError("Failed to load posts. Please try again later.")
       }
     } catch (error) {
       console.error("❌ Error loading posts:", error)
-      setPosts([]) // Set empty array on error
-      setCategoryPosts([]) // Set empty array on error
+      setPosts([])
+      setCategoryPosts([])
       setError("Failed to load posts. Please try again later.")
     } finally {
       setLoading(false)
@@ -257,16 +255,15 @@ export default function ForumPage() {
 
       if (data.success) {
         console.log("✅ Replies loaded:", data.data)
-        // Ensure data.data is an array
         const repliesArray = Array.isArray(data.data) ? data.data : []
         setReplies(repliesArray)
       } else {
         console.error("❌ Replies API returned error:", data.error)
-        setReplies([]) // Set empty array on error
+        setReplies([])
       }
     } catch (error) {
       console.error("❌ Error loading replies:", error)
-      setReplies([]) // Set empty array on error
+      setReplies([])
     }
   }
 
@@ -347,25 +344,24 @@ export default function ForumPage() {
         setError(null)
       } else {
         console.error("❌ Create post API returned error:", data)
-        
-        // More detailed error message
+
         let errorMessage = data.error || "Failed to create post. Please try again."
-        
+
         if (data.missingFields) {
           const missing = Object.entries(data.missingFields)
             .filter(([_, isMissing]) => isMissing)
             .map(([field, _]) => field)
           errorMessage = `Missing required fields: ${missing.join(", ")}`
         }
-        
+
         if (data.availableCategories) {
-          errorMessage += ` Available categories: ${data.availableCategories.map(c => c.name).join(", ")}`
+          errorMessage += ` Available categories: ${data.availableCategories.map((c) => c.name).join(", ")}`
         }
-        
+
         if (data.details) {
           console.error("❌ Detailed error:", data.details)
         }
-        
+
         setError(errorMessage)
       }
     } catch (error) {
@@ -502,8 +498,6 @@ export default function ForumPage() {
     return date.toLocaleDateString()
   }
 
-  const getCategoryById = (id: string) => categories.find((c) => c.id === id)
-
   const handleNewPostClick = () => {
     if (!requireAuth("create posts")) return
 
@@ -602,466 +596,426 @@ export default function ForumPage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">{error}</div>}
 
-      {/* Forum Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <div className="flex items-center">
-            <MessageSquare className="h-8 w-8 text-blue-600" />
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Posts</p>
-              <p className="text-2xl font-bold text-gray-900">{forumData.totalPosts}</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center">
+              <MessageSquare className="h-8 w-8 text-blue-600" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Posts</p>
+                <p className="text-2xl font-bold text-gray-900">{forumData.totalPosts}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center">
+              <Users className="h-8 w-8 text-green-600" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Users</p>
+                <p className="text-2xl font-bold text-gray-900">{forumData.totalUsers}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center">
+              <Clock className="h-8 w-8 text-orange-600" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Online Now</p>
+                <p className="text-2xl font-bold text-gray-900">{forumData.onlineUsers}</p>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <div className="flex items-center">
-            <Users className="h-8 w-8 text-green-600" />
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Users</p>
-              <p className="text-2xl font-bold text-gray-900">{forumData.totalUsers}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <div className="flex items-center">
-            <Clock className="h-8 w-8 text-orange-600" />
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Online Now</p>
-              <p className="text-2xl font-bold text-gray-900">{forumData.onlineUsers}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Individual Post View */}
-      {selectedPost ? (
-        <div className="bg-white rounded-lg shadow-sm border">
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-6">
-              <button
-                onClick={() => setSelectedPost(null)}
-                className="text-blue-600 hover:text-blue-800 font-medium"
-              >
-                ← Back to {showCategoryPosts ? currentCategoryName : 'Categories'}
-              </button>
-              {isAuthenticated && (
-                <Button onClick={() => setShowReplyModal(true)}>
-                  Reply to Post
-                </Button>
-              )}
-            </div>
-
-            {/* Post Content */}
-            <div className="border-b pb-6 mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <h1 className="text-2xl font-bold text-gray-900">{selectedPost.title}</h1>
-                <div className="flex items-center space-x-4 text-sm text-gray-500">
-                  <span>{selectedPost.views} views</span>
-                  <span>{selectedPost.likes} likes</span>
-                  <span>{selectedPost.replies} replies</span>
-                </div>
-              </div>
-              
-              <div className="flex items-center space-x-4 mb-4">
-                <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">
-                  <span className="text-sm font-medium text-gray-700">
-                    {selectedPost.author.charAt(0).toUpperCase()}
-                  </span>
-                </div>
-                <div>
-                  <p className="font-medium text-gray-900">{selectedPost.author}</p>
-                  <p className="text-sm text-gray-500">{formatDate(selectedPost.createdAt)}</p>
-                </div>
-              </div>
-
-              <div className="prose max-w-none mb-4">
-                <p className="text-gray-700 whitespace-pre-wrap">{selectedPost.content}</p>
-              </div>
-
-              <div className="flex items-center space-x-4">
-                <button
-                  onClick={() => likePost(selectedPost.id)}
-                  className="flex items-center space-x-2 text-gray-500 hover:text-blue-600"
-                >
-                  <span>👍</span>
-                  <span>{selectedPost.likes}</span>
+        {selectedPost ? (
+          <div className="bg-white rounded-lg shadow-sm border">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <button onClick={() => setSelectedPost(null)} className="text-blue-600 hover:text-blue-800 font-medium">
+                  ← Back to {showCategoryPosts ? currentCategoryName : "Categories"}
                 </button>
-                {selectedPost.tags && selectedPost.tags.length > 0 && (
-                  <div className="flex items-center space-x-2">
-                    {selectedPost.tags.map((tag, index) => (
-                      <span
-                        key={index}
-                        className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full"
-                      >
-                        {tag}
-                      </span>
+                {isAuthenticated && <Button onClick={() => setShowReplyModal(true)}>Reply to Post</Button>}
+              </div>
+
+              <div className="border-b pb-6 mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h1 className="text-2xl font-bold text-gray-900">{selectedPost.title}</h1>
+                  <div className="flex items-center space-x-4 text-sm text-gray-500">
+                    <span>{selectedPost.views} views</span>
+                    <span>{selectedPost.likes} likes</span>
+                    <span>{selectedPost.replies} replies</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-4 mb-4">
+                  <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">
+                    <span className="text-sm font-medium text-gray-700">
+                      {selectedPost.author.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">{selectedPost.author}</p>
+                    <p className="text-sm text-gray-500">{formatDate(selectedPost.createdAt)}</p>
+                  </div>
+                </div>
+
+                <div className="prose max-w-none mb-4">
+                  <p className="text-gray-700 whitespace-pre-wrap">{selectedPost.content}</p>
+                </div>
+
+                <div className="flex items-center space-x-4">
+                  <button
+                    onClick={() => likePost(selectedPost.id)}
+                    className="flex items-center space-x-2 text-gray-500 hover:text-blue-600"
+                  >
+                    <span>👍</span>
+                    <span>{selectedPost.likes}</span>
+                  </button>
+                  {selectedPost.tags && selectedPost.tags.length > 0 && (
+                    <div className="flex items-center space-x-2">
+                      {selectedPost.tags.map((tag, index) => (
+                        <span key={index} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-lg font-semibold mb-4">Replies ({replies.length})</h3>
+
+                {replies.length > 0 ? (
+                  <div className="space-y-4">
+                    {replies.map((reply) => (
+                      <div key={reply.id} className="border-l-4 border-gray-200 pl-4">
+                        <div className="flex items-center space-x-4 mb-2">
+                          <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                            <span className="text-xs font-medium text-gray-700">
+                              {reply.author.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">{reply.author}</p>
+                            <p className="text-xs text-gray-500">{formatDate(reply.createdAt)}</p>
+                          </div>
+                        </div>
+                        <p className="text-gray-700 mb-2 whitespace-pre-wrap">{reply.content}</p>
+                        <button
+                          onClick={() => likeReply(reply.id)}
+                          className="flex items-center space-x-1 text-gray-500 hover:text-blue-600 text-sm"
+                        >
+                          <span>👍</span>
+                          <span>{reply.likes}</span>
+                        </button>
+                      </div>
                     ))}
                   </div>
+                ) : (
+                  <p className="text-gray-500 text-center py-8">No replies yet. Be the first to reply!</p>
                 )}
               </div>
             </div>
+          </div>
+        ) : showCategoryPosts ? (
+          <div className="bg-white rounded-lg shadow-sm border">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <button
+                    onClick={handleBackToCategories}
+                    className="text-blue-600 hover:text-blue-800 font-medium mb-2"
+                  >
+                    ← Back to Categories
+                  </button>
+                  <h2 className="text-2xl font-bold">{currentCategoryName}</h2>
+                  <p className="text-gray-600">Browse posts in this category</p>
+                </div>
+                {isAuthenticated && (
+                  <Button onClick={handleNewPostClick}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    New Post
+                  </Button>
+                )}
+              </div>
 
-            {/* Replies */}
-            <div>
-              <h3 className="text-lg font-semibold mb-4">
-                Replies ({replies.length})
-              </h3>
-              
-              {replies.length > 0 ? (
+              <div className="flex items-center space-x-4 mb-6">
+                <input
+                  type="text"
+                  placeholder="Search posts..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value)
+                    loadPosts(selectedCategory || undefined, e.target.value, sortBy)
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <select
+                  value={sortBy}
+                  onChange={(e) => {
+                    setSortBy(e.target.value)
+                    loadPosts(selectedCategory || undefined, searchQuery, e.target.value)
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="recent">Most Recent</option>
+                  <option value="popular">Most Popular</option>
+                  <option value="replies">Most Replies</option>
+                  <option value="oldest">Oldest First</option>
+                </select>
+              </div>
+
+              {loading ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="mt-2 text-gray-600">Loading posts...</p>
+                </div>
+              ) : categoryPosts.length > 0 ? (
                 <div className="space-y-4">
-                  {replies.map((reply) => (
-                    <div key={reply.id} className="border-l-4 border-gray-200 pl-4">
-                      <div className="flex items-center space-x-4 mb-2">
-                        <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-                          <span className="text-xs font-medium text-gray-700">
-                            {reply.author.charAt(0).toUpperCase()}
-                          </span>
+                  {categoryPosts.map((post) => (
+                    <div
+                      key={post.id}
+                      className="border rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
+                      onClick={() => handlePostClick(post)}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-gray-900 mb-2">{post.title}</h3>
+                          <p className="text-gray-600 text-sm mb-3 line-clamp-2">{post.content.substring(0, 150)}...</p>
+                          <div className="flex items-center space-x-4 text-sm text-gray-500">
+                            <span>By {post.author}</span>
+                            <span>{formatDate(post.createdAt)}</span>
+                            {post.tags && post.tags.length > 0 && (
+                              <div className="flex space-x-1">
+                                {post.tags.slice(0, 3).map((tag, index) => (
+                                  <span key={index} className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">
+                                    {tag}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium text-gray-900">{reply.author}</p>
-                          <p className="text-xs text-gray-500">{formatDate(reply.createdAt)}</p>
+                        <div className="text-right ml-4">
+                          <div className="flex items-center space-x-4 text-sm text-gray-500">
+                            <span>{post.views} views</span>
+                            <span>{post.likes} likes</span>
+                            <span>{post.replies} replies</span>
+                          </div>
                         </div>
                       </div>
-                      <p className="text-gray-700 mb-2 whitespace-pre-wrap">{reply.content}</p>
-                      <button
-                        onClick={() => likeReply(reply.id)}
-                        className="flex items-center space-x-1 text-gray-500 hover:text-blue-600 text-sm"
-                      >
-                        <span>👍</span>
-                        <span>{reply.likes}</span>
-                      </button>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-gray-500 text-center py-8">
-                  No replies yet. Be the first to reply!
-                </p>
+                <div className="text-center py-12">
+                  <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No posts in this category yet</h3>
+                  <p className="text-gray-600 mb-4">Be the first to start a discussion!</p>
+                  {isAuthenticated && (
+                    <Button onClick={handleNewPostClick}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create First Post
+                    </Button>
+                  )}
+                </div>
               )}
             </div>
           </div>
-        </div>
-      ) : showCategoryPosts ? (
-        /* Category Posts View */
-        <div className="bg-white rounded-lg shadow-sm border">
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <button
-                  onClick={handleBackToCategories}
-                  className="text-blue-600 hover:text-blue-800 font-medium mb-2"
-                >
-                  ← Back to Categories
-                </button>
-                <h2 className="text-2xl font-bold">{currentCategoryName}</h2>
-                <p className="text-gray-600">Browse posts in this category</p>
-              </div>
-              {isAuthenticated && (
-                <Button onClick={handleNewPostClick}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  New Post
-                </Button>
-              )}
-            </div>
-
-            {/* Search and Sort */}
-            <div className="flex items-center space-x-4 mb-6">
-              <input
-                type="text"
-                placeholder="Search posts..."
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value)
-                  loadPosts(selectedCategory || undefined, e.target.value, sortBy)
-                }}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              <select
-                value={sortBy}
-                onChange={(e) => {
-                  setSortBy(e.target.value)
-                  loadPosts(selectedCategory || undefined, searchQuery, e.target.value)
-                }}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="recent">Most Recent</option>
-                <option value="popular">Most Popular</option>
-                <option value="replies">Most Replies</option>
-                <option value="oldest">Oldest First</option>
-              </select>
-            </div>
-
-            {/* Posts List */}
-            {loading ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                <p className="mt-2 text-gray-600">Loading posts...</p>
-              </div>
-            ) : categoryPosts.length > 0 ? (
-              <div className="space-y-4">
-                {categoryPosts.map((post) => (
-                  <div
-                    key={post.id}
-                    className="border rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
-                    onClick={() => handlePostClick(post)}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900 mb-2">{post.title}</h3>
-                        <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-                          {post.content.substring(0, 150)}...
-                        </p>
-                        <div className="flex items-center space-x-4 text-sm text-gray-500">
-                          <span>By {post.author}</span>
-                          <span>{formatDate(post.createdAt)}</span>
-                          {post.tags && post.tags.length > 0 && (
-                            <div className="flex space-x-1">
-                              {post.tags.slice(0, 3).map((tag, index) => (
-                                <span
-                                  key={index}
-                                  className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded"
-                                >
-                                  {tag}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="text-right ml-4">
-                        <div className="flex items-center space-x-4 text-sm text-gray-500">
-                          <span>{post.views} views</span>
-                          <span>{post.likes} likes</span>
-                          <span>{post.replies} replies</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No posts in this category yet</h3>
-                <p className="text-gray-600 mb-4">Be the first to start a discussion!</p>
-                {isAuthenticated && (
+        ) : (
+          <div className="bg-white rounded-lg shadow-sm border">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold">Categories</h2>
+                  <p className="text-gray-600">Browse topics and join the conversation</p>
+                </div>
+                {isAuthenticated ? (
                   <Button onClick={handleNewPostClick}>
                     <Plus className="h-4 w-4 mr-2" />
-                    Create First Post
+                    New Post
                   </Button>
+                ) : (
+                  <Link href="/login">
+                    <Button>
+                      <LogIn className="h-4 w-4 mr-2" />
+                      Login to Post
+                    </Button>
+                  </Link>
                 )}
               </div>
-            )}
-          </div>
-        </div>
-      ) : (
-        /* Categories View */
-        <div className="bg-white rounded-lg shadow-sm border">
-          <div className="p-6">
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h2 className="text-2xl font-bold">Categories</h2>
-                <p className="text-gray-600">Browse topics and join the conversation</p>
-              </div>
-              {isAuthenticated ? (
-                <Button onClick={handleNewPostClick}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  New Post
-                </Button>
-              ) : (
-                <Link href="/login">
-                  <Button>
-                    <LogIn className="h-4 w-4 mr-2" />
-                    Login to Post
-                  </Button>
-                </Link>
-              )}
-            </div>
 
-            {categories && categories.length > 0 ? (
-              <div className="space-y-4">
-                {categories.map((category) => (
-                  <div
-                    key={category.id}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
-                    onClick={() => handleCategoryClick(category.id)}
-                  >
-                    <div className="flex items-center space-x-4">
-                      <div
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: category.color || "#3B82F6" }}
-                      ></div>
-                      <div>
-                        <h3 className="font-semibold text-gray-900">{category.name}</h3>
-                        <p className="text-sm text-gray-600">{category.description}</p>
+              {categories && categories.length > 0 ? (
+                <div className="space-y-4">
+                  {categories.map((category) => (
+                    <div
+                      key={category.id}
+                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                      onClick={() => handleCategoryClick(category.id)}
+                    >
+                      <div className="flex items-center space-x-4">
+                        <div
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: category.color || "#3B82F6" }}
+                        ></div>
+                        <div>
+                          <h3 className="font-semibold text-gray-900">{category.name}</h3>
+                          <p className="text-sm text-gray-600">{category.description}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                          {category.postCount}
+                        </span>
+                        <p className="text-xs text-gray-500 mt-1">{formatDate(category.lastActivity)}</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                        {category.postCount}
-                      </span>
-                      <p className="text-xs text-gray-500 mt-1">{formatDate(category.lastActivity)}</p>
-                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No categories yet</h3>
+
+                  {!isAuthenticated ? (
+                    <>
+                      <p className="text-gray-600 mb-4">Create an account to join the conversation!</p>
+                      <div className="space-x-2">
+                        <Link href="/login">
+                          <Button variant="outline">Login</Button>
+                        </Link>
+                        <Link href="/register">
+                          <Button>Sign Up</Button>
+                        </Link>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-gray-600 mb-4">The forum appears to be empty. This might mean:</p>
+                      <ul className="text-sm text-gray-500 mb-4 space-y-1">
+                        <li>• The system needs to be initialized</li>
+                        <li>• Categories haven't been created yet</li>
+                        <li>• There was a recent deployment</li>
+                      </ul>
+                      <div className="space-x-2">
+                        <Link href="/admin/init-system">
+                          <Button>Check System Status</Button>
+                        </Link>
+                        <button
+                          onClick={() => {
+                            loadCategories()
+                            loadForumStats()
+                          }}
+                          className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                        >
+                          Refresh
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {showNewPostModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-screen overflow-y-auto">
+              <div className="p-6">
+                <h3 className="text-lg font-semibold mb-4">Create New Post</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                    <input
+                      type="text"
+                      value={newPost.title}
+                      onChange={(e) => setNewPost({ ...newPost, title: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter post title..."
+                    />
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No categories yet</h3>
-
-                {!isAuthenticated ? (
-                  <>
-                    <p className="text-gray-600 mb-4">Create an account to join the conversation!</p>
-                    <div className="space-x-2">
-                      <Link href="/login">
-                        <Button variant="outline">Login</Button>
-                      </Link>
-                      <Link href="/register">
-                        <Button>Sign Up</Button>
-                      </Link>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-gray-600 mb-4">The forum appears to be empty. This might mean:</p>
-                    <ul className="text-sm text-gray-500 mb-4 space-y-1">
-                      <li>• The system needs to be initialized</li>
-                      <li>• Categories haven't been created yet</li>
-                      <li>• There was a recent deployment</li>
-                    </ul>
-                    <div className="space-x-2">
-                      <Link href="/admin/init-system">
-                        <Button>Check System Status</Button>
-                      </Link>
-                      <button
-                        onClick={() => {
-                          loadCategories()
-                          loadForumStats()
-                        }}
-                        className="px-4 py-2 border rounded-lg hover:bg-gray-50"
-                      >
-                        Refresh
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* New Post Modal */}
-      {showNewPostModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-screen overflow-y-auto">
-            <div className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Create New Post</h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-                  <input
-                    type="text"
-                    value={newPost.title}
-                    onChange={(e) => setNewPost({ ...newPost, title: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Enter post title..."
-                  />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                    <select
+                      value={newPost.categoryId}
+                      onChange={(e) => setNewPost({ ...newPost, categoryId: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Select a category</option>
+                      {categories.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {category.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Content</label>
+                    <textarea
+                      value={newPost.content}
+                      onChange={(e) => setNewPost({ ...newPost, content: e.target.value })}
+                      rows={6}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Write your post content..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tags (comma-separated)</label>
+                    <input
+                      type="text"
+                      value={newPost.tags}
+                      onChange={(e) => setNewPost({ ...newPost, tags: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="e.g., help, question, discussion"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                  <select
-                    value={newPost.categoryId}
-                    onChange={(e) => setNewPost({ ...newPost, categoryId: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="">Select a category</option>
-                    {categories.map((category) => (
-                      <option key={category.id} value={category.id}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </select>
+                <div className="flex justify-end space-x-3 mt-6">
+                  <Button variant="outline" onClick={() => setShowNewPostModal(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={createPost} disabled={loading}>
+                    {loading ? "Creating..." : "Create Post"}
+                  </Button>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Content</label>
-                  <textarea
-                    value={newPost.content}
-                    onChange={(e) => setNewPost({ ...newPost, content: e.target.value })}
-                    rows={6}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Write your post content..."
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Tags (comma-separated)</label>
-                  <input
-                    type="text"
-                    value={newPost.tags}
-                    onChange={(e) => setNewPost({ ...newPost, tags: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="e.g., help, question, discussion"
-                  />
-                </div>
-              </div>
-              <div className="flex justify-end space-x-3 mt-6">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowNewPostModal(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={createPost}
-                  disabled={loading}
-                >
-                  {loading ? "Creating..." : "Create Post"}
-                </Button>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Reply Modal */}
-      {showReplyModal && selectedPost && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-            <div className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Reply to: {selectedPost.title}</h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Your Reply</label>
-                  <textarea
-                    value={newReply.content}
-                    onChange={(e) => setNewReply({ ...newReply, content: e.target.value })}
-                    rows={6}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Write your reply..."
-                  />
+        {showReplyModal && selectedPost && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+              <div className="p-6">
+                <h3 className="text-lg font-semibold mb-4">Reply to: {selectedPost.title}</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Your Reply</label>
+                    <textarea
+                      value={newReply.content}
+                      onChange={(e) => setNewReply({ ...newReply, content: e.target.value })}
+                      rows={6}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Write your reply..."
+                    />
+                  </div>
                 </div>
-              </div>
-              <div className="flex justify-end space-x-3 mt-6">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowReplyModal(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={createReply}
-                  disabled={loading}
-                >
-                  {loading ? "Posting..." : "Post Reply"}
-                </Button>
+                <div className="flex justify-end space-x-3 mt-6">
+                  <Button variant="outline" onClick={() => setShowReplyModal(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={createReply} disabled={loading}>
+                    {loading ? "Posting..." : "Post Reply"}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
-    </main>
-  </div>
-)
+        )}
+      </main>
+    </div>
+  )
+}
