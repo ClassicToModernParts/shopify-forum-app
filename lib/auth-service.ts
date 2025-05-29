@@ -45,7 +45,7 @@ export class AuthService {
   async registerUser(userData: UserRegistrationData): Promise<AuthResult> {
     try {
       // Check if username already exists
-      const existingUsername = forumDataStore.getUserByUsername(userData.username)
+      const existingUsername = await forumDataStore.getUserByUsername(userData.username)
       if (existingUsername) {
         return {
           success: false,
@@ -57,7 +57,7 @@ export class AuthService {
       const hashedPassword = simpleHash(userData.password)
 
       // Create the user
-      const newUser = forumDataStore.addUser({
+      const newUser = await forumDataStore.addUser({
         username: userData.username,
         name: userData.name,
         password: hashedPassword,
@@ -90,7 +90,7 @@ export class AuthService {
   async loginUser(loginData: UserLoginData): Promise<AuthResult> {
     try {
       // Find user by username
-      const user = forumDataStore.getUserByUsername(loginData.username)
+      const user = await forumDataStore.getUserByUsername(loginData.username)
       if (!user) {
         return {
           success: false,
@@ -108,7 +108,7 @@ export class AuthService {
       }
 
       // Update last active timestamp
-      forumDataStore.updateUserActivity(user.id)
+      await forumDataStore.updateUserActivity(user.id)
 
       // Generate token
       const token = generateToken(user.id)
@@ -133,7 +133,7 @@ export class AuthService {
   }
 
   // Verify token (simplified)
-  verifyToken(token: string) {
+  async verifyToken(token: string) {
     try {
       const parts = token.split("_")
       if (parts.length !== 3) {
@@ -141,7 +141,7 @@ export class AuthService {
       }
 
       const userId = parts[0]
-      const user = forumDataStore.getUserById(userId)
+      const user = await forumDataStore.getUserById(userId)
 
       if (!user) {
         return { valid: false, decoded: null }
