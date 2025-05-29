@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { MessageSquare, Plus, Eye, Heart, Pin, Lock, ArrowLeft, Send, X } from "lucide-react"
+import { MessageSquare, Users, Clock, Plus, Eye, Heart, Pin, Lock, ArrowLeft, Send, X } from "lucide-react"
 import Link from "next/link"
 import useUserAuth from "@/hooks/useUserAuth"
 
@@ -227,7 +227,7 @@ export default function ForumPage() {
   const handlePostClick = async (post: Post) => {
     console.log("🔍 Post clicked:", post.id)
     setSelectedPost(post)
-    
+
     try {
       // Increment view count
       const viewResponse = await fetch(`/api/forum?type=post&shop_id=demo&post_id=${post.id}`)
@@ -235,10 +235,10 @@ export default function ForumPage() {
         const viewData = await viewResponse.json()
         if (viewData.success && viewData.data) {
           // Update the post with the latest view count
-          setSelectedPost(prev => prev ? {...prev, views: viewData.data.views} : null)
+          setSelectedPost((prev) => (prev ? { ...prev, views: viewData.data.views } : null))
         }
       }
-      
+
       // Load replies
       await loadReplies(post.id)
     } catch (error) {
@@ -380,24 +380,16 @@ export default function ForumPage() {
       const data = await response.json()
       if (data.success) {
         console.log("✅ Post liked successfully:", data.data)
-        
+
         // Update the post in the posts list
-        setPosts(prevPosts => 
-          prevPosts.map(p => 
-            p.id === postId ? {...p, likes: data.data.likes} : p
-          )
-        )
-        
+        setPosts((prevPosts) => prevPosts.map((p) => (p.id === postId ? { ...p, likes: data.data.likes } : p)))
+
         // Update the post in category posts if applicable
-        setCategoryPosts(prevPosts => 
-          prevPosts.map(p => 
-            p.id === postId ? {...p, likes: data.data.likes} : p
-          )
-        )
-        
+        setCategoryPosts((prevPosts) => prevPosts.map((p) => (p.id === postId ? { ...p, likes: data.data.likes } : p)))
+
         // Update the selected post if applicable
         if (selectedPost && selectedPost.id === postId) {
-          setSelectedPost({...selectedPost, likes: data.data.likes})
+          setSelectedPost({ ...selectedPost, likes: data.data.likes })
         }
       } else {
         console.error("❌ Like post API returned error:", data.error)
@@ -428,13 +420,9 @@ export default function ForumPage() {
       const data = await response.json()
       if (data.success) {
         console.log("✅ Reply liked successfully:", data.data)
-        
+
         // Update the reply in the replies list
-        setReplies(prevReplies => 
-          prevReplies.map(r => 
-            r.id === replyId ? {...r, likes: data.data.likes} : r
-          )
-        )
+        setReplies((prevReplies) => prevReplies.map((r) => (r.id === replyId ? { ...r, likes: data.data.likes } : r)))
       } else {
         console.error("❌ Like reply API returned error:", data.error)
       }
@@ -646,10 +634,10 @@ export default function ForumPage() {
                           <div className="text-sm text-gray-500">{formatDate(reply.createdAt)}</div>
                         </div>
                       </div>
-                      <button 
+                      <button
                         onClick={(e) => {
-                          e.stopPropagation();
-                          likeReply(reply.id);
+                          e.stopPropagation()
+                          likeReply(reply.id)
                         }}
                         className="flex items-center space-x-2 text-gray-500 hover:text-red-500 transition-colors"
                       >
@@ -838,6 +826,244 @@ export default function ForumPage() {
             </div>
           </div>
         </main>
+
+        {/* New Post Modal */}
+        {showNewPostModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-3xl">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold">Create New Post</h2>
+                <button onClick={() => setShowNewPostModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">{error}</div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Title *</label>
+                  <input
+                    type="text"
+                    placeholder="Enter post title..."
+                    value={newPost.title}
+                    onChange={(e) => setNewPost({ ...newPost, title: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Category *</label>
+                  <select
+                    value={newPost.categoryId}
+                    onChange={(e) => setNewPost({ ...newPost, categoryId: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select a category</option>
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Your Name *</label>
+                  <input
+                    type="text"
+                    placeholder="Enter your name..."
+                    value={newPost.author}
+                    onChange={(e) => setNewPost({ ...newPost, author: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Content *</label>
+                  <textarea
+                    placeholder="Write your post..."
+                    rows={8}
+                    value={newPost.content}
+                    onChange={(e) => setNewPost({ ...newPost, content: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Tags (comma separated)</label>
+                  <input
+                    type="text"
+                    placeholder="tag1, tag2, tag3..."
+                    value={newPost.tags}
+                    onChange={(e) => setNewPost({ ...newPost, tags: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    onClick={createPost}
+                    disabled={loading}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {loading ? "Creating..." : "Create Post"}
+                  </button>
+                  <button
+                    onClick={() => setShowNewPostModal(false)}
+                    className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  )
+  }
+
+  // Main Forum View (Categories)
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-4">
+            <div className="flex items-center space-x-4">
+              <div className="bg-blue-600 p-2 rounded-lg">
+                <MessageSquare className="h-8 w-8 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Community Forum</h1>
+                <p className="text-gray-600">Connect • Share • Grow</p>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-4">
+              {isAuthenticated && user ? (
+                <div className="flex items-center space-x-4">
+                  <span className="text-sm text-gray-600">Welcome, {user.name}!</span>
+                  <Button variant="outline" onClick={logout}>
+                    Logout
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center space-x-2">
+                  <Link href="/login">
+                    <Button variant="outline">Login</Button>
+                  </Link>
+                  <Link href="/register">
+                    <Button>Sign Up</Button>
+                  </Link>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">{error}</div>}
+
+        {/* Forum Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center">
+              <MessageSquare className="h-8 w-8 text-blue-600" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Posts</p>
+                <p className="text-2xl font-bold text-gray-900">{forumData.totalPosts}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center">
+              <Users className="h-8 w-8 text-green-600" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Users</p>
+                <p className="text-2xl font-bold text-gray-900">{forumData.totalUsers}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center">
+              <Clock className="h-8 w-8 text-orange-600" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Online Now</p>
+                <p className="text-2xl font-bold text-gray-900">{forumData.onlineUsers}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Categories Section */}
+        <div className="bg-white rounded-lg shadow-sm border">
+          <div className="p-6">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-2xl font-bold">Categories</h2>
+                <p className="text-gray-600">Browse topics and join the conversation</p>
+              </div>
+              <Button onClick={handleNewPostClick}>
+                <Plus className="h-4 w-4 mr-2" />
+                New Post
+              </Button>
+            </div>
+
+            {categories && categories.length > 0 ? (
+              <div className="space-y-4">
+                {categories.map((category) => (
+                  <div
+                    key={category.id}
+                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                    onClick={() => handleCategoryClick(category.id)}
+                  >
+                    <div className="flex items-center space-x-4">
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: category.color || "#3B82F6" }}
+                      ></div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900">{category.name}</h3>
+                        <p className="text-sm text-gray-600">{category.description}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                        {category.postCount}
+                      </span>
+                      <p className="text-xs text-gray-500 mt-1">{formatDate(category.lastActivity)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No categories yet</h3>
+                <p className="text-gray-600 mb-4">Be the first to start a conversation!</p>
+                {!isAuthenticated && (
+                  <div className="space-x-2">
+                    <Link href="/login">
+                      <Button variant="outline">Login</Button>
+                    </Link>
+                    <Link href="/register">
+                      <Button>Sign Up to Post</Button>
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* New Post Modal */}
         {showNewPostModal && (
