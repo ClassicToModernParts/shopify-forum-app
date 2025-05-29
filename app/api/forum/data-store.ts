@@ -59,11 +59,13 @@ class ForumDataStore {
         author: "Admin",
         categoryId: "cat-1",
         createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         replies: 2,
         views: 120,
         likes: 15,
         isPinned: true,
         isLocked: false,
+        tags: ["welcome", "introduction"],
         status: "active",
       },
       {
@@ -73,11 +75,13 @@ class ForumDataStore {
         author: "Support Team",
         categoryId: "cat-2",
         createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         replies: 5,
         views: 85,
         likes: 10,
         isPinned: false,
         isLocked: false,
+        tags: ["guide", "tips"],
         status: "active",
       },
     ]
@@ -149,53 +153,127 @@ class ForumDataStore {
   }
 
   getCategoryById(id: string) {
-    return this.categories.find((cat) => cat.id === id)
+    try {
+      console.log(`🔍 Getting category by ID: ${id}`)
+      if (!Array.isArray(this.categories)) {
+        console.warn("⚠️ Categories is not an array, resetting to default")
+        this.categories = []
+        return null
+      }
+
+      const category = this.categories.find((cat) => cat.id === id)
+      console.log(`🔍 Category found:`, category ? "Yes" : "No")
+      return category || null
+    } catch (error) {
+      console.error(`❌ Error getting category by ID ${id}:`, error)
+      return null
+    }
   }
 
   createCategory(categoryData: any) {
-    const newCategory = {
-      id: `cat-${Date.now()}`,
-      ...categoryData,
-      postCount: 0,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+    try {
+      console.log("📝 Creating new category:", categoryData)
+
+      const newCategory = {
+        id: `cat-${Date.now()}`,
+        ...categoryData,
+        postCount: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+
+      if (!Array.isArray(this.categories)) {
+        console.warn("⚠️ Categories is not an array, resetting to default")
+        this.categories = []
+      }
+
+      this.categories.push(newCategory)
+      console.log(`✅ Category created with ID: ${newCategory.id}`)
+      return newCategory
+    } catch (error) {
+      console.error("❌ Error creating category:", error)
+      throw error
     }
-    this.categories.push(newCategory)
-    return newCategory
   }
 
   updateCategory(id: string, updates: any) {
-    const index = this.categories.findIndex((cat) => cat.id === id)
-    if (index === -1) return null
+    try {
+      console.log(`🔄 Updating category ${id}:`, updates)
 
-    this.categories[index] = {
-      ...this.categories[index],
-      ...updates,
-      updatedAt: new Date().toISOString(),
+      if (!Array.isArray(this.categories)) {
+        console.warn("⚠️ Categories is not an array, resetting to default")
+        this.categories = []
+        return null
+      }
+
+      const index = this.categories.findIndex((cat) => cat.id === id)
+      if (index === -1) {
+        console.warn(`⚠️ Category not found: ${id}`)
+        return null
+      }
+
+      this.categories[index] = {
+        ...this.categories[index],
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      }
+
+      console.log(`✅ Category ${id} updated successfully`)
+      return this.categories[index]
+    } catch (error) {
+      console.error(`❌ Error updating category ${id}:`, error)
+      return null
     }
-
-    return this.categories[index]
   }
 
   deleteCategory(id: string) {
-    const index = this.categories.findIndex((cat) => cat.id === id)
-    if (index === -1) return false
+    try {
+      console.log(`🗑️ Deleting category: ${id}`)
 
-    // Check if category has posts
-    const hasPosts = this.posts.some((post) => post.categoryId === id)
-    if (hasPosts) return false
+      if (!Array.isArray(this.categories)) {
+        console.warn("⚠️ Categories is not an array, resetting to default")
+        this.categories = []
+        return false
+      }
 
-    this.categories.splice(index, 1)
-    return true
+      const index = this.categories.findIndex((cat) => cat.id === id)
+      if (index === -1) {
+        console.warn(`⚠️ Category not found: ${id}`)
+        return false
+      }
+
+      // Check if category has posts
+      if (!Array.isArray(this.posts)) {
+        console.warn("⚠️ Posts is not an array, resetting to default")
+        this.posts = []
+      }
+
+      const hasPosts = this.posts.some((post) => post.categoryId === id)
+      if (hasPosts) {
+        console.warn(`⚠️ Cannot delete category ${id} because it has posts`)
+        return false
+      }
+
+      this.categories.splice(index, 1)
+      console.log(`✅ Category ${id} deleted successfully`)
+      return true
+    } catch (error) {
+      console.error(`❌ Error deleting category ${id}:`, error)
+      return false
+    }
   }
 
   // Post methods
   getPosts() {
     try {
+      console.log("📝 Getting all posts")
+
       if (!Array.isArray(this.posts)) {
         console.warn("⚠️ Posts is not an array, resetting to default")
         this.posts = []
       }
+
+      console.log(`📊 Returning ${this.posts.length} posts`)
       return this.posts
     } catch (error) {
       console.error("❌ Error in getPosts:", error)
@@ -204,74 +282,178 @@ class ForumDataStore {
   }
 
   getPostById(id: string) {
-    return this.posts.find((post) => post.id === id)
+    try {
+      console.log(`🔍 Getting post by ID: ${id}`)
+
+      if (!Array.isArray(this.posts)) {
+        console.warn("⚠️ Posts is not an array, resetting to default")
+        this.posts = []
+        return null
+      }
+
+      const post = this.posts.find((post) => post.id === id)
+      console.log(`🔍 Post found:`, post ? "Yes" : "No")
+      return post || null
+    } catch (error) {
+      console.error(`❌ Error getting post by ID ${id}:`, error)
+      return null
+    }
   }
 
   createPost(postData: any) {
-    const newPost = {
-      id: `post-${Date.now()}`,
-      ...postData,
-      replies: 0,
-      views: 0,
-      likes: 0,
-      isPinned: false,
-      isLocked: false,
-      status: "active",
-      createdAt: new Date().toISOString(),
-    }
-    this.posts.push(newPost)
+    try {
+      console.log("📝 Creating new post:", postData)
 
-    // Update category post count
-    const categoryIndex = this.categories.findIndex((cat) => cat.id === postData.categoryId)
-    if (categoryIndex !== -1) {
-      this.categories[categoryIndex].postCount = (this.categories[categoryIndex].postCount || 0) + 1
-    }
+      // Ensure tags is an array
+      const tags = Array.isArray(postData.tags)
+        ? postData.tags
+        : typeof postData.tags === "string"
+          ? postData.tags.split(",").map((t) => t.trim())
+          : []
 
-    return newPost
+      const newPost = {
+        id: `post-${Date.now()}`,
+        ...postData,
+        tags,
+        replies: 0,
+        views: 0,
+        likes: 0,
+        isPinned: false,
+        isLocked: false,
+        status: "active",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+
+      if (!Array.isArray(this.posts)) {
+        console.warn("⚠️ Posts is not an array, resetting to default")
+        this.posts = []
+      }
+
+      this.posts.push(newPost)
+      console.log(`✅ Post created with ID: ${newPost.id}`)
+
+      // Update category post count
+      if (!Array.isArray(this.categories)) {
+        console.warn("⚠️ Categories is not an array, resetting to default")
+        this.categories = []
+      }
+
+      const categoryIndex = this.categories.findIndex((cat) => cat.id === postData.categoryId)
+      if (categoryIndex !== -1) {
+        this.categories[categoryIndex].postCount = (this.categories[categoryIndex].postCount || 0) + 1
+        console.log(
+          `📊 Updated post count for category ${postData.categoryId} to ${this.categories[categoryIndex].postCount}`,
+        )
+      } else {
+        console.warn(`⚠️ Category not found for post count update: ${postData.categoryId}`)
+      }
+
+      return newPost
+    } catch (error) {
+      console.error("❌ Error creating post:", error)
+      throw error
+    }
   }
 
   updatePost(id: string, updates: any) {
-    const index = this.posts.findIndex((post) => post.id === id)
-    if (index === -1) return null
+    try {
+      console.log(`🔄 Updating post ${id}:`, updates)
 
-    this.posts[index] = {
-      ...this.posts[index],
-      ...updates,
+      if (!Array.isArray(this.posts)) {
+        console.warn("⚠️ Posts is not an array, resetting to default")
+        this.posts = []
+        return null
+      }
+
+      const index = this.posts.findIndex((post) => post.id === id)
+      if (index === -1) {
+        console.warn(`⚠️ Post not found: ${id}`)
+        return null
+      }
+
+      this.posts[index] = {
+        ...this.posts[index],
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      }
+
+      console.log(`✅ Post ${id} updated successfully`)
+      return this.posts[index]
+    } catch (error) {
+      console.error(`❌ Error updating post ${id}:`, error)
+      return null
     }
-
-    return this.posts[index]
   }
 
   deletePost(id: string) {
-    const index = this.posts.findIndex((post) => post.id === id)
-    if (index === -1) return false
+    try {
+      console.log(`🗑️ Deleting post: ${id}`)
 
-    const categoryId = this.posts[index].categoryId
+      if (!Array.isArray(this.posts)) {
+        console.warn("⚠️ Posts is not an array, resetting to default")
+        this.posts = []
+        return false
+      }
 
-    // Delete the post
-    this.posts.splice(index, 1)
+      const index = this.posts.findIndex((post) => post.id === id)
+      if (index === -1) {
+        console.warn(`⚠️ Post not found: ${id}`)
+        return false
+      }
 
-    // Update category post count
-    const categoryIndex = this.categories.findIndex((cat) => cat.id === categoryId)
-    if (categoryIndex !== -1 && this.categories[categoryIndex].postCount > 0) {
-      this.categories[categoryIndex].postCount--
+      const categoryId = this.posts[index].categoryId
+
+      // Delete the post
+      this.posts.splice(index, 1)
+      console.log(`✅ Post ${id} deleted successfully`)
+
+      // Update category post count
+      if (!Array.isArray(this.categories)) {
+        console.warn("⚠️ Categories is not an array, resetting to default")
+        this.categories = []
+      }
+
+      const categoryIndex = this.categories.findIndex((cat) => cat.id === categoryId)
+      if (categoryIndex !== -1 && this.categories[categoryIndex].postCount > 0) {
+        this.categories[categoryIndex].postCount--
+        console.log(`📊 Updated post count for category ${categoryId} to ${this.categories[categoryIndex].postCount}`)
+      } else {
+        console.warn(`⚠️ Category not found for post count update: ${categoryId}`)
+      }
+
+      return true
+    } catch (error) {
+      console.error(`❌ Error deleting post ${id}:`, error)
+      return false
     }
-
-    return true
   }
 
   // Settings methods
   getSettings() {
-    return this.settings
+    try {
+      console.log("⚙️ Getting settings")
+      return this.settings || {}
+    } catch (error) {
+      console.error("❌ Error getting settings:", error)
+      return {}
+    }
   }
 
   updateSettings(updates: any) {
-    this.settings = {
-      ...this.settings,
-      ...updates,
-      lastUpdated: new Date().toISOString(),
+    try {
+      console.log("🔄 Updating settings:", updates)
+      this.settings = {
+        ...this.settings,
+        ...updates,
+        lastUpdated: new Date().toISOString(),
+      }
+      console.log("✅ Settings updated successfully")
+      return this.settings
+    } catch (error) {
+      console.error("❌ Error updating settings:", error)
+      return this.settings
     }
-    return this.settings
   }
 
   // User methods
@@ -284,6 +466,11 @@ class ForumDataStore {
         id: `user-${Date.now()}`,
         createdAt: new Date().toISOString(),
         lastActive: new Date().toISOString(),
+      }
+
+      if (!Array.isArray(this.users)) {
+        console.warn("⚠️ Users is not an array, resetting to default")
+        this.users = []
       }
 
       this.users.push(newUser)
@@ -315,9 +502,16 @@ class ForumDataStore {
   async getUserById(id: string) {
     try {
       console.log(`🔍 DataStore: Looking for user with ID: ${id}`)
+
+      if (!Array.isArray(this.users)) {
+        console.warn("⚠️ Users is not an array, resetting to default")
+        this.users = []
+        return null
+      }
+
       const user = this.users.find((u) => u.id === id)
       console.log(`🔍 DataStore: User found:`, user ? "Yes" : "No")
-      return user
+      return user || null
     } catch (error) {
       console.error("❌ DataStore: Error getting user by ID:", error)
       return null
@@ -327,9 +521,16 @@ class ForumDataStore {
   async getUserByUsername(username: string) {
     try {
       console.log(`🔍 DataStore: Looking for user with username: ${username}`)
+
+      if (!Array.isArray(this.users)) {
+        console.warn("⚠️ Users is not an array, resetting to default")
+        this.users = []
+        return null
+      }
+
       const user = this.users.find((u) => u.username === username)
       console.log(`🔍 DataStore: User found:`, user ? "Yes" : "No")
-      return user
+      return user || null
     } catch (error) {
       console.error("❌ DataStore: Error getting user by username:", error)
       return null
@@ -339,6 +540,13 @@ class ForumDataStore {
   async updateUserActivity(userId: string) {
     try {
       console.log(`🔄 DataStore: Updating activity for user: ${userId}`)
+
+      if (!Array.isArray(this.users)) {
+        console.warn("⚠️ Users is not an array, resetting to default")
+        this.users = []
+        return
+      }
+
       const user = this.users.find((u) => u.id === userId)
       if (user) {
         user.lastActive = new Date().toISOString()
@@ -354,6 +562,13 @@ class ForumDataStore {
   async updateSecurityQuestion(userId: string, question: string, answer: string) {
     try {
       console.log(`🔒 DataStore: Updating security question for user: ${userId}`)
+
+      if (!Array.isArray(this.users)) {
+        console.warn("⚠️ Users is not an array, resetting to default")
+        this.users = []
+        return false
+      }
+
       const user = this.users.find((u) => u.id === userId)
       if (user) {
         user.securityQuestion = question

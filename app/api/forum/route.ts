@@ -19,7 +19,7 @@ interface Post {
   title: string
   content: string
   author: string
-  authorEmail: string
+  authorEmail?: string
   categoryId: string
   createdAt: string
   updatedAt: string
@@ -38,7 +38,7 @@ interface Reply {
   postId: string
   content: string
   author: string
-  authorEmail: string
+  authorEmail?: string
   createdAt: string
   updatedAt: string
   likes: number
@@ -63,39 +63,78 @@ interface User {
 
 // Get real data from the data store
 function getRealCategories(): Category[] {
-  const categories = forumDataStore.getCategories()
-  const posts = forumDataStore.getPosts()
+  try {
+    console.log("🔍 Getting real categories from data store")
+    const categories = forumDataStore.getCategories()
+    const posts = forumDataStore.getPosts()
 
-  return categories.map((category) => {
-    const categoryPosts = posts.filter((post) => post.categoryId === category.id)
-    const lastPost = categoryPosts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
-
-    return {
-      id: category.id,
-      name: category.name,
-      description: category.description,
-      postCount: categoryPosts.length,
-      lastActivity: lastPost?.createdAt || category.createdAt,
-      color: "#3B82F6", // Default color, can be customized later
-      icon: "MessageSquare",
-      isPrivate: false,
-      moderators: ["admin@store.com"],
+    if (!Array.isArray(categories)) {
+      console.error("❌ Categories is not an array:", categories)
+      return []
     }
-  })
+
+    if (!Array.isArray(posts)) {
+      console.error("❌ Posts is not an array:", posts)
+      return categories.map((category) => ({
+        ...category,
+        postCount: 0,
+        lastActivity: category.createdAt || new Date().toISOString(),
+        color: category.color || "#3B82F6",
+        icon: category.icon || "MessageSquare",
+        isPrivate: category.isPrivate || false,
+        moderators: category.moderators || ["admin@store.com"],
+      }))
+    }
+
+    return categories.map((category) => {
+      const categoryPosts = posts.filter((post) => post.categoryId === category.id)
+      const lastPost = categoryPosts.sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      )[0]
+
+      return {
+        id: category.id,
+        name: category.name,
+        description: category.description || "",
+        postCount: categoryPosts.length,
+        lastActivity: lastPost?.createdAt || category.createdAt || new Date().toISOString(),
+        color: category.color || "#3B82F6",
+        icon: category.icon || "MessageSquare",
+        isPrivate: category.isPrivate || false,
+        moderators: category.moderators || ["admin@store.com"],
+      }
+    })
+  } catch (error) {
+    console.error("❌ Error in getRealCategories:", error)
+    return []
+  }
 }
 
 function getRealPosts(): Post[] {
-  return forumDataStore.getPosts().map((post) => ({
-    ...post,
-    replies: 0, // TODO: Implement replies counting
-    views: 0, // TODO: Implement view tracking
-    likes: 0, // TODO: Implement likes tracking
-    isPinned: false,
-    isLocked: false,
-    tags: [],
-    attachments: [],
-    status: "active" as const,
-  }))
+  try {
+    console.log("🔍 Getting real posts from data store")
+    const posts = forumDataStore.getPosts()
+
+    if (!Array.isArray(posts)) {
+      console.error("❌ Posts is not an array:", posts)
+      return []
+    }
+
+    return posts.map((post) => ({
+      ...post,
+      replies: post.replies || 0,
+      views: post.views || 0,
+      likes: post.likes || 0,
+      isPinned: post.isPinned || false,
+      isLocked: post.isLocked || false,
+      tags: post.tags || [],
+      attachments: post.attachments || [],
+      status: post.status || "active",
+    }))
+  } catch (error) {
+    console.error("❌ Error in getRealPosts:", error)
+    return []
+  }
 }
 
 // Mock data for replies and users (these will be implemented later)
@@ -104,6 +143,7 @@ const mockUsers: User[] = []
 
 export async function GET(request: NextRequest) {
   try {
+    console.log("📥 Forum API GET request received:", request.url)
     const { searchParams } = new URL(request.url)
     const type = searchParams.get("type")
     const shopId = searchParams.get("shop_id")
@@ -115,7 +155,10 @@ export async function GET(request: NextRequest) {
     const page = Number.parseInt(searchParams.get("page") || "1")
     const limit = Number.parseInt(searchParams.get("limit") || "10")
 
+    console.log("🔍 Forum API params:", { type, shopId, categoryId, postId, userId, search, sortBy, page, limit })
+
     if (!shopId) {
+      console.warn("⚠️ Missing shop_id parameter")
       return NextResponse.json(
         {
           success: false,
@@ -128,7 +171,9 @@ export async function GET(request: NextRequest) {
 
     switch (type) {
       case "categories":
+        console.log("📂 Getting categories")
         const realCategories = getRealCategories()
+        console.log(`📊 Found ${realCategories.length} categories`)
         return NextResponse.json({
           success: true,
           data: realCategories,
@@ -136,25 +181,32 @@ export async function GET(request: NextRequest) {
         })
 
       case "posts":
+        console.log("📝 Getting posts")
         let filteredPosts = getRealPosts()
+        console.log(`📊 Found ${filteredPosts.length} posts total`)
 
         // Filter by category
         if (categoryId) {
+          console.log(`🔍 Filtering by category: ${categoryId}`)
           filteredPosts = filteredPosts.filter((post) => post.categoryId === categoryId)
+          console.log(`📊 Found ${filteredPosts.length} posts in category`)
         }
 
         // Search functionality
         if (search) {
+          console.log(`🔍 Searching for: ${search}`)
           const searchLower = search.toLowerCase()
           filteredPosts = filteredPosts.filter(
             (post) =>
               post.title.toLowerCase().includes(searchLower) ||
               post.content.toLowerCase().includes(searchLower) ||
-              post.tags.some((tag) => tag.toLowerCase().includes(searchLower)),
+              (Array.isArray(post.tags) && post.tags.some((tag) => tag.toLowerCase().includes(searchLower))),
           )
+          console.log(`📊 Found ${filteredPosts.length} posts matching search`)
         }
 
         // Sort posts
+        console.log(`🔄 Sorting posts by: ${sortBy}`)
         switch (sortBy) {
           case "popular":
             filteredPosts.sort((a, b) => b.likes + b.views - (a.likes + a.views))
@@ -166,12 +218,15 @@ export async function GET(request: NextRequest) {
             filteredPosts.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
             break
           default: // recent
-            filteredPosts.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+            filteredPosts.sort(
+              (a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime(),
+            )
         }
 
         // Pagination
         const startIndex = (page - 1) * limit
         const paginatedPosts = filteredPosts.slice(startIndex, startIndex + limit)
+        console.log(`📊 Returning ${paginatedPosts.length} posts (page ${page}, limit ${limit})`)
 
         return NextResponse.json({
           success: true,
@@ -187,6 +242,7 @@ export async function GET(request: NextRequest) {
 
       case "post":
         if (!postId) {
+          console.warn("⚠️ Missing post_id parameter")
           return NextResponse.json(
             {
               success: false,
@@ -196,9 +252,11 @@ export async function GET(request: NextRequest) {
             { status: 400 },
           )
         }
+        console.log(`🔍 Getting post: ${postId}`)
         const posts = getRealPosts()
         const post = posts.find((p) => p.id === postId)
         if (!post) {
+          console.warn(`⚠️ Post not found: ${postId}`)
           return NextResponse.json(
             {
               success: false,
@@ -211,6 +269,7 @@ export async function GET(request: NextRequest) {
 
         // Increment view count (in real app, track unique views)
         post.views += 1
+        console.log(`👁️ Incremented view count for post ${postId} to ${post.views}`)
 
         return NextResponse.json({
           success: true,
@@ -220,6 +279,7 @@ export async function GET(request: NextRequest) {
 
       case "replies":
         if (!postId) {
+          console.warn("⚠️ Missing post_id parameter for replies")
           return NextResponse.json(
             {
               success: false,
@@ -229,7 +289,9 @@ export async function GET(request: NextRequest) {
             { status: 400 },
           )
         }
+        console.log(`🔍 Getting replies for post: ${postId}`)
         const postReplies = mockReplies.filter((reply) => reply.postId === postId)
+        console.log(`📊 Found ${postReplies.length} replies`)
         return NextResponse.json({
           success: true,
           data: postReplies,
@@ -237,6 +299,7 @@ export async function GET(request: NextRequest) {
         })
 
       case "users":
+        console.log("👥 Getting users")
         return NextResponse.json({
           success: true,
           data: mockUsers,
@@ -245,6 +308,7 @@ export async function GET(request: NextRequest) {
 
       case "user":
         if (!userId) {
+          console.warn("⚠️ Missing user_id parameter")
           return NextResponse.json(
             {
               success: false,
@@ -254,8 +318,10 @@ export async function GET(request: NextRequest) {
             { status: 400 },
           )
         }
+        console.log(`🔍 Getting user: ${userId}`)
         const user = mockUsers.find((u) => u.id === userId)
         if (!user) {
+          console.warn(`⚠️ User not found: ${userId}`)
           return NextResponse.json(
             {
               success: false,
@@ -272,15 +338,17 @@ export async function GET(request: NextRequest) {
         })
 
       case "trending":
+        console.log("🔥 Getting trending posts")
         const allPosts = getRealPosts()
         const trendingPosts = allPosts
           .filter((post) => post.status === "active")
           .sort((a, b) => {
             const aScore = a.likes * 2 + a.replies * 1.5 + a.views * 0.1
-            const bScore = b.likes * 2 + b.replies * 1.5 + a.views * 0.1
+            const bScore = b.likes * 2 + b.replies * 1.5 + b.views * 0.1
             return bScore - aScore
           })
           .slice(0, 5)
+        console.log(`📊 Found ${trendingPosts.length} trending posts`)
 
         return NextResponse.json({
           success: true,
@@ -289,6 +357,7 @@ export async function GET(request: NextRequest) {
         })
 
       default:
+        console.warn(`⚠️ Invalid request type: ${type}`)
         return NextResponse.json(
           {
             success: false,
@@ -299,11 +368,12 @@ export async function GET(request: NextRequest) {
         )
     }
   } catch (error) {
-    console.error("Forum API error:", error)
+    console.error("❌ Forum API error:", error)
     return NextResponse.json(
       {
         success: false,
         error: "Internal server error",
+        message: error instanceof Error ? error.message : "Unknown error",
         data: [],
       },
       { status: 500 },
@@ -313,10 +383,28 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
+    console.log("📤 Forum API POST request received")
+
+    // Parse the request body
+    let body
+    try {
+      body = await request.json()
+      console.log("📦 Request body:", body)
+    } catch (error) {
+      console.error("❌ Error parsing request body:", error)
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Invalid request body",
+        },
+        { status: 400 },
+      )
+    }
+
     const { type, shopId, ...data } = body
 
     if (!shopId) {
+      console.warn("⚠️ Missing shopId in request body")
       return NextResponse.json(
         {
           success: false,
@@ -328,33 +416,74 @@ export async function POST(request: NextRequest) {
 
     switch (type) {
       case "create_post":
+        console.log("📝 Creating new post")
         const { title, content, author, authorEmail, categoryId, tags = [] } = data
+
+        // Validate required fields
         if (!title || !content || !author || !categoryId) {
+          console.warn("⚠️ Missing required fields for post creation")
           return NextResponse.json(
             {
               success: false,
               error: "Title, content, author, and categoryId are required",
+              missingFields: {
+                title: !title,
+                content: !content,
+                author: !author,
+                categoryId: !categoryId,
+              },
             },
             { status: 400 },
           )
         }
 
-        const newPost = forumDataStore.addPost({
-          title,
-          content,
-          author,
-          categoryId,
-        })
+        // Check if category exists
+        const category = forumDataStore.getCategoryById(categoryId)
+        if (!category) {
+          console.warn(`⚠️ Category not found: ${categoryId}`)
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Category with ID ${categoryId} not found`,
+            },
+            { status: 404 },
+          )
+        }
 
-        return NextResponse.json({
-          success: true,
-          data: newPost,
-          message: "Post created successfully",
-        })
+        try {
+          console.log("🔍 Creating post with data:", { title, content, author, categoryId })
+          const newPost = forumDataStore.createPost({
+            title,
+            content,
+            author,
+            authorEmail,
+            categoryId,
+            tags,
+          })
+
+          console.log("✅ Post created successfully:", newPost)
+          return NextResponse.json({
+            success: true,
+            data: newPost,
+            message: "Post created successfully",
+          })
+        } catch (error) {
+          console.error("❌ Error creating post:", error)
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Failed to create post",
+              message: error instanceof Error ? error.message : "Unknown error",
+            },
+            { status: 500 },
+          )
+        }
 
       case "create_reply":
+        console.log("💬 Creating new reply")
         const { postId, content: replyContent, author: replyAuthor, authorEmail: replyAuthorEmail } = data
         if (!postId || !replyContent || !replyAuthor) {
+          console.warn("⚠️ Missing required fields for reply creation")
           return NextResponse.json(
             {
               success: false,
@@ -365,14 +494,16 @@ export async function POST(request: NextRequest) {
         }
 
         // TODO: Implement replies in data store
+        console.log("✅ Reply created (mock implementation)")
         return NextResponse.json({
           success: true,
-          data: { id: "temp", content: replyContent, author: replyAuthor },
+          data: { id: "temp-" + Date.now(), content: replyContent, author: replyAuthor },
           message: "Reply created successfully",
         })
 
       case "like_post":
         // TODO: Implement likes in data store
+        console.log("👍 Post liked (mock implementation)")
         return NextResponse.json({
           success: true,
           data: { likes: 1 },
@@ -381,6 +512,7 @@ export async function POST(request: NextRequest) {
 
       case "pin_post":
         // TODO: Implement pinning in data store
+        console.log("📌 Post pinned (mock implementation)")
         return NextResponse.json({
           success: true,
           data: { isPinned: true },
@@ -388,8 +520,10 @@ export async function POST(request: NextRequest) {
         })
 
       case "create_category":
+        console.log("📂 Creating new category")
         const { name, description, color = "#3B82F6", icon = "MessageSquare" } = data
         if (!name || !description) {
+          console.warn("⚠️ Missing required fields for category creation")
           return NextResponse.json(
             {
               success: false,
@@ -399,18 +533,35 @@ export async function POST(request: NextRequest) {
           )
         }
 
-        const newCategory = forumDataStore.addCategory({
-          name,
-          description,
-        })
+        try {
+          console.log("🔍 Creating category with data:", { name, description, color, icon })
+          const newCategory = forumDataStore.createCategory({
+            name,
+            description,
+            color,
+            icon,
+          })
 
-        return NextResponse.json({
-          success: true,
-          data: newCategory,
-          message: "Category created successfully",
-        })
+          console.log("✅ Category created successfully:", newCategory)
+          return NextResponse.json({
+            success: true,
+            data: newCategory,
+            message: "Category created successfully",
+          })
+        } catch (error) {
+          console.error("❌ Error creating category:", error)
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Failed to create category",
+              message: error instanceof Error ? error.message : "Unknown error",
+            },
+            { status: 500 },
+          )
+        }
 
       default:
+        console.warn(`⚠️ Invalid request type: ${type}`)
         return NextResponse.json(
           {
             success: false,
@@ -421,11 +572,12 @@ export async function POST(request: NextRequest) {
         )
     }
   } catch (error) {
-    console.error("Forum API POST error:", error)
+    console.error("❌ Forum API POST error:", error)
     return NextResponse.json(
       {
         success: false,
         error: "Internal server error",
+        message: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 },
     )
