@@ -5,17 +5,7 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import {
-  Users,
-  MessageSquare,
-  Settings,
-  Shield,
-  Activity,
-  Clock,
-  AlertTriangle,
-  CheckCircle,
-  RefreshCw,
-} from "lucide-react"
+import { Users, MessageSquare, Settings, Shield, Activity, CheckCircle, RefreshCw } from "lucide-react"
 import Link from "next/link"
 import { useAuth } from "@/hooks/useAuth"
 
@@ -27,47 +17,12 @@ export default function AdminDashboard() {
     totalUsers: 0,
     totalCategories: 0,
     activeToday: 0,
-    pendingPosts: 0,
-    reportedPosts: 0,
+    postsThisMonth: 0,
+    newUsersThisMonth: 0,
+    topCategories: [],
+    recentActivity: [],
   })
-  const [recentActivity, setRecentActivity] = useState([
-    {
-      id: 1,
-      type: "new_post",
-      user: "Sarah Johnson",
-      action: "created a new post",
-      target: "How to setup my store?",
-      time: "2 minutes ago",
-      status: "active",
-    },
-    {
-      id: 2,
-      type: "new_user",
-      user: "Mike Chen",
-      action: "joined the community",
-      target: "",
-      time: "15 minutes ago",
-      status: "active",
-    },
-    {
-      id: 3,
-      type: "report",
-      user: "Emma Wilson",
-      action: "reported a post",
-      target: "Spam content in General",
-      time: "1 hour ago",
-      status: "pending",
-    },
-    {
-      id: 4,
-      type: "new_post",
-      user: "David Lee",
-      action: "replied to",
-      target: "Product recommendations",
-      time: "2 hours ago",
-      status: "active",
-    },
-  ])
+  const [loadingStats, setLoadingStats] = useState(true)
 
   useEffect(() => {
     console.log("Dashboard: isAdmin =", isAdmin, "loading =", loading)
@@ -85,19 +40,18 @@ export default function AdminDashboard() {
 
   const loadStats = async () => {
     try {
+      setLoadingStats(true)
       const response = await fetch("/api/forum/stats?shop_id=demo")
       if (response.ok) {
         const data = await response.json()
         if (data.success) {
-          setStats({
-            ...data.data,
-            pendingPosts: 3,
-            reportedPosts: 1,
-          })
+          setStats(data.data)
         }
       }
     } catch (error) {
       console.error("Error loading stats:", error)
+    } finally {
+      setLoadingStats(false)
     }
   }
 
@@ -163,8 +117,12 @@ export default function AdminDashboard() {
             <MessageSquare className="h-4 w-4 text-gray-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalPosts}</div>
-            <p className="text-xs text-gray-500">+12% from last month</p>
+            <div className="text-2xl font-bold">
+              {loadingStats ? <RefreshCw className="h-6 w-6 animate-spin" /> : stats.totalPosts}
+            </div>
+            <p className="text-xs text-gray-500">
+              {stats.postsThisMonth > 0 ? `+${stats.postsThisMonth} this month` : "No posts this month"}
+            </p>
           </CardContent>
         </Card>
 
@@ -174,8 +132,12 @@ export default function AdminDashboard() {
             <Users className="h-4 w-4 text-gray-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalUsers}</div>
-            <p className="text-xs text-gray-500">+5% from last month</p>
+            <div className="text-2xl font-bold">
+              {loadingStats ? <RefreshCw className="h-6 w-6 animate-spin" /> : stats.totalUsers}
+            </div>
+            <p className="text-xs text-gray-500">
+              {stats.newUsersThisMonth > 0 ? `+${stats.newUsersThisMonth} this month` : "No new users this month"}
+            </p>
           </CardContent>
         </Card>
 
@@ -185,7 +147,9 @@ export default function AdminDashboard() {
             <Activity className="h-4 w-4 text-gray-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.activeToday}</div>
+            <div className="text-2xl font-bold">
+              {loadingStats ? <RefreshCw className="h-6 w-6 animate-spin" /> : stats.activeToday}
+            </div>
             <p className="text-xs text-gray-500">Users active today</p>
           </CardContent>
         </Card>
@@ -196,7 +160,9 @@ export default function AdminDashboard() {
             <Settings className="h-4 w-4 text-gray-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalCategories}</div>
+            <div className="text-2xl font-bold">
+              {loadingStats ? <RefreshCw className="h-6 w-6 animate-spin" /> : stats.totalCategories}
+            </div>
             <p className="text-xs text-gray-500">Discussion categories</p>
           </CardContent>
         </Card>
@@ -263,81 +229,151 @@ export default function AdminDashboard() {
             </CardContent>
           </Link>
         </Card>
+
+        <Card className="hover:shadow-md transition-shadow cursor-pointer">
+          <Link href="/admin?tab=users">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5 text-orange-600" />
+                User Management
+              </CardTitle>
+              <CardDescription>Manage users, roles, and permissions</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">{stats.totalUsers} users</span>
+                <Button variant="ghost" size="sm">
+                  Manage →
+                </Button>
+              </div>
+            </CardContent>
+          </Link>
+        </Card>
+
+        <Card className="hover:shadow-md transition-shadow cursor-pointer">
+          <Link href="/forum">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5 text-blue-600" />
+                View Forum
+              </CardTitle>
+              <CardDescription>Visit the public forum as a user</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Public view</span>
+                <Button variant="ghost" size="sm">
+                  Visit →
+                </Button>
+              </div>
+            </CardContent>
+          </Link>
+        </Card>
+
+        <Card className="hover:shadow-md transition-shadow cursor-pointer">
+          <Link href="/admin/debug">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2">
+                <Activity className="h-5 w-5 text-red-600" />
+                Debug Panel
+              </CardTitle>
+              <CardDescription>Debug API endpoints and system status</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">System diagnostics</span>
+                <Button variant="ghost" size="sm">
+                  Debug →
+                </Button>
+              </div>
+            </CardContent>
+          </Link>
+        </Card>
       </div>
 
-      {/* Alerts & Notifications */}
-      {(stats.pendingPosts > 0 || stats.reportedPosts > 0) && (
-        <div className="grid gap-4 md:grid-cols-2">
-          {stats.pendingPosts > 0 && (
-            <Card className="border-yellow-200 bg-yellow-50">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-yellow-800">
-                  <Clock className="h-5 w-5" />
-                  Pending Approval
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-yellow-700 mb-3">{stats.pendingPosts} posts are waiting for your approval</p>
-                <Button size="sm" variant="outline" className="border-yellow-300 text-yellow-800">
-                  Review Posts
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {stats.reportedPosts > 0 && (
-            <Card className="border-red-200 bg-red-50">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-red-800">
-                  <AlertTriangle className="h-5 w-5" />
-                  Reported Content
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-red-700 mb-3">{stats.reportedPosts} posts have been reported by users</p>
-                <Button size="sm" variant="outline" className="border-red-300 text-red-800">
-                  Review Reports
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+      {/* Top Categories */}
+      {stats.topCategories && stats.topCategories.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Top Categories</CardTitle>
+            <CardDescription>Most active discussion categories</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {stats.topCategories.map((category, index) => (
+                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                      {index + 1}
+                    </div>
+                    <div>
+                      <p className="font-medium">{category.name}</p>
+                      <p className="text-sm text-gray-500">{category.posts} posts</p>
+                    </div>
+                  </div>
+                  <Badge variant="secondary">{category.posts}</Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Recent Activity */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
-          <CardDescription>Latest actions and events in your forum</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {recentActivity.map((activity) => (
-              <div key={activity.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                    {activity.user.charAt(0)}
+      {stats.recentActivity && stats.recentActivity.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Activity</CardTitle>
+            <CardDescription>Latest actions and events in your forum</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {stats.recentActivity.map((activity, index) => (
+                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                      {activity.author?.charAt(0) || "U"}
+                    </div>
+                    <div>
+                      <p className="text-sm">
+                        <span className="font-medium">{activity.author}</span>{" "}
+                        {activity.type === "post" ? "created" : "replied to"}{" "}
+                        <span className="text-blue-600">"{activity.title}"</span>
+                      </p>
+                      <p className="text-xs text-gray-500">{new Date(activity.timestamp).toLocaleString()}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm">
-                      <span className="font-medium">{activity.user}</span> {activity.action}{" "}
-                      {activity.target && <span className="text-blue-600">"{activity.target}"</span>}
-                    </p>
-                    <p className="text-xs text-gray-500">{activity.time}</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  {activity.status === "active" ? (
+                  <div className="flex items-center space-x-2">
                     <CheckCircle className="h-4 w-4 text-green-500" />
-                  ) : (
-                    <Clock className="h-4 w-4 text-yellow-500" />
-                  )}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Empty State */}
+      {(!stats.recentActivity || stats.recentActivity.length === 0) && !loadingStats && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Activity</CardTitle>
+            <CardDescription>Latest actions and events in your forum</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-8">
+              <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No Recent Activity</h3>
+              <p className="text-gray-500 mb-4">
+                Your forum is quiet right now. Activity will appear here as users interact with your forum.
+              </p>
+              <Link href="/forum">
+                <Button variant="outline">Visit Forum</Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

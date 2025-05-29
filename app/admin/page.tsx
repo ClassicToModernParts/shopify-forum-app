@@ -517,6 +517,14 @@ export default function AdminPage() {
             <span>Back to Dashboard</span>
           </Link>
           <div className="h-6 w-px bg-gray-300" />
+          <Link
+            href="/forum"
+            className="flex items-center space-x-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <MessageSquare className="h-4 w-4" />
+            <span>Back to Forum</span>
+          </Link>
+          <div className="h-6 w-px bg-gray-300" />
           <div>
             <h1 className="text-3xl font-bold">Forum Administration</h1>
             <p className="text-gray-600">Manage your community forum</p>
