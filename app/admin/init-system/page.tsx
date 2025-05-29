@@ -1,143 +1,175 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { CheckCircle, AlertCircle, RefreshCw, ArrowRight } from "lucide-react"
+import Link from "next/link"
 
 export default function InitSystemPage() {
-  const [isLoading, setIsLoading] = useState(false)
-  const [result, setResult] = useState<any>(null)
-  const [systemStatus, setSystemStatus] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [initializing, setInitializing] = useState(false)
+  const [status, setStatus] = useState<{
+    hasCategories: boolean
+    hasUsers: boolean
+    isReady: boolean
+  } | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  const checkSystemStatus = async () => {
+  const checkStatus = async () => {
     try {
+      setLoading(true)
+      setError(null)
+
       const response = await fetch("/api/admin/init-system")
       const data = await response.json()
-      setSystemStatus(data)
-    } catch (error) {
-      console.error("Error checking system status:", error)
+
+      if (data.success) {
+        setStatus(data.data)
+      } else {
+        setError(data.error || "Failed to check system status")
+      }
+    } catch (err) {
+      setError("An error occurred while checking system status")
+      console.error(err)
+    } finally {
+      setLoading(false)
     }
   }
 
   const initializeSystem = async () => {
-    setIsLoading(true)
-    setResult(null)
-
     try {
+      setInitializing(true)
+      setError(null)
+
       const response = await fetch("/api/admin/init-system", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
       })
-
       const data = await response.json()
-      setResult(data)
 
       if (data.success) {
-        // Refresh system status
-        await checkSystemStatus()
+        await checkStatus()
+      } else {
+        setError(data.error || "Failed to initialize system")
       }
-    } catch (error) {
-      console.error("Error initializing system:", error)
-      setResult({
-        success: false,
-        message: "Failed to initialize system",
-      })
+    } catch (err) {
+      setError("An error occurred while initializing the system")
+      console.error(err)
     } finally {
-      setIsLoading(false)
+      setInitializing(false)
     }
   }
 
-  // Check status on component mount
-  useState(() => {
-    checkSystemStatus()
-  })
+  useEffect(() => {
+    checkStatus()
+  }, [])
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4">
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h1 className="text-2xl font-bold mb-6">System Initialization</h1>
-
-          {/* System Status */}
-          <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-            <h2 className="text-lg font-semibold mb-2">Current System Status</h2>
-            {systemStatus ? (
-              <div className="space-y-2">
-                <p>
-                  <span className="font-medium">Status:</span>{" "}
-                  <span
-                    className={`px-2 py-1 rounded text-sm ${
-                      systemStatus.isInitialized ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                    }`}
-                  >
-                    {systemStatus.isInitialized ? "Initialized" : "Not Initialized"}
-                  </span>
-                </p>
-                <p>
-                  <span className="font-medium">Users:</span> {systemStatus.stats?.users || 0}
-                </p>
-                <p>
-                  <span className="font-medium">Categories:</span> {systemStatus.stats?.categories || 0}
-                </p>
-                <p>
-                  <span className="font-medium">Posts:</span> {systemStatus.stats?.posts || 0}
-                </p>
-              </div>
-            ) : (
-              <p>Loading status...</p>
-            )}
-          </div>
-
-          {/* Initialize Button */}
-          <div className="mb-6">
-            <Button
-              onClick={initializeSystem}
-              disabled={isLoading}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              {isLoading ? "Initializing..." : "Initialize System"}
-            </Button>
-            <Button onClick={checkSystemStatus} variant="outline" className="ml-2">
-              Refresh Status
-            </Button>
-          </div>
-
-          {/* Results */}
-          {result && (
-            <div className="p-4 rounded-lg border">
-              <h3 className="font-semibold mb-2">Initialization Result</h3>
-              <div
-                className={`p-3 rounded ${result.success ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"}`}
-              >
-                <p className="font-medium">{result.message}</p>
-                {result.success && result.data && (
-                  <div className="mt-2 text-sm">
-                    <p>Admin Username: {result.data.adminUser?.username}</p>
-                    <p>Default Password: {result.data.defaultPassword}</p>
-                    <p>Categories Created: {result.data.categoriesCreated}</p>
-                    <p className="text-red-600 font-medium mt-2">
-                      ⚠️ Please change the default admin password immediately!
-                    </p>
-                  </div>
-                )}
-              </div>
+    <div className="container mx-auto p-6">
+      <Card className="max-w-2xl mx-auto">
+        <CardHeader>
+          <CardTitle>System Initialization</CardTitle>
+          <CardDescription>Initialize your forum system with default data</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-md flex items-center gap-2">
+              <AlertCircle className="h-5 w-5" />
+              <p>{error}</p>
             </div>
           )}
 
-          {/* Instructions */}
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-            <h3 className="font-semibold text-blue-800 mb-2">Instructions</h3>
-            <ul className="text-blue-700 text-sm space-y-1">
-              <li>• Click "Initialize System" to create default admin user and categories</li>
-              <li>• Default admin credentials: username "admin", password "admin123"</li>
-              <li>• Change the admin password immediately after initialization</li>
-              <li>• This will create basic categories and a welcome post</li>
-              <li>• Run this after each deployment to restore essential data</li>
-            </ul>
-          </div>
-        </div>
-      </div>
+          {loading ? (
+            <div className="text-center py-8">
+              <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
+              <p className="text-gray-600">Checking system status...</p>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">System Status</h3>
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
+                    <span>Admin Users</span>
+                    {status?.hasUsers ? (
+                      <span className="flex items-center text-green-600">
+                        <CheckCircle className="h-5 w-5 mr-1" />
+                        Available
+                      </span>
+                    ) : (
+                      <span className="text-amber-600">Missing</span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
+                    <span>Forum Categories</span>
+                    {status?.hasCategories ? (
+                      <span className="flex items-center text-green-600">
+                        <CheckCircle className="h-5 w-5 mr-1" />
+                        Available
+                      </span>
+                    ) : (
+                      <span className="text-amber-600">Missing</span>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
+                    <span>Overall Status</span>
+                    {status?.isReady ? (
+                      <span className="flex items-center text-green-600">
+                        <CheckCircle className="h-5 w-5 mr-1" />
+                        Ready
+                      </span>
+                    ) : (
+                      <span className="text-amber-600">Needs Initialization</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-between pt-4">
+                <Button variant="outline" onClick={checkStatus} disabled={loading}>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh Status
+                </Button>
+
+                {status?.isReady ? (
+                  <Link href="/admin">
+                    <Button>
+                      Go to Admin Panel
+                      <ArrowRight className="h-4 w-4 ml-2" />
+                    </Button>
+                  </Link>
+                ) : (
+                  <Button onClick={initializeSystem} disabled={initializing}>
+                    {initializing ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        Initializing...
+                      </>
+                    ) : (
+                      "Initialize System"
+                    )}
+                  </Button>
+                )}
+              </div>
+
+              {status?.isReady && (
+                <div className="bg-blue-50 border border-blue-200 text-blue-700 p-4 rounded-md mt-4">
+                  <p className="font-medium mb-1">Default Admin Credentials:</p>
+                  <p>
+                    Username: <code className="bg-blue-100 px-1 py-0.5 rounded">admin</code>
+                  </p>
+                  <p>
+                    Password: <code className="bg-blue-100 px-1 py-0.5 rounded">admin123</code>
+                  </p>
+                  <p className="text-sm mt-2 text-blue-600">
+                    Please change this password immediately after logging in!
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

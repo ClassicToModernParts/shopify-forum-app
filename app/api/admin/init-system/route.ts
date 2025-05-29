@@ -1,140 +1,110 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { forumDataStore } from "@/app/api/forum/data-store"
-import { authService } from "@/lib/auth-service"
+import { forumDataStore } from "../../forum/data-store"
 
-export async function POST(request: NextRequest) {
+export async function GET() {
   try {
-    console.log("🚀 System initialization started")
+    // Check if system is initialized
+    const categories = forumDataStore.getCategories(true)
+    const users = await forumDataStore.getUsers()
 
-    // Create default admin user
-    const adminResult = await authService.registerUser({
-      username: "admin",
-      name: "System Administrator",
-      password: "admin123", // Change this in production!
-    })
-
-    if (!adminResult.success) {
-      console.error("❌ Failed to create admin user:", adminResult.message)
-      return NextResponse.json(
-        {
-          success: false,
-          message: `Failed to create admin user: ${adminResult.message}`,
-        },
-        { status: 500 },
-      )
+    const isInitialized = {
+      hasCategories: Array.isArray(categories) && categories.length > 0,
+      hasUsers: Array.isArray(users) && users.length > 0,
+      isReady: false,
     }
 
-    // Create default categories
-    const defaultCategories = [
-      {
-        name: "General Discussion",
-        description: "General topics and discussions",
-        color: "#3B82F6",
-        icon: "MessageSquare",
-        isPrivate: false,
-      },
-      {
-        name: "Support",
-        description: "Get help and support",
-        color: "#10B981",
-        icon: "HelpCircle",
-        isPrivate: false,
-      },
-      {
-        name: "Announcements",
-        description: "Important announcements and updates",
-        color: "#F59E0B",
-        icon: "Megaphone",
-        isPrivate: false,
-      },
-    ]
-
-    const createdCategories = []
-    for (const categoryData of defaultCategories) {
-      try {
-        const category = forumDataStore.createCategory(categoryData)
-        createdCategories.push(category)
-        console.log(`✅ Created category: ${category.name}`)
-      } catch (error) {
-        console.error(`❌ Failed to create category ${categoryData.name}:`, error)
-      }
-    }
-
-    // Create a welcome post
-    if (createdCategories.length > 0) {
-      try {
-        const welcomePost = forumDataStore.createPost({
-          title: "Welcome to the Community Forum!",
-          content: `Welcome to our community forum! 
-
-This is a place where you can:
-- Ask questions and get help
-- Share ideas and feedback
-- Connect with other community members
-- Stay updated with announcements
-
-Please be respectful and follow our community guidelines. We're excited to have you here!`,
-          author: "System Administrator",
-          categoryId: createdCategories[0].id,
-          tags: ["welcome", "introduction"],
-        })
-        console.log(`✅ Created welcome post: ${welcomePost.id}`)
-      } catch (error) {
-        console.error("❌ Failed to create welcome post:", error)
-      }
-    }
-
-    console.log("✅ System initialization completed successfully")
+    isInitialized.isReady = isInitialized.hasCategories && isInitialized.hasUsers
 
     return NextResponse.json({
       success: true,
-      message: "System initialized successfully",
-      data: {
-        adminUser: {
-          username: adminResult.user?.username,
-          id: adminResult.user?.id,
-        },
-        categoriesCreated: createdCategories.length,
-        defaultPassword: "admin123", // Remove this in production
-      },
+      data: isInitialized,
+      message: "System initialization status retrieved successfully",
     })
   } catch (error) {
-    console.error("❌ System initialization error:", error)
+    console.error("❌ Error checking system initialization:", error)
     return NextResponse.json(
       {
         success: false,
-        message: "System initialization failed",
-        error: error instanceof Error ? error.message : String(error),
+        error: `Failed to check system initialization: ${error instanceof Error ? error.message : "Unknown error"}`,
       },
       { status: 500 },
     )
   }
 }
 
-// GET endpoint to check if system is initialized
-export async function GET() {
+export async function POST(request: NextRequest) {
   try {
-    const users = await forumDataStore.getUsers()
-    const categories = forumDataStore.getCategories()
-    const posts = forumDataStore.getPosts()
+    // Initialize the system
+    console.log("🔄 Initializing system...")
 
-    const isInitialized = users.length > 0 || categories.length > 0
+    // Create admin user if it doesn't exist
+    const users = await forumDataStore.getUsers()
+    let adminUser = users.find((user) => user.role === "admin")
+
+    if (!adminUser) {
+      adminUser = await forumDataStore.addUser({
+        username: "admin",
+        name: "System Administrator",
+        password: "admin123", // This should be hashed in production
+        role: "admin",
+      })
+      console.log("✅ Created admin user:", adminUser.username)
+    }
+
+    // Create default categories if they don't exist
+    const categories = forumDataStore.getCategories(true)
+    if (!Array.isArray(categories) || categories.length === 0) {
+      const generalCategory = forumDataStore.createCategory({
+        name: "General Discussion",
+        description: "General topics related to our products",
+        color: "#3B82F6",
+        icon: "MessageSquare",
+        isPrivate: false,
+      })
+
+      const supportCategory = forumDataStore.createCategory({
+        name: "Product Support",
+        description: "Get help with our products",
+        color: "#10B981",
+        icon: "HelpCircle",
+        isPrivate: false,
+      })
+
+      const announcementsCategory = forumDataStore.createCategory({
+        name: "Announcements",
+        description: "Official announcements from our team",
+        color: "#F59E0B",
+        icon: "Megaphone",
+        isPrivate: false,
+      })
+
+      console.log("✅ Created default categories")
+
+      // Create welcome post
+      forumDataStore.createPost({
+        title: "Welcome to our community forum!",
+        content: "This is the first post in our community forum. Feel free to introduce yourself!",
+        author: "Admin",
+        categoryId: generalCategory.id,
+        tags: ["welcome", "introduction"],
+      })
+
+      console.log("✅ Created welcome post")
+    }
 
     return NextResponse.json({
       success: true,
-      isInitialized,
-      stats: {
-        users: users.length,
-        categories: categories.length,
-        posts: posts.length,
+      data: {
+        initialized: true,
+        message: "System initialized successfully",
       },
     })
   } catch (error) {
-    console.error("❌ Error checking initialization status:", error)
+    console.error("❌ Error initializing system:", error)
     return NextResponse.json(
       {
         success: false,
-        message: "Failed to check initialization status",
+        error: `Failed to initialize system: ${error instanceof Error ? error.message : "Unknown error"}`,
       },
       { status: 500 },
     )

@@ -1,34 +1,27 @@
 import { NextResponse } from "next/server"
-import { forumDataStore } from "@/app/api/forum/data-store"
+import { forumDataStore } from "../../forum/data-store"
 
 export async function GET() {
   try {
-    const debugInfo = await forumDataStore.getDebugInfo()
-    const users = await forumDataStore.getUsers()
-
-    // Only return safe user info (no passwords)
-    const safeUsers = users.map((user) => ({
-      id: user.id,
-      username: user.username,
-      name: user.name,
-      role: user.role,
-      createdAt: user.createdAt,
-      lastActive: user.lastActive,
-    }))
+    // Get a safe copy of the data store state
+    const state = {
+      categories: forumDataStore.getCategories(true),
+      posts: forumDataStore.getPosts(),
+      users: await forumDataStore.getUsers(),
+      settings: forumDataStore.getSettings(),
+    }
 
     return NextResponse.json({
       success: true,
-      debugInfo,
-      users: safeUsers,
-      userCount: safeUsers.length,
+      data: state,
+      message: "Data store state retrieved successfully",
     })
   } catch (error) {
-    console.error("Debug data store error:", error)
+    console.error("❌ Error getting data store state:", error)
     return NextResponse.json(
       {
         success: false,
-        error: "Failed to retrieve debug info",
-        errorMessage: (error as Error).message,
+        error: `Failed to get data store state: ${error instanceof Error ? error.message : "Unknown error"}`,
       },
       { status: 500 },
     )

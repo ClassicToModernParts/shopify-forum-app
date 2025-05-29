@@ -54,7 +54,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const newCategory = forumDataStore.addCategory({
+    // Fix: Use createCategory instead of addCategory
+    const newCategory = forumDataStore.createCategory({
       name,
       description: description || "",
       color: color || "#3B82F6",
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: "Failed to create category",
+        error: `Failed to create category: ${error instanceof Error ? error.message : "Unknown error"}`,
         data: null,
       },
       { status: 500 },
@@ -126,7 +127,7 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: "Failed to update category",
+        error: `Failed to update category: ${error instanceof Error ? error.message : "Unknown error"}`,
         data: null,
       },
       { status: 500 },
@@ -178,7 +179,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: "Failed to delete category",
+        error: `Failed to delete category: ${error instanceof Error ? error.message : "Unknown error"}`,
         data: null,
       },
       { status: 500 },
