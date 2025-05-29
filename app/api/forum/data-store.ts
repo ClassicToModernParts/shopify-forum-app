@@ -11,6 +11,39 @@ class ForumDataStore {
   constructor() {
     // Initialize with default settings only
     this.initializeDefaultData()
+
+    // Auto-initialize system if completely empty
+    this.autoInitializeIfEmpty()
+  }
+
+  private async autoInitializeIfEmpty() {
+    try {
+      // Small delay to ensure the constructor completes
+      setTimeout(async () => {
+        if (this.users.length === 0 && this.categories.length === 0) {
+          console.log("🔄 Auto-initializing empty system...")
+          await this.createDefaultAdmin()
+        }
+      }, 1000)
+    } catch (error) {
+      console.error("❌ Auto-initialization error:", error)
+    }
+  }
+
+  private async createDefaultAdmin() {
+    try {
+      // Create default admin user
+      const adminUser = await this.addUser({
+        username: "admin",
+        name: "System Administrator",
+        password: this.simpleHash("admin123"),
+        role: "admin",
+      })
+
+      console.log("✅ Default admin user created:", adminUser.username)
+    } catch (error) {
+      console.error("❌ Failed to create default admin:", error)
+    }
   }
 
   private initializeDefaultData() {
