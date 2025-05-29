@@ -36,6 +36,7 @@ export default function RegisterPage() {
   })
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [debugInfo, setDebugInfo] = useState<string | null>(null)
   const router = useRouter()
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -55,6 +56,7 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setDebugInfo(null)
 
     // Validate passwords match
     if (formData.password !== formData.confirmPassword) {
@@ -83,6 +85,9 @@ export default function RegisterPage() {
     setIsLoading(true)
 
     try {
+      console.log("📝 Submitting registration form...")
+      setDebugInfo("Sending registration request...")
+
       const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: {
@@ -97,10 +102,13 @@ export default function RegisterPage() {
         }),
       })
 
+      setDebugInfo(`Registration response status: ${response.status}`)
       const data = await response.json()
+      setDebugInfo(`Registration response: ${JSON.stringify(data)}`)
 
       if (data.success) {
         // Auto-login after registration
+        setDebugInfo("Registration successful, attempting auto-login...")
         const loginResponse = await fetch("/api/auth/login", {
           method: "POST",
           headers: {
@@ -112,20 +120,28 @@ export default function RegisterPage() {
           }),
         })
 
+        setDebugInfo(`Login response status: ${loginResponse.status}`)
         const loginData = await loginResponse.json()
+        setDebugInfo(`Login response: ${JSON.stringify(loginData)}`)
 
         if (loginData.success) {
           // Store user data in localStorage
           localStorage.setItem("user", JSON.stringify(loginData.user))
+          localStorage.setItem("authToken", loginData.token)
+          setDebugInfo("Login successful, redirecting to forum...")
           router.push("/forum")
         } else {
+          setDebugInfo("Login failed after registration, redirecting to login page...")
           router.push("/login")
         }
       } else {
-        setError(data.message)
+        setError(data.message || "Registration failed. Please try again.")
+        setDebugInfo(`Registration error: ${data.message}`)
       }
     } catch (error) {
+      console.error("Registration error:", error)
       setError("Registration failed. Please try again.")
+      setDebugInfo(`Registration exception: ${error instanceof Error ? error.message : String(error)}`)
     } finally {
       setIsLoading(false)
     }
@@ -233,6 +249,13 @@ export default function RegisterPage() {
               {isLoading ? "Creating Account..." : "Create Account"}
             </Button>
           </form>
+
+          {debugInfo && (
+            <div className="mt-4 p-2 bg-gray-100 rounded text-xs text-gray-700 whitespace-pre-wrap">
+              <p className="font-semibold">Debug Info:</p>
+              <p>{debugInfo}</p>
+            </div>
+          )}
 
           <div className="mt-4 text-center text-sm">
             Already have an account?{" "}

@@ -44,9 +44,12 @@ export class AuthService {
   // Register a new user
   async registerUser(userData: UserRegistrationData): Promise<AuthResult> {
     try {
+      console.log(`🔐 AuthService: Registering user ${userData.username}`)
+
       // Check if username already exists
       const existingUsername = await forumDataStore.getUserByUsername(userData.username)
       if (existingUsername) {
+        console.log(`❌ AuthService: Username ${userData.username} already exists`)
         return {
           success: false,
           message: "Username is already taken",
@@ -57,12 +60,23 @@ export class AuthService {
       const hashedPassword = simpleHash(userData.password)
 
       // Create the user
+      console.log(`🔐 AuthService: Creating new user ${userData.username}`)
       const newUser = await forumDataStore.addUser({
         username: userData.username,
         name: userData.name,
         password: hashedPassword,
         role: "user",
       })
+
+      if (!newUser || !newUser.id) {
+        console.error("❌ AuthService: Failed to create user - invalid user object returned")
+        return {
+          success: false,
+          message: "Failed to create user account. Please try again.",
+        }
+      }
+
+      console.log(`✅ AuthService: User ${userData.username} created with ID ${newUser.id}`)
 
       // Generate token
       const token = generateToken(newUser.id)
@@ -78,7 +92,7 @@ export class AuthService {
         },
       }
     } catch (error) {
-      console.error("Registration error:", error)
+      console.error("❌ AuthService: Registration error:", error)
       return {
         success: false,
         message: "Registration failed. Please try again.",
@@ -89,9 +103,12 @@ export class AuthService {
   // Login user
   async loginUser(loginData: UserLoginData): Promise<AuthResult> {
     try {
+      console.log(`🔐 AuthService: Login attempt for ${loginData.username}`)
+
       // Find user by username
       const user = await forumDataStore.getUserByUsername(loginData.username)
       if (!user) {
+        console.log(`❌ AuthService: User ${loginData.username} not found`)
         return {
           success: false,
           message: "Invalid username or password",
@@ -101,6 +118,7 @@ export class AuthService {
       // Compare passwords
       const hashedPassword = simpleHash(loginData.password)
       if (hashedPassword !== user.password) {
+        console.log(`❌ AuthService: Invalid password for ${loginData.username}`)
         return {
           success: false,
           message: "Invalid username or password",
@@ -109,6 +127,7 @@ export class AuthService {
 
       // Update last active timestamp
       await forumDataStore.updateUserActivity(user.id)
+      console.log(`✅ AuthService: User ${loginData.username} logged in successfully`)
 
       // Generate token
       const token = generateToken(user.id)
@@ -124,7 +143,7 @@ export class AuthService {
         },
       }
     } catch (error) {
-      console.error("Login error:", error)
+      console.error("❌ AuthService: Login error:", error)
       return {
         success: false,
         message: "Login failed. Please try again.",
