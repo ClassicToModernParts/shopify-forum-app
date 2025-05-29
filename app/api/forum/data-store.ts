@@ -5,7 +5,7 @@ interface Post {
   id: string
   title: string
   content: string
-  author: string
+  authorId: string
   categoryId: string
   createdAt: string
   updatedAt: string
@@ -14,7 +14,11 @@ interface Post {
 interface User {
   id: string
   email: string
+  username: string
   name: string
+  password: string
+  phone?: string
+  role: "admin" | "user"
   createdAt: string
   lastActive: string
 }
@@ -23,13 +27,33 @@ interface Category {
   id: string
   name: string
   description: string
+  color?: string
   createdAt: string
+}
+
+interface PasswordResetToken {
+  userId: string
+  token: string
+  type: "email" | "sms"
+  createdAt: string
+  expiresAt: string
+}
+
+interface SMSVerificationCode {
+  userId: string
+  code: string
+  phone: string
+  createdAt: string
+  expiresAt: string
+  attempts: number
 }
 
 class ForumDataStore {
   private posts: Post[] = []
   private users: User[] = []
   private categories: Category[] = []
+  private passwordResetTokens: PasswordResetToken[] = []
+  private smsVerificationCodes: SMSVerificationCode[] = []
 
   // Posts
   addPost(post: Omit<Post, "id" | "createdAt" | "updatedAt">) {
@@ -51,6 +75,10 @@ class ForumDataStore {
     return this.posts.filter((post) => post.categoryId === categoryId)
   }
 
+  getPostsByUser(userId: string) {
+    return this.posts.filter((post) => post.authorId === userId)
+  }
+
   // Users
   addUser(user: Omit<User, "id" | "createdAt" | "lastActive">) {
     const newUser: User = {
@@ -67,11 +95,118 @@ class ForumDataStore {
     return this.users
   }
 
+  getUserById(id: string) {
+    return this.users.find((u) => u.id === id)
+  }
+
+  getUserByEmail(email: string) {
+    return this.users.find((u) => u.email === email)
+  }
+
+  getUserByPhone(phone: string) {
+    const cleanPhone = phone.replace(/\D/g, "")
+    return this.users.find((u) => u.phone?.replace(/\D/g, "") === cleanPhone)
+  }
+
+  getUserByUsername(username: string) {
+    return this.users.find((u) => u.username === username)
+  }
+
   updateUserActivity(userId: string) {
     const user = this.users.find((u) => u.id === userId)
     if (user) {
       user.lastActive = new Date().toISOString()
     }
+  }
+
+  updateUserPassword(userId: string, newPassword: string) {
+    const user = this.users.find((u) => u.id === userId)
+    if (user) {
+      user.password = newPassword
+      return true
+    }
+    return false
+  }
+
+  // SMS Verification Codes
+  setSMSVerificationCode(userId: string, code: string, phone: string) {
+    // Remove existing codes for this user
+    this.smsVerificationCodes = this.smsVerificationCodes.filter((c) => c.userId !== userId)
+
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
+    this.smsVerificationCodes.push({
+      userId,
+      code,
+      phone,
+      createdAt: new Date().toISOString(),
+      expiresAt: expiresAt.toISOString(),
+      attempts: 0,
+    })
+  }
+
+  verifySMSCode(code: string, phone: string): User | null {
+    const cleanPhone = phone.replace(/\D/g, "")
+    const verification = this.smsVerificationCodes.find(
+      (v) => v.code === code && v.phone.replace(/\D/g, "") === cleanPhone,
+    )
+
+    if (!verification) {
+      return null
+    }
+
+    // Check if expired
+    if (new Date() > new Date(verification.expiresAt)) {
+      return null
+    }
+
+    // Check attempts (max 3)
+    if (verification.attempts >= 3) {
+      return null
+    }
+
+    // Increment attempts
+    verification.attempts++
+
+    // If code matches, return user and remove verification
+    const user = this.getUserById(verification.userId)
+    if (user) {
+      this.smsVerificationCodes = this.smsVerificationCodes.filter((v) => v.userId !== verification.userId)
+    }
+
+    return user
+  }
+
+  // Password Reset Tokens
+  setPasswordResetToken(userId: string, token: string, type: "email" | "sms" = "email") {
+    // Remove existing tokens for this user
+    this.passwordResetTokens = this.passwordResetTokens.filter((t) => t.userId !== userId)
+
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000) // 1 hour
+    this.passwordResetTokens.push({
+      userId,
+      token,
+      type,
+      createdAt: new Date().toISOString(),
+      expiresAt: expiresAt.toISOString(),
+    })
+  }
+
+  getUserByResetToken(token: string): User | null {
+    const resetToken = this.passwordResetTokens.find((t) => t.token === token)
+    if (!resetToken) {
+      return null
+    }
+
+    // Check if expired
+    if (new Date() > new Date(resetToken.expiresAt)) {
+      return null
+    }
+
+    return this.getUserById(resetToken.userId)
+  }
+
+  clearPasswordResetToken(userId: string) {
+    this.passwordResetTokens = this.passwordResetTokens.filter((t) => t.userId !== userId)
   }
 
   // Categories
@@ -87,6 +222,10 @@ class ForumDataStore {
 
   getCategories() {
     return this.categories
+  }
+
+  getCategoryById(id: string) {
+    return this.categories.find((c) => c.id === id)
   }
 
   updateCategory(id: string, updates: Partial<Omit<Category, "id" | "createdAt">>) {
@@ -132,12 +271,17 @@ class ForumDataStore {
     const recentActivity = this.posts
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 10)
-      .map((post) => ({
-        type: "post",
-        title: post.title,
-        author: post.author,
-        timestamp: post.createdAt,
-      }))
+      .map((post) => {
+        const author = this.getUserById(post.authorId)
+        const category = this.getCategoryById(post.categoryId)
+        return {
+          type: "post",
+          title: post.title,
+          author: author?.name || "Unknown",
+          category: category?.name || "Unknown",
+          timestamp: post.createdAt,
+        }
+      })
 
     return {
       totalPosts: this.posts.length,

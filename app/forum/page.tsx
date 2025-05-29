@@ -1,8 +1,12 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { MessageSquare, Users, Clock, Plus, Eye, Heart, Pin, Lock, ArrowLeft, Send, X } from "lucide-react"
 import Link from "next/link"
-import { Search, Plus, MessageSquare, Eye, Heart, Pin, Lock, Filter, ArrowLeft, Send, X } from "lucide-react"
+import useUserAuth from "@/hooks/useUserAuth"
 
 interface Category {
   id: string
@@ -11,8 +15,8 @@ interface Category {
   postCount: number
   lastActivity: string
   color: string
-  icon: string
-  isPrivate: boolean
+  icon?: string
+  isPrivate?: boolean
 }
 
 interface Post {
@@ -43,6 +47,13 @@ interface Reply {
   likes: number
 }
 
+interface ForumData {
+  categories: Category[]
+  totalPosts: number
+  totalUsers: number
+  onlineUsers: number
+}
+
 export default function ForumPage() {
   const [categories, setCategories] = useState<Category[]>([])
   const [posts, setPosts] = useState<Post[]>([])
@@ -65,10 +76,29 @@ export default function ForumPage() {
     content: "",
     author: "",
   })
+  const [forumData, setForumData] = useState<ForumData | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const { user, isAuthenticated, logout } = useUserAuth()
 
   useEffect(() => {
     loadCategories()
     loadPosts()
+  }, [])
+
+  useEffect(() => {
+    const fetchForumData = async () => {
+      try {
+        const response = await fetch("/api/forum")
+        const data = await response.json()
+        setForumData(data)
+      } catch (error) {
+        console.error("Error fetching forum data:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchForumData()
   }, [])
 
   const loadCategories = async () => {
@@ -238,6 +268,17 @@ export default function ForumPage() {
   }
 
   const getCategoryById = (id: string) => categories.find((c) => c.id === id)
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading forum...</p>
+        </div>
+      </div>
+    )
+  }
 
   // Single Post View
   if (selectedPost) {
@@ -439,317 +480,148 @@ export default function ForumPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b sticky top-0 z-10">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-4">
-              <Link href="/" className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
-                  <MessageSquare className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-xl font-bold text-gray-900">Community Forum</h1>
-                  <p className="text-sm text-gray-500">Connect • Share • Grow</p>
-                </div>
-              </Link>
+              <div className="bg-blue-600 p-2 rounded-lg">
+                <MessageSquare className="h-8 w-8 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Community Forum</h1>
+                <p className="text-gray-600">Connect • Share • Grow</p>
+              </div>
             </div>
-            <button
-              onClick={() => setShowNewPostModal(true)}
-              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              <Plus className="h-4 w-4" />
-              <span>New Post</span>
-            </button>
+
+            <div className="flex items-center space-x-4">
+              {isAuthenticated && user ? (
+                <div className="flex items-center space-x-4">
+                  <span className="text-sm text-gray-600">Welcome, {user.name}!</span>
+                  <Button variant="outline" onClick={logout}>
+                    Logout
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center space-x-2">
+                  <Link href="/login">
+                    <Button variant="outline">Login</Button>
+                  </Link>
+                  <Link href="/register">
+                    <Button>Sign Up</Button>
+                  </Link>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
 
-      <div className="container mx-auto px-6 py-8">
-        <div className="grid lg:grid-cols-4 gap-8">
-          {/* Sidebar */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-sm border p-6 sticky top-24">
-              <h2 className="text-lg font-semibold mb-4">Categories</h2>
-              <div className="space-y-2">
-                <button
-                  onClick={() => {
-                    setSelectedCategory(null)
-                    loadPosts(undefined, searchQuery, sortBy)
-                  }}
-                  className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
-                    !selectedCategory ? "bg-blue-100 text-blue-700" : "hover:bg-gray-100"
-                  }`}
-                >
-                  All Categories
-                </button>
-                {categories.map((category) => (
-                  <button
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Forum Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center">
+                <MessageSquare className="h-8 w-8 text-blue-600" />
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Total Posts</p>
+                  <p className="text-2xl font-bold text-gray-900">{forumData?.totalPosts || 0}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center">
+                <Users className="h-8 w-8 text-green-600" />
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Total Users</p>
+                  <p className="text-2xl font-bold text-gray-900">{forumData?.totalUsers || 0}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center">
+                <Clock className="h-8 w-8 text-orange-600" />
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Online Now</p>
+                  <p className="text-2xl font-bold text-gray-900">{forumData?.onlineUsers || 0}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Categories Section */}
+        <Card>
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <div>
+                <CardTitle className="text-2xl font-bold">Categories</CardTitle>
+                <CardDescription>Browse topics and join the conversation</CardDescription>
+              </div>
+              {isAuthenticated && (
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Post
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            {forumData?.categories && forumData.categories.length > 0 ? (
+              <div className="space-y-4">
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <Button variant="ghost" className="w-full justify-start text-blue-700 hover:text-blue-800">
+                    <MessageSquare className="h-5 w-5 mr-3" />
+                    All Categories
+                  </Button>
+                </div>
+
+                {forumData.categories.map((category) => (
+                  <div
                     key={category.id}
-                    onClick={() => handleCategoryClick(category.id)}
-                    className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
-                      selectedCategory === category.id ? "bg-blue-100 text-blue-700" : "hover:bg-gray-100"
-                    }`}
+                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: category.color }} />
-                        <span className="font-medium">{category.name}</span>
+                    <div className="flex items-center space-x-4">
+                      <div className={`w-3 h-3 rounded-full ${category.color}`}></div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900">{category.name}</h3>
+                        <p className="text-sm text-gray-600">{category.description}</p>
                       </div>
-                      <span className="text-sm text-gray-500">{category.postCount}</span>
                     </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Main Content */}
-          <div className="lg:col-span-3">
-            {/* Search and Filters */}
-            <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div className="flex-1 flex gap-2">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Search discussions..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      onKeyPress={(e) => e.key === "Enter" && handleSearch()}
-                      className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                    <div className="text-right">
+                      <Badge variant="secondary">{category.postCount}</Badge>
+                      <p className="text-xs text-gray-500 mt-1">{category.lastActivity}</p>
+                    </div>
                   </div>
-                  <button
-                    onClick={handleSearch}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  >
-                    Search
-                  </button>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Filter className="h-4 w-4 text-gray-500" />
-                  <select
-                    value={sortBy}
-                    onChange={(e) => handleSortChange(e.target.value)}
-                    className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="recent">Most Recent</option>
-                    <option value="popular">Most Popular</option>
-                    <option value="replies">Most Replies</option>
-                    <option value="oldest">Oldest First</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* Filter indicator */}
-            {selectedCategory && (
-              <div className="flex items-center gap-2 mb-4">
-                <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
-                  Filtered by: {getCategoryById(selectedCategory)?.name}
-                </span>
-                <button
-                  onClick={() => {
-                    setSelectedCategory(null)
-                    loadPosts(undefined, searchQuery, sortBy)
-                  }}
-                  className="text-sm text-gray-600 hover:text-gray-900"
-                >
-                  Clear filter
-                </button>
-              </div>
-            )}
-
-            {/* Posts */}
-            {loading ? (
-              <div className="bg-white rounded-lg shadow-sm border p-8 text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                <p className="mt-4 text-gray-500">Loading posts...</p>
-              </div>
-            ) : posts.length === 0 ? (
-              <div className="bg-white rounded-lg shadow-sm border p-8 text-center">
-                <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500 mb-4">No posts found. Be the first to start a discussion!</p>
-                <button
-                  onClick={() => setShowNewPostModal(true)}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Create First Post
-                </button>
+                ))}
               </div>
             ) : (
-              <div className="space-y-4">
-                {posts.map((post) => (
-                  <div
-                    key={post.id}
-                    className="bg-white rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow cursor-pointer"
-                    onClick={() => handlePostClick(post)}
-                  >
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-3 mb-2">
-                          {post.isPinned && <Pin className="h-4 w-4 text-blue-500" />}
-                          {post.isLocked && <Lock className="h-4 w-4 text-red-500" />}
-                          <span
-                            className="px-2 py-1 rounded-full text-xs font-medium text-white"
-                            style={{ backgroundColor: getCategoryById(post.categoryId)?.color }}
-                          >
-                            {getCategoryById(post.categoryId)?.name}
-                          </span>
-                          {post.isPinned && <span className="text-xs text-blue-600 font-medium">PINNED</span>}
-                        </div>
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2 hover:text-blue-600">{post.title}</h3>
-                        <div className="flex items-center space-x-4 text-sm text-gray-500 mb-3">
-                          <span className="font-medium">{post.author}</span>
-                          <span>•</span>
-                          <span>{formatDate(post.createdAt)}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <p className="text-gray-700 mb-4 line-clamp-2">{post.content}</p>
-
-                    {post.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mb-4">
-                        {post.tags.slice(0, 3).map((tag, index) => (
-                          <span key={index} className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">
-                            #{tag}
-                          </span>
-                        ))}
-                        {post.tags.length > 3 && (
-                          <span className="px-2 py-1 bg-gray-100 text-gray-500 rounded text-xs">
-                            +{post.tags.length - 3} more
-                          </span>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="flex items-center justify-between pt-4 border-t">
-                      <div className="flex items-center space-x-6 text-sm text-gray-500">
-                        <div className="flex items-center space-x-1">
-                          <Heart className="h-4 w-4" />
-                          <span>{post.likes}</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <MessageSquare className="h-4 w-4" />
-                          <span>{post.replies}</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <Eye className="h-4 w-4" />
-                          <span>{post.views}</span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          likePost(post.id)
-                        }}
-                        className="flex items-center space-x-1 px-3 py-1 text-sm border rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        <Heart className="h-4 w-4" />
-                        <span>Like</span>
-                      </button>
-                    </div>
+              <div className="text-center py-12">
+                <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No categories yet</h3>
+                <p className="text-gray-600 mb-4">Be the first to start a conversation!</p>
+                {!isAuthenticated && (
+                  <div className="space-x-2">
+                    <Link href="/login">
+                      <Button variant="outline">Login</Button>
+                    </Link>
+                    <Link href="/register">
+                      <Button>Sign Up to Post</Button>
+                    </Link>
                   </div>
-                ))}
+                )}
               </div>
             )}
-          </div>
-        </div>
-      </div>
-
-      {/* New Post Modal */}
-      {showNewPostModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">Create New Post</h2>
-              <button onClick={() => setShowNewPostModal(false)} className="text-gray-400 hover:text-gray-600">
-                <X className="h-6 w-6" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Title *</label>
-                <input
-                  type="text"
-                  placeholder="Enter post title..."
-                  value={newPost.title}
-                  onChange={(e) => setNewPost({ ...newPost, title: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Category *</label>
-                <select
-                  value={newPost.categoryId}
-                  onChange={(e) => setNewPost({ ...newPost, categoryId: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select a category...</option>
-                  {categories.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Your Name *</label>
-                <input
-                  type="text"
-                  placeholder="Enter your name..."
-                  value={newPost.author}
-                  onChange={(e) => setNewPost({ ...newPost, author: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Content *</label>
-                <textarea
-                  placeholder="Write your post content..."
-                  rows={6}
-                  value={newPost.content}
-                  onChange={(e) => setNewPost({ ...newPost, content: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Tags (optional)</label>
-                <input
-                  type="text"
-                  placeholder="Enter tags separated by commas..."
-                  value={newPost.tags}
-                  onChange={(e) => setNewPost({ ...newPost, tags: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <p className="text-xs text-gray-500 mt-1">Example: support, troubleshooting, feature-request</p>
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={createPost}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Create Post
-                </button>
-                <button
-                  onClick={() => setShowNewPostModal(false)}
-                  className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+          </CardContent>
+        </Card>
+      </main>
     </div>
   )
 }
