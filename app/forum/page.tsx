@@ -165,17 +165,27 @@ export default function ForumPage() {
     try {
       console.log("🔍 Loading categories...")
       const response = await fetch("/api/forum?type=categories&shop_id=demo")
+      console.log("📡 Categories API response status:", response.status)
+
       if (!response.ok) {
         throw new Error(`Categories API failed: ${response.status}`)
       }
+
       const data = await response.json()
-      console.log("📊 Categories API response:", data)
+      console.log("📊 Categories API full response:", data)
 
       if (data.success) {
-        console.log("✅ Categories loaded:", data.data)
+        console.log("✅ Categories loaded successfully")
+        console.log("📂 Categories data:", data.data)
+        console.log("📊 Categories count:", Array.isArray(data.data) ? data.data.length : "Not an array")
+
         // Ensure data.data is an array
         const categoriesArray = Array.isArray(data.data) ? data.data : []
         setCategories(categoriesArray)
+
+        if (categoriesArray.length === 0) {
+          console.log("⚠️ No categories found - system may need initialization")
+        }
       } else {
         console.error("❌ Categories API returned error:", data.error)
         setCategories([]) // Set empty array on error
@@ -659,27 +669,43 @@ export default function ForumPage() {
               <div className="text-center py-12">
                 <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No categories yet</h3>
-                <p className="text-gray-600 mb-4">
-                  {!isAuthenticated
-                    ? "Create an account and be the first to start a conversation!"
-                    : "The forum needs to be initialized. Visit /admin/init-system to set up the forum."}
-                </p>
-                <div className="space-x-2">
-                  {!isAuthenticated ? (
-                    <>
+
+                {!isAuthenticated ? (
+                  <>
+                    <p className="text-gray-600 mb-4">Create an account to join the conversation!</p>
+                    <div className="space-x-2">
                       <Link href="/login">
                         <Button variant="outline">Login</Button>
                       </Link>
                       <Link href="/register">
-                        <Button>Sign Up to Post</Button>
+                        <Button>Sign Up</Button>
                       </Link>
-                    </>
-                  ) : (
-                    <Link href="/admin/init-system">
-                      <Button>Initialize Forum</Button>
-                    </Link>
-                  )}
-                </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-gray-600 mb-4">The forum appears to be empty. This might mean:</p>
+                    <ul className="text-sm text-gray-500 mb-4 space-y-1">
+                      <li>• The system needs to be initialized</li>
+                      <li>• Categories haven't been created yet</li>
+                      <li>• There was a recent deployment</li>
+                    </ul>
+                    <div className="space-x-2">
+                      <Link href="/admin/init-system">
+                        <Button>Check System Status</Button>
+                      </Link>
+                      <button
+                        onClick={() => {
+                          loadCategories()
+                          loadForumStats()
+                        }}
+                        className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                      >
+                        Refresh
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
