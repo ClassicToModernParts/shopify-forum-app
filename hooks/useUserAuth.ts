@@ -34,20 +34,28 @@ export default function useUserAuth() {
 
   // Check for existing session on mount
   useEffect(() => {
-    const token = localStorage.getItem("authToken")
-    const userData = localStorage.getItem("userData")
+    try {
+      if (typeof window !== "undefined") {
+        const token = localStorage.getItem("authToken")
+        const userData = localStorage.getItem("userData")
 
-    if (token && userData) {
-      try {
-        const parsedUser = JSON.parse(userData)
-        setUser(parsedUser)
-      } catch (error) {
-        // Invalid stored data, clear it
-        localStorage.removeItem("authToken")
-        localStorage.removeItem("userData")
+        if (token && userData) {
+          try {
+            const parsedUser = JSON.parse(userData)
+            setUser(parsedUser)
+          } catch (error) {
+            console.error("Error parsing user data:", error)
+            // Invalid stored data, clear it
+            localStorage.removeItem("authToken")
+            localStorage.removeItem("userData")
+          }
+        }
       }
+    } catch (error) {
+      console.error("Error accessing localStorage:", error)
+    } finally {
+      setIsLoading(false)
     }
-    setIsLoading(false)
   }, [])
 
   const login = async (loginData: LoginData): Promise<AuthResult> => {
@@ -60,16 +68,23 @@ export default function useUserAuth() {
         body: JSON.stringify(loginData),
       })
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
       const result = await response.json()
 
       if (result.success && result.user && result.token) {
         setUser(result.user)
-        localStorage.setItem("authToken", result.token)
-        localStorage.setItem("userData", JSON.stringify(result.user))
+        if (typeof window !== "undefined") {
+          localStorage.setItem("authToken", result.token)
+          localStorage.setItem("userData", JSON.stringify(result.user))
+        }
       }
 
       return result
     } catch (error) {
+      console.error("Login error:", error)
       return {
         success: false,
         message: "Login failed. Please try again.",
@@ -87,16 +102,23 @@ export default function useUserAuth() {
         body: JSON.stringify(registerData),
       })
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
       const result = await response.json()
 
       if (result.success && result.user && result.token) {
         setUser(result.user)
-        localStorage.setItem("authToken", result.token)
-        localStorage.setItem("userData", JSON.stringify(result.user))
+        if (typeof window !== "undefined") {
+          localStorage.setItem("authToken", result.token)
+          localStorage.setItem("userData", JSON.stringify(result.user))
+        }
       }
 
       return result
     } catch (error) {
+      console.error("Registration error:", error)
       return {
         success: false,
         message: "Registration failed. Please try again.",
@@ -106,8 +128,10 @@ export default function useUserAuth() {
 
   const logout = () => {
     setUser(null)
-    localStorage.removeItem("authToken")
-    localStorage.removeItem("userData")
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("authToken")
+      localStorage.removeItem("userData")
+    }
   }
 
   return {
