@@ -24,10 +24,10 @@ interface Post {
   title: string
   content: string
   author: string
-  authorEmail: string
+  authorEmail?: string
   categoryId: string
   createdAt: string
-  updatedAt: string
+  updatedAt?: string
   replies: number
   views: number
   likes: number
@@ -42,7 +42,7 @@ interface Reply {
   postId: string
   content: string
   author: string
-  authorEmail: string
+  authorEmail?: string
   createdAt: string
   likes: number
 }
@@ -85,6 +85,9 @@ export default function ForumPage() {
   const [isLoading, setIsLoading] = useState(true)
   const { user, isAuthenticated, logout } = useUserAuth()
   const [error, setError] = useState<string | null>(null)
+  const [categoryPosts, setCategoryPosts] = useState<Post[]>([])
+  const [showCategoryPosts, setShowCategoryPosts] = useState(false)
+  const [currentCategoryName, setCurrentCategoryName] = useState("")
 
   useEffect(() => {
     loadCategories()
@@ -180,7 +183,16 @@ export default function ForumPage() {
       const data = await response.json()
       if (data.success) {
         console.log("✅ Posts loaded:", data.data)
-        setPosts(Array.isArray(data.data) ? data.data : [])
+        const loadedPosts = Array.isArray(data.data) ? data.data : []
+        setPosts(loadedPosts)
+
+        if (categoryId) {
+          setCategoryPosts(loadedPosts)
+          const category = categories.find((c) => c.id === categoryId)
+          if (category) {
+            setCurrentCategoryName(category.name)
+          }
+        }
       } else {
         console.error("❌ Posts API returned error:", data.error)
         setError("Failed to load posts. Please try again later.")
@@ -217,6 +229,14 @@ export default function ForumPage() {
     console.log("🔍 Category clicked:", categoryId)
     setSelectedCategory(categoryId)
     setSelectedPost(null)
+    setShowCategoryPosts(true)
+
+    // Find the category name
+    const category = categories.find((c) => c.id === categoryId)
+    if (category) {
+      setCurrentCategoryName(category.name)
+    }
+
     loadPosts(categoryId, searchQuery, sortBy)
   }
 
@@ -277,7 +297,14 @@ export default function ForumPage() {
         console.log("✅ Post created successfully:", data.data)
         setNewPost({ title: "", content: "", author: "", categoryId: "", tags: "" })
         setShowNewPostModal(false)
-        loadPosts(selectedCategory || undefined, searchQuery, sortBy)
+
+        // If we're viewing a category, reload that category's posts
+        if (showCategoryPosts && selectedCategory) {
+          loadPosts(selectedCategory, searchQuery, sortBy)
+        } else {
+          loadPosts(undefined, searchQuery, sortBy)
+        }
+
         loadCategories()
         loadForumStats() // Refresh stats after creating post
         setError(null)
@@ -410,6 +437,12 @@ export default function ForumPage() {
     setShowNewPostModal(true)
   }
 
+  const handleBackToCategories = () => {
+    setShowCategoryPosts(false)
+    setSelectedCategory(null)
+    setCategoryPosts([])
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -431,11 +464,16 @@ export default function ForumPage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
                 <button
-                  onClick={() => setSelectedPost(null)}
+                  onClick={() => {
+                    setSelectedPost(null)
+                    if (showCategoryPosts) {
+                      loadPosts(selectedCategory || undefined, searchQuery, sortBy)
+                    }
+                  }}
                   className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
                 >
                   <ArrowLeft className="h-5 w-5" />
-                  <span>Back to Forum</span>
+                  <span>Back to {showCategoryPosts ? currentCategoryName : "Forum"}</span>
                 </button>
                 <div className="h-6 w-px bg-gray-300" />
                 <Link href="/" className="text-gray-600 hover:text-gray-900">
@@ -622,7 +660,219 @@ export default function ForumPage() {
     )
   }
 
-  // Main Forum View
+  // Category Posts View
+  if (showCategoryPosts) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {/* Header */}
+        <header className="bg-white shadow-sm border-b">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center py-4">
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={handleBackToCategories}
+                  className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                  <span>Back to Categories</span>
+                </button>
+                <div className="h-6 w-px bg-gray-300" />
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900">{currentCategoryName}</h1>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-4">
+                <Button onClick={handleNewPostClick}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Post
+                </Button>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* Main Content */}
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">{error}</div>}
+
+          {/* Posts List */}
+          <div className="bg-white rounded-lg shadow-sm border">
+            <div className="p-6">
+              <h2 className="text-xl font-bold mb-4">Posts in {currentCategoryName}</h2>
+
+              {loading ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="mt-2 text-gray-600">Loading posts...</p>
+                </div>
+              ) : categoryPosts.length > 0 ? (
+                <div className="space-y-4">
+                  {categoryPosts.map((post) => (
+                    <div
+                      key={post.id}
+                      className="border rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
+                      onClick={() => handlePostClick(post)}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h3 className="font-semibold text-lg text-gray-900">{post.title}</h3>
+                          <p className="text-gray-600 line-clamp-2 mt-1">{post.content}</p>
+                          <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
+                            <span>{post.author}</span>
+                            <span>•</span>
+                            <span>{formatDate(post.createdAt)}</span>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end space-y-2">
+                          <div className="flex items-center space-x-3 text-gray-500">
+                            <div className="flex items-center space-x-1">
+                              <MessageSquare className="h-4 w-4" />
+                              <span>{post.replies}</span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <Eye className="h-4 w-4" />
+                              <span>{post.views}</span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <Heart className="h-4 w-4" />
+                              <span>{post.likes}</span>
+                            </div>
+                          </div>
+                          {post.tags && post.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 justify-end">
+                              {post.tags.slice(0, 2).map((tag, index) => (
+                                <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
+                                  #{tag}
+                                </span>
+                              ))}
+                              {post.tags.length > 2 && (
+                                <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-full text-xs">
+                                  +{post.tags.length - 2}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No posts in this category yet</h3>
+                  <p className="text-gray-600 mb-4">Be the first to start a conversation!</p>
+                  <Button onClick={handleNewPostClick}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create First Post
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        </main>
+
+        {/* New Post Modal */}
+        {showNewPostModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-3xl">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold">Create New Post</h2>
+                <button onClick={() => setShowNewPostModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">{error}</div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Title *</label>
+                  <input
+                    type="text"
+                    placeholder="Enter post title..."
+                    value={newPost.title}
+                    onChange={(e) => setNewPost({ ...newPost, title: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Category *</label>
+                  <select
+                    value={newPost.categoryId}
+                    onChange={(e) => setNewPost({ ...newPost, categoryId: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select a category</option>
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Your Name *</label>
+                  <input
+                    type="text"
+                    placeholder="Enter your name..."
+                    value={newPost.author}
+                    onChange={(e) => setNewPost({ ...newPost, author: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Content *</label>
+                  <textarea
+                    placeholder="Write your post..."
+                    rows={8}
+                    value={newPost.content}
+                    onChange={(e) => setNewPost({ ...newPost, content: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Tags (comma separated)</label>
+                  <input
+                    type="text"
+                    placeholder="tag1, tag2, tag3..."
+                    value={newPost.tags}
+                    onChange={(e) => setNewPost({ ...newPost, tags: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    onClick={createPost}
+                    disabled={loading}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {loading ? "Creating..." : "Create Post"}
+                  </button>
+                  <button
+                    onClick={() => setShowNewPostModal(false)}
+                    className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // Main Forum View (Categories)
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -722,20 +972,6 @@ export default function ForumPage() {
           <CardContent>
             {categories && categories.length > 0 ? (
               <div className="space-y-4">
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-start text-blue-700 hover:text-blue-800"
-                    onClick={() => {
-                      setSelectedCategory(null)
-                      loadPosts()
-                    }}
-                  >
-                    <MessageSquare className="h-5 w-5 mr-3" />
-                    All Categories
-                  </Button>
-                </div>
-
                 {categories.map((category) => (
                   <div
                     key={category.id}
