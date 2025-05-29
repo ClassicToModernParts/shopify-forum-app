@@ -1,161 +1,121 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
 
 interface User {
   id: string
-  email: string
   name: string
   username: string
 }
 
-interface AuthState {
-  user: User | null
-  token: string | null
-  isAuthenticated: boolean
-  isLoading: boolean
+interface LoginData {
+  username: string
+  password: string
 }
 
-export function useUserAuth() {
-  const [authState, setAuthState] = useState<AuthState>({
-    user: null,
-    token: null,
-    isAuthenticated: false,
-    isLoading: true,
-  })
+interface RegisterData {
+  username: string
+  name: string
+  password: string
+  securityQuestion: string
+  securityAnswer: string
+}
 
-  // Check if user is authenticated on mount
+interface AuthResult {
+  success: boolean
+  message: string
+  user?: User
+  token?: string
+}
+
+export default function useUserAuth() {
+  const [user, setUser] = useState<User | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Check for existing session on mount
   useEffect(() => {
-    const checkAuth = () => {
-      try {
-        const storedToken = localStorage.getItem("user_token")
-        const storedUser = localStorage.getItem("user_data")
+    const token = localStorage.getItem("authToken")
+    const userData = localStorage.getItem("userData")
 
-        if (storedToken && storedUser) {
-          const userData = JSON.parse(storedUser)
-          setAuthState({
-            user: userData,
-            token: storedToken,
-            isAuthenticated: true,
-            isLoading: false,
-          })
-        } else {
-          setAuthState({
-            user: null,
-            token: null,
-            isAuthenticated: false,
-            isLoading: false,
-          })
-        }
+    if (token && userData) {
+      try {
+        const parsedUser = JSON.parse(userData)
+        setUser(parsedUser)
       } catch (error) {
-        console.error("Error checking auth status:", error)
-        setAuthState({
-          user: null,
-          token: null,
-          isAuthenticated: false,
-          isLoading: false,
-        })
+        // Invalid stored data, clear it
+        localStorage.removeItem("authToken")
+        localStorage.removeItem("userData")
       }
     }
-
-    checkAuth()
+    setIsLoading(false)
   }, [])
 
-  // Register a new user
-  const register = async (userData: {
-    email: string
-    username: string
-    password: string
-    name: string
-  }) => {
-    try {
-      const response = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(userData),
-      })
-
-      const data = await response.json()
-
-      if (data.success && data.token && data.user) {
-        localStorage.setItem("user_token", data.token)
-        localStorage.setItem("user_data", JSON.stringify(data.user))
-
-        setAuthState({
-          user: data.user,
-          token: data.token,
-          isAuthenticated: true,
-          isLoading: false,
-        })
-
-        return { success: true, message: data.message }
-      } else {
-        return { success: false, message: data.message || "Registration failed" }
-      }
-    } catch (error) {
-      console.error("Registration error:", error)
-      return { success: false, message: "Registration failed. Please try again." }
-    }
-  }
-
-  // Login user
-  const login = async (credentials: { email: string; password: string }) => {
+  const login = async (loginData: LoginData): Promise<AuthResult> => {
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(credentials),
+        body: JSON.stringify(loginData),
       })
 
-      const data = await response.json()
+      const result = await response.json()
 
-      if (data.success && data.token && data.user) {
-        localStorage.setItem("user_token", data.token)
-        localStorage.setItem("user_data", JSON.stringify(data.user))
-
-        setAuthState({
-          user: data.user,
-          token: data.token,
-          isAuthenticated: true,
-          isLoading: false,
-        })
-
-        return { success: true, message: data.message }
-      } else {
-        return { success: false, message: data.message || "Login failed" }
+      if (result.success && result.user && result.token) {
+        setUser(result.user)
+        localStorage.setItem("authToken", result.token)
+        localStorage.setItem("userData", JSON.stringify(result.user))
       }
+
+      return result
     } catch (error) {
-      console.error("Login error:", error)
-      return { success: false, message: "Login failed. Please try again." }
+      return {
+        success: false,
+        message: "Login failed. Please try again.",
+      }
     }
   }
 
-  // Logout user
-  const logout = useCallback(() => {
-    localStorage.removeItem("user_token")
-    localStorage.removeItem("user_data")
+  const register = async (registerData: RegisterData): Promise<AuthResult> => {
+    try {
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(registerData),
+      })
 
-    setAuthState({
-      user: null,
-      token: null,
-      isAuthenticated: false,
-      isLoading: false,
-    })
-  }, [])
+      const result = await response.json()
+
+      if (result.success && result.user && result.token) {
+        setUser(result.user)
+        localStorage.setItem("authToken", result.token)
+        localStorage.setItem("userData", JSON.stringify(result.user))
+      }
+
+      return result
+    } catch (error) {
+      return {
+        success: false,
+        message: "Registration failed. Please try again.",
+      }
+    }
+  }
+
+  const logout = () => {
+    setUser(null)
+    localStorage.removeItem("authToken")
+    localStorage.removeItem("userData")
+  }
 
   return {
-    user: authState.user,
-    token: authState.token,
-    isAuthenticated: authState.isAuthenticated,
-    isLoading: authState.isLoading,
-    register,
+    user,
+    isLoading,
     login,
+    register,
     logout,
+    isAuthenticated: !!user,
   }
 }
-
-export default useUserAuth

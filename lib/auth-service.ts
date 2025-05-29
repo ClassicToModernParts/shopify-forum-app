@@ -1,14 +1,13 @@
 import { forumDataStore } from "@/app/api/forum/data-store"
 
 export interface UserRegistrationData {
-  email: string
   username: string
   password: string
   name: string
 }
 
 export interface UserLoginData {
-  email: string
+  username: string
   password: string
 }
 
@@ -18,7 +17,6 @@ export interface AuthResult {
   token?: string
   user?: {
     id: string
-    email: string
     name: string
     username: string
   }
@@ -46,15 +44,7 @@ export class AuthService {
   // Register a new user
   async registerUser(userData: UserRegistrationData): Promise<AuthResult> {
     try {
-      // Check if user already exists
-      const existingUser = forumDataStore.getUserByEmail(userData.email)
-      if (existingUser) {
-        return {
-          success: false,
-          message: "User with this email already exists",
-        }
-      }
-
+      // Check if username already exists
       const existingUsername = forumDataStore.getUserByUsername(userData.username)
       if (existingUsername) {
         return {
@@ -68,7 +58,6 @@ export class AuthService {
 
       // Create the user
       const newUser = forumDataStore.addUser({
-        email: userData.email,
         username: userData.username,
         name: userData.name,
         password: hashedPassword,
@@ -84,7 +73,6 @@ export class AuthService {
         token,
         user: {
           id: newUser.id,
-          email: newUser.email,
           name: newUser.name,
           username: newUser.username,
         },
@@ -101,12 +89,12 @@ export class AuthService {
   // Login user
   async loginUser(loginData: UserLoginData): Promise<AuthResult> {
     try {
-      // Find user by email
-      const user = forumDataStore.getUserByEmail(loginData.email)
+      // Find user by username
+      const user = forumDataStore.getUserByUsername(loginData.username)
       if (!user) {
         return {
           success: false,
-          message: "Invalid email or password",
+          message: "Invalid username or password",
         }
       }
 
@@ -115,7 +103,7 @@ export class AuthService {
       if (hashedPassword !== user.password) {
         return {
           success: false,
-          message: "Invalid email or password",
+          message: "Invalid username or password",
         }
       }
 
@@ -131,7 +119,6 @@ export class AuthService {
         token,
         user: {
           id: user.id,
-          email: user.email,
           name: user.name,
           username: user.username,
         },
@@ -164,7 +151,7 @@ export class AuthService {
         valid: true,
         decoded: {
           id: userId,
-          email: user.email,
+          username: user.username,
           role: user.role,
         },
       }

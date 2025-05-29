@@ -3,7 +3,7 @@ import crypto from "crypto"
 
 const ADMIN_CREDENTIALS = {
   username: "admin",
-  password: "admin123",
+  password: "With1999*",
 }
 
 export async function POST(request: NextRequest) {
@@ -26,12 +26,6 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: "Invalid username or password",
-          debug: {
-            receivedUsername: trimmedUsername || "",
-            receivedPasswordLength: trimmedPassword?.length || 0,
-            expectedUsername: ADMIN_CREDENTIALS.username,
-            expectedPasswordLength: ADMIN_CREDENTIALS.password.length,
-          },
         },
         { status: 401 },
       )

@@ -9,16 +9,30 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Link from "next/link"
+
+const SECURITY_QUESTIONS = [
+  "What was the name of your first pet?",
+  "What is your mother's maiden name?",
+  "What city were you born in?",
+  "What was the name of your elementary school?",
+  "What is your favorite movie?",
+  "What was the make of your first car?",
+  "What is your favorite food?",
+  "What was your childhood nickname?",
+  "What is the name of your best friend from childhood?",
+  "What street did you grow up on?",
+]
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
     name: "",
     username: "",
-    email: "",
-    phone: "",
     password: "",
     confirmPassword: "",
+    securityQuestion: "",
+    securityAnswer: "",
   })
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -28,6 +42,13 @@ export default function RegisterPage() {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
+    })
+  }
+
+  const handleSecurityQuestionChange = (value: string) => {
+    setFormData({
+      ...formData,
+      securityQuestion: value,
     })
   }
 
@@ -47,6 +68,18 @@ export default function RegisterPage() {
       return
     }
 
+    // Validate username
+    if (formData.username.length < 3) {
+      setError("Username must be at least 3 characters long")
+      return
+    }
+
+    // Validate security question and answer
+    if (!formData.securityQuestion || !formData.securityAnswer.trim()) {
+      setError("Please select a security question and provide an answer")
+      return
+    }
+
     setIsLoading(true)
 
     try {
@@ -58,9 +91,9 @@ export default function RegisterPage() {
         body: JSON.stringify({
           name: formData.name,
           username: formData.username,
-          email: formData.email,
-          phone: formData.phone,
           password: formData.password,
+          securityQuestion: formData.securityQuestion,
+          securityAnswer: formData.securityAnswer,
         }),
       })
 
@@ -74,7 +107,7 @@ export default function RegisterPage() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            email: formData.email,
+            username: formData.username,
             password: formData.password,
           }),
         })
@@ -137,32 +170,7 @@ export default function RegisterPage() {
                 onChange={handleChange}
                 required
               />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="Enter your email"
-                value={formData.email}
-                onChange={handleChange}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="phone">Phone Number (Optional)</Label>
-              <Input
-                id="phone"
-                name="phone"
-                type="tel"
-                placeholder="(555) 123-4567"
-                value={formData.phone}
-                onChange={handleChange}
-              />
-              <p className="text-xs text-gray-500">For SMS password reset (optional)</p>
+              <p className="text-xs text-gray-500">You'll use this to sign in</p>
             </div>
 
             <div className="space-y-2">
@@ -189,6 +197,36 @@ export default function RegisterPage() {
                 onChange={handleChange}
                 required
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="securityQuestion">Security Question</Label>
+              <Select onValueChange={handleSecurityQuestionChange} required>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a security question" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SECURITY_QUESTIONS.map((question, index) => (
+                    <SelectItem key={index} value={question}>
+                      {question}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="securityAnswer">Security Answer</Label>
+              <Input
+                id="securityAnswer"
+                name="securityAnswer"
+                type="text"
+                placeholder="Enter your answer"
+                value={formData.securityAnswer}
+                onChange={handleChange}
+                required
+              />
+              <p className="text-xs text-gray-500">This will be used to reset your password if needed</p>
             </div>
 
             <Button type="submit" className="w-full" disabled={isLoading}>

@@ -63,11 +63,6 @@ export default function AdminLoginPage() {
     }
   }
 
-  // Auto-fill demo credentials
-  const fillDemoCredentials = () => {
-    setCredentials({ username: "admin", password: "admin123" })
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white rounded-lg shadow-lg">
@@ -148,18 +143,6 @@ export default function AdminLoginPage() {
               {loading ? "Signing in..." : "Sign In"}
             </button>
           </form>
-
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-            <p className="text-sm text-blue-800 font-medium mb-2">Demo Credentials:</p>
-            <p className="text-xs text-blue-600 mb-2">Username: admin</p>
-            <p className="text-xs text-blue-600 mb-3">Password: admin123</p>
-            <button
-              onClick={fillDemoCredentials}
-              className="w-full px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
-            >
-              Auto-fill Demo Credentials
-            </button>
-          </div>
         </div>
       </div>
     </div>

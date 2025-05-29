@@ -1,4 +1,7 @@
-// Simple in-memory data store for forum data
+import { promises as fs } from "fs"
+import path from "path"
+
+// Simple file-based data store for forum data
 // In a real application, this would be a database
 
 interface Post {
@@ -13,11 +16,13 @@ interface Post {
 
 interface User {
   id: string
-  email: string
+  email?: string
   username: string
   name: string
   password: string
   phone?: string
+  securityQuestion?: string
+  securityAnswer?: string
   role: "admin" | "user"
   createdAt: string
   lastActive: string
@@ -31,29 +36,66 @@ interface Category {
   createdAt: string
 }
 
-interface PasswordResetToken {
-  userId: string
-  token: string
-  type: "email" | "sms"
-  createdAt: string
-  expiresAt: string
-}
-
-interface SMSVerificationCode {
-  userId: string
-  code: string
-  phone: string
-  createdAt: string
-  expiresAt: string
-  attempts: number
+interface ForumData {
+  posts: Post[]
+  users: User[]
+  categories: Category[]
 }
 
 class ForumDataStore {
   private posts: Post[] = []
   private users: User[] = []
   private categories: Category[] = []
-  private passwordResetTokens: PasswordResetToken[] = []
-  private smsVerificationCodes: SMSVerificationCode[] = []
+  private dataFile = path.join(process.cwd(), "data", "forum-data.json")
+
+  constructor() {
+    this.loadData()
+  }
+
+  // Load data from file
+  private async loadData() {
+    try {
+      // Ensure data directory exists
+      const dataDir = path.dirname(this.dataFile)
+      await fs.mkdir(dataDir, { recursive: true })
+
+      // Try to read existing data
+      const data = await fs.readFile(this.dataFile, "utf-8")
+      const parsedData: ForumData = JSON.parse(data)
+
+      this.posts = parsedData.posts || []
+      this.users = parsedData.users || []
+      this.categories = parsedData.categories || []
+
+      console.log(`Loaded ${this.users.length} users, ${this.posts.length} posts, ${this.categories.length} categories`)
+    } catch (error) {
+      // File doesn't exist or is invalid, start with empty data
+      console.log("No existing data found, starting with empty store")
+      this.posts = []
+      this.users = []
+      this.categories = []
+    }
+  }
+
+  // Save data to file
+  private async saveData() {
+    try {
+      const dataDir = path.dirname(this.dataFile)
+      await fs.mkdir(dataDir, { recursive: true })
+
+      const data: ForumData = {
+        posts: this.posts,
+        users: this.users,
+        categories: this.categories,
+      }
+
+      await fs.writeFile(this.dataFile, JSON.stringify(data, null, 2))
+      console.log("Data saved successfully")
+    } catch (error) {
+      console.error("Failed to save data:", error)
+      // Fallback to memory-only operation
+    }
+  }
 
   // Posts
   addPost(post: Omit<Post, "id" | "createdAt" | "updatedAt">) {
@@ -64,6 +106,7 @@ class ForumDataStore {
       updatedAt: new Date().toISOString(),
     }
     this.posts.push(newPost)
+    this.saveData() // Save after adding
     return newPost
   }
 
@@ -88,6 +131,7 @@ class ForumDataStore {
       lastActive: new Date().toISOString(),
     }
     this.users.push(newUser)
+    this.saveData() // Save after adding
     return newUser
   }
 
@@ -103,11 +147,6 @@ class ForumDataStore {
     return this.users.find((u) => u.email === email)
   }
 
-  getUserByPhone(phone: string) {
-    const cleanPhone = phone.replace(/\D/g, "")
-    return this.users.find((u) => u.phone?.replace(/\D/g, "") === cleanPhone)
-  }
-
   getUserByUsername(username: string) {
     return this.users.find((u) => u.username === username)
   }
@@ -116,6 +155,7 @@ class ForumDataStore {
     const user = this.users.find((u) => u.id === userId)
     if (user) {
       user.lastActive = new Date().toISOString()
+      this.saveData() // Save after updating
     }
   }
 
@@ -123,90 +163,43 @@ class ForumDataStore {
     const user = this.users.find((u) => u.id === userId)
     if (user) {
       user.password = newPassword
+      this.saveData() // Save after updating
       return true
     }
     return false
   }
 
-  // SMS Verification Codes
-  setSMSVerificationCode(userId: string, code: string, phone: string) {
-    // Remove existing codes for this user
-    this.smsVerificationCodes = this.smsVerificationCodes.filter((c) => c.userId !== userId)
-
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
-    this.smsVerificationCodes.push({
-      userId,
-      code,
-      phone,
-      createdAt: new Date().toISOString(),
-      expiresAt: expiresAt.toISOString(),
-      attempts: 0,
-    })
-  }
-
-  verifySMSCode(code: string, phone: string): User | null {
-    const cleanPhone = phone.replace(/\D/g, "")
-    const verification = this.smsVerificationCodes.find(
-      (v) => v.code === code && v.phone.replace(/\D/g, "") === cleanPhone,
-    )
-
-    if (!verification) {
-      return null
-    }
-
-    // Check if expired
-    if (new Date() > new Date(verification.expiresAt)) {
-      return null
-    }
-
-    // Check attempts (max 3)
-    if (verification.attempts >= 3) {
-      return null
-    }
-
-    // Increment attempts
-    verification.attempts++
-
-    // If code matches, return user and remove verification
-    const user = this.getUserById(verification.userId)
+  // Security Questions
+  updateSecurityQuestion(userId: string, question: string, answer: string) {
+    const user = this.users.find((u) => u.id === userId)
     if (user) {
-      this.smsVerificationCodes = this.smsVerificationCodes.filter((v) => v.userId !== verification.userId)
+      user.securityQuestion = question
+      // Simple hash for security answer (case-insensitive)
+      user.securityAnswer = this.simpleHash(answer.toLowerCase().trim())
+      this.saveData() // Save after updating
+      return true
     }
-
-    return user
+    return false
   }
 
-  // Password Reset Tokens
-  setPasswordResetToken(userId: string, token: string, type: "email" | "sms" = "email") {
-    // Remove existing tokens for this user
-    this.passwordResetTokens = this.passwordResetTokens.filter((t) => t.userId !== userId)
-
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000) // 1 hour
-    this.passwordResetTokens.push({
-      userId,
-      token,
-      type,
-      createdAt: new Date().toISOString(),
-      expiresAt: expiresAt.toISOString(),
-    })
+  verifySecurityAnswer(userId: string, answer: string): boolean {
+    const user = this.users.find((u) => u.id === userId)
+    if (!user || !user.securityAnswer) {
+      return false
+    }
+    const hashedAnswer = this.simpleHash(answer.toLowerCase().trim())
+    return user.securityAnswer === hashedAnswer
   }
 
-  getUserByResetToken(token: string): User | null {
-    const resetToken = this.passwordResetTokens.find((t) => t.token === token)
-    if (!resetToken) {
-      return null
+  // Simple hash function
+  private simpleHash(text: string): string {
+    let hash = 0
+    for (let i = 0; i < text.length; i++) {
+      const char = text.charCodeAt(i)
+      hash = (hash << 5) - hash + char
+      hash = hash & hash // Convert to 32bit integer
     }
-
-    // Check if expired
-    if (new Date() > new Date(resetToken.expiresAt)) {
-      return null
-    }
-
-    return this.getUserById(resetToken.userId)
-  }
-
-  clearPasswordResetToken(userId: string) {
-    this.passwordResetTokens = this.passwordResetTokens.filter((t) => t.userId !== userId)
+    return hash.toString()
   }
 
   // Categories
@@ -217,6 +210,7 @@ class ForumDataStore {
       createdAt: new Date().toISOString(),
     }
     this.categories.push(newCategory)
+    this.saveData() // Save after adding
     return newCategory
   }
 
@@ -232,6 +226,7 @@ class ForumDataStore {
     const categoryIndex = this.categories.findIndex((c) => c.id === id)
     if (categoryIndex !== -1) {
       this.categories[categoryIndex] = { ...this.categories[categoryIndex], ...updates }
+      this.saveData() // Save after updating
       return this.categories[categoryIndex]
     }
     return null
@@ -241,6 +236,7 @@ class ForumDataStore {
     const categoryIndex = this.categories.findIndex((c) => c.id === id)
     if (categoryIndex !== -1) {
       this.categories.splice(categoryIndex, 1)
+      this.saveData() // Save after deleting
       return true
     }
     return false

@@ -4,16 +4,16 @@ import { authService } from "@/lib/auth-service"
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { email, password } = body
+    const { username, password } = body
 
     // Validate input
-    if (!email || !password) {
-      return NextResponse.json({ success: false, message: "Email and password are required" }, { status: 400 })
+    if (!username || !password) {
+      return NextResponse.json({ success: false, message: "Username and password are required" }, { status: 400 })
     }
 
     // Login user
     const result = await authService.loginUser({
-      email,
+      username,
       password,
     })
 
