@@ -46,8 +46,33 @@ export class AuthService {
     try {
       console.log(`🔐 AuthService: Registering user ${userData.username}`)
 
+      // Import the data store
+      let forumDataStore
+      try {
+        const dataStoreModule = await import("@/app/api/forum/data-store")
+        forumDataStore = dataStoreModule.forumDataStore
+        console.log("🔐 AuthService: Data store imported successfully")
+      } catch (importError) {
+        console.error("❌ AuthService: Failed to import data store:", importError)
+        return {
+          success: false,
+          message: `Data store import failed: ${importError instanceof Error ? importError.message : String(importError)}`,
+        }
+      }
+
       // Check if username already exists
-      const existingUsername = await forumDataStore.getUserByUsername(userData.username)
+      let existingUsername
+      try {
+        existingUsername = await forumDataStore.getUserByUsername(userData.username)
+        console.log(`🔐 AuthService: Username check completed for ${userData.username}`)
+      } catch (checkError) {
+        console.error("❌ AuthService: Error checking existing username:", checkError)
+        return {
+          success: false,
+          message: `Username check failed: ${checkError instanceof Error ? checkError.message : String(checkError)}`,
+        }
+      }
+
       if (existingUsername) {
         console.log(`❌ AuthService: Username ${userData.username} already exists`)
         return {
@@ -57,19 +82,39 @@ export class AuthService {
       }
 
       // Hash the password
-      const hashedPassword = simpleHash(userData.password)
+      let hashedPassword
+      try {
+        hashedPassword = simpleHash(userData.password)
+        console.log("🔐 AuthService: Password hashed successfully")
+      } catch (hashError) {
+        console.error("❌ AuthService: Error hashing password:", hashError)
+        return {
+          success: false,
+          message: "Password processing failed",
+        }
+      }
 
       // Create the user
       console.log(`🔐 AuthService: Creating new user ${userData.username}`)
-      const newUser = await forumDataStore.addUser({
-        username: userData.username,
-        name: userData.name,
-        password: hashedPassword,
-        role: "user",
-      })
+      let newUser
+      try {
+        newUser = await forumDataStore.addUser({
+          username: userData.username,
+          name: userData.name,
+          password: hashedPassword,
+          role: "user",
+        })
+        console.log("🔐 AuthService: User creation call completed")
+      } catch (createError) {
+        console.error("❌ AuthService: Error creating user:", createError)
+        return {
+          success: false,
+          message: `User creation failed: ${createError instanceof Error ? createError.message : String(createError)}`,
+        }
+      }
 
       if (!newUser || !newUser.id) {
-        console.error("❌ AuthService: Failed to create user - invalid user object returned")
+        console.error("❌ AuthService: Failed to create user - invalid user object returned:", newUser)
         return {
           success: false,
           message: "Failed to create user account. Please try again.",
@@ -79,7 +124,17 @@ export class AuthService {
       console.log(`✅ AuthService: User ${userData.username} created with ID ${newUser.id}`)
 
       // Generate token
-      const token = generateToken(newUser.id)
+      let token
+      try {
+        token = generateToken(newUser.id)
+        console.log("🔐 AuthService: Token generated successfully")
+      } catch (tokenError) {
+        console.error("❌ AuthService: Error generating token:", tokenError)
+        return {
+          success: false,
+          message: "Token generation failed",
+        }
+      }
 
       return {
         success: true,
@@ -95,7 +150,7 @@ export class AuthService {
       console.error("❌ AuthService: Registration error:", error)
       return {
         success: false,
-        message: "Registration failed. Please try again.",
+        message: `Registration failed: ${error instanceof Error ? error.message : String(error)}`,
       }
     }
   }

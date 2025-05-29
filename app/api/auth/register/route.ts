@@ -4,10 +4,18 @@ import { authService } from "@/lib/auth-service"
 export async function POST(request: NextRequest) {
   try {
     console.log("📝 Registration API called")
-    const body = await request.json()
-    const { username, name, password, securityQuestion, securityAnswer } = body
 
-    console.log(`📝 Registration attempt for username: ${username}`)
+    let body
+    try {
+      body = await request.json()
+      console.log("📝 Request body parsed successfully")
+    } catch (parseError) {
+      console.error("❌ Failed to parse request body:", parseError)
+      return NextResponse.json({ success: false, message: "Invalid request format" }, { status: 400 })
+    }
+
+    const { username, name, password, securityQuestion, securityAnswer } = body
+    console.log(`📝 Registration attempt for username: ${username}, name: ${name}`)
 
     // Validate input
     if (!username || !name || !password) {
@@ -46,11 +54,24 @@ export async function POST(request: NextRequest) {
 
     // Register user
     console.log("🔐 Calling auth service to register user")
-    const result = await authService.registerUser({
-      username,
-      name,
-      password,
-    })
+    let result
+    try {
+      result = await authService.registerUser({
+        username,
+        name,
+        password,
+      })
+      console.log("🔐 Auth service response:", result)
+    } catch (authError) {
+      console.error("❌ Auth service error:", authError)
+      return NextResponse.json(
+        {
+          success: false,
+          message: `Auth service failed: ${authError instanceof Error ? authError.message : String(authError)}`,
+        },
+        { status: 500 },
+      )
+    }
 
     if (!result.success) {
       console.log(`❌ Registration failed: ${result.message}`)
@@ -64,8 +85,8 @@ export async function POST(request: NextRequest) {
         const { forumDataStore } = await import("@/app/api/forum/data-store")
         await forumDataStore.updateSecurityQuestion(result.user.id, securityQuestion, securityAnswer)
         console.log("✅ Security question added successfully")
-      } catch (error) {
-        console.error("❌ Error adding security question:", error)
+      } catch (securityError) {
+        console.error("❌ Error adding security question:", securityError)
         // Don't fail registration if security question fails
         // Just log the error and continue
       }
@@ -75,6 +96,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result)
   } catch (error) {
     console.error("❌ Registration error:", error)
-    return NextResponse.json({ success: false, message: "Registration failed. Please try again." }, { status: 500 })
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Registration failed. Please try again.",
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      },
+      { status: 500 },
+    )
   }
 }

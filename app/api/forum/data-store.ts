@@ -274,6 +274,112 @@ class ForumDataStore {
     return this.settings
   }
 
+  // User methods
+  async addUser(user: Omit<any, "id" | "createdAt" | "lastActive">) {
+    try {
+      console.log("👤 DataStore: Adding new user:", user.username)
+
+      const newUser = {
+        ...user,
+        id: `user-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+        lastActive: new Date().toISOString(),
+      }
+
+      this.users.push(newUser)
+      console.log(`✅ DataStore: User ${user.username} added successfully with ID ${newUser.id}`)
+      console.log(`📊 DataStore: Total users now: ${this.users.length}`)
+
+      return newUser
+    } catch (error) {
+      console.error("❌ DataStore: Error adding user:", error)
+      throw error
+    }
+  }
+
+  async getUsers() {
+    try {
+      console.log("👥 DataStore: Getting all users")
+      if (!Array.isArray(this.users)) {
+        console.warn("⚠️ Users is not an array, resetting to default")
+        this.users = []
+      }
+      console.log(`📊 DataStore: Returning ${this.users.length} users`)
+      return this.users
+    } catch (error) {
+      console.error("❌ DataStore: Error getting users:", error)
+      return []
+    }
+  }
+
+  async getUserById(id: string) {
+    try {
+      console.log(`🔍 DataStore: Looking for user with ID: ${id}`)
+      const user = this.users.find((u) => u.id === id)
+      console.log(`🔍 DataStore: User found:`, user ? "Yes" : "No")
+      return user
+    } catch (error) {
+      console.error("❌ DataStore: Error getting user by ID:", error)
+      return null
+    }
+  }
+
+  async getUserByUsername(username: string) {
+    try {
+      console.log(`🔍 DataStore: Looking for user with username: ${username}`)
+      const user = this.users.find((u) => u.username === username)
+      console.log(`🔍 DataStore: User found:`, user ? "Yes" : "No")
+      return user
+    } catch (error) {
+      console.error("❌ DataStore: Error getting user by username:", error)
+      return null
+    }
+  }
+
+  async updateUserActivity(userId: string) {
+    try {
+      console.log(`🔄 DataStore: Updating activity for user: ${userId}`)
+      const user = this.users.find((u) => u.id === userId)
+      if (user) {
+        user.lastActive = new Date().toISOString()
+        console.log(`✅ DataStore: Activity updated for user: ${userId}`)
+      } else {
+        console.log(`❌ DataStore: User not found for activity update: ${userId}`)
+      }
+    } catch (error) {
+      console.error("❌ DataStore: Error updating user activity:", error)
+    }
+  }
+
+  async updateSecurityQuestion(userId: string, question: string, answer: string) {
+    try {
+      console.log(`🔒 DataStore: Updating security question for user: ${userId}`)
+      const user = this.users.find((u) => u.id === userId)
+      if (user) {
+        user.securityQuestion = question
+        user.securityAnswer = this.simpleHash(answer.toLowerCase().trim())
+        console.log(`✅ DataStore: Security question updated for user: ${userId}`)
+        return true
+      } else {
+        console.log(`❌ DataStore: User not found for security question update: ${userId}`)
+        return false
+      }
+    } catch (error) {
+      console.error("❌ DataStore: Error updating security question:", error)
+      return false
+    }
+  }
+
+  private simpleHash(text: string): string {
+    let hash = 0
+    for (let i = 0; i < text.length; i++) {
+      const char = text.charCodeAt(i)
+      hash = (hash << 5) - hash + char
+      hash = hash & hash // Convert to 32bit integer
+    }
+    return hash.toString()
+  }
+
   // Stats methods
   getStats() {
     try {
