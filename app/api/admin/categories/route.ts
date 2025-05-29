@@ -1,34 +1,65 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { forumDataStore } from "../../forum/data-store"
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    console.log("🏷️ Admin Categories GET request")
+    const { searchParams } = new URL(request.url)
+    const includePrivate = searchParams.get("include_private") === "true"
+
     const categories = forumDataStore.getCategories()
+    console.log("📊 Raw categories from store:", categories)
+
+    // Ensure we return an array
+    const categoriesArray = Array.isArray(categories) ? categories : []
+    console.log("📋 Categories array to return:", categoriesArray)
 
     return NextResponse.json({
       success: true,
-      data: categories,
+      data: categoriesArray,
       message: "Categories retrieved successfully",
     })
   } catch (error) {
-    console.error("Error fetching categories:", error)
-    return NextResponse.json({ success: false, error: "Failed to fetch categories" }, { status: 500 })
+    console.error("❌ Error fetching categories:", error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Failed to fetch categories",
+        data: [], // Always return empty array on error
+      },
+      { status: 500 },
+    )
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    console.log("🏷️ Admin Categories POST request")
     const body = await request.json()
-    const { name, description } = body
+    console.log("📝 Category creation data:", body)
+
+    const { name, description, color, icon, isPrivate } = body
 
     if (!name) {
-      return NextResponse.json({ success: false, error: "Category name is required" }, { status: 400 })
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Category name is required",
+          data: null,
+        },
+        { status: 400 },
+      )
     }
 
     const newCategory = forumDataStore.addCategory({
       name,
       description: description || "",
+      color: color || "#3B82F6",
+      icon: icon || "MessageSquare",
+      isPrivate: isPrivate || false,
     })
+
+    console.log("✅ Created category:", newCategory)
 
     return NextResponse.json({
       success: true,
@@ -36,28 +67,51 @@ export async function POST(request: NextRequest) {
       message: "Category created successfully",
     })
   } catch (error) {
-    console.error("Error creating category:", error)
-    return NextResponse.json({ success: false, error: "Failed to create category" }, { status: 500 })
+    console.error("❌ Error creating category:", error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Failed to create category",
+        data: null,
+      },
+      { status: 500 },
+    )
   }
 }
 
 export async function PUT(request: NextRequest) {
   try {
+    console.log("🏷️ Admin Categories PUT request")
     const body = await request.json()
-    const { id, name, description } = body
+    console.log("📝 Category update data:", body)
 
-    if (!id || !name) {
-      return NextResponse.json({ success: false, error: "Category ID and name are required" }, { status: 400 })
+    const { categoryId, updates } = body
+
+    if (!categoryId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Category ID is required",
+          data: null,
+        },
+        { status: 400 },
+      )
     }
 
-    const updatedCategory = forumDataStore.updateCategory(id, {
-      name,
-      description: description || "",
-    })
+    const updatedCategory = forumDataStore.updateCategory(categoryId, updates)
 
     if (!updatedCategory) {
-      return NextResponse.json({ success: false, error: "Category not found" }, { status: 404 })
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Category not found",
+          data: null,
+        },
+        { status: 404 },
+      )
     }
+
+    console.log("✅ Updated category:", updatedCategory)
 
     return NextResponse.json({
       success: true,
@@ -65,32 +119,66 @@ export async function PUT(request: NextRequest) {
       message: "Category updated successfully",
     })
   } catch (error) {
-    console.error("Error updating category:", error)
-    return NextResponse.json({ success: false, error: "Failed to update category" }, { status: 500 })
+    console.error("❌ Error updating category:", error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Failed to update category",
+        data: null,
+      },
+      { status: 500 },
+    )
   }
 }
 
 export async function DELETE(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const id = searchParams.get("id")
+    console.log("🏷️ Admin Categories DELETE request")
+    const body = await request.json()
+    console.log("📝 Category delete data:", body)
 
-    if (!id) {
-      return NextResponse.json({ success: false, error: "Category ID is required" }, { status: 400 })
+    const { categoryId } = body
+
+    if (!categoryId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Category ID is required",
+          data: null,
+        },
+        { status: 400 },
+      )
     }
 
-    const deleted = forumDataStore.deleteCategory(id)
+    const deleted = forumDataStore.deleteCategory(categoryId)
 
     if (!deleted) {
-      return NextResponse.json({ success: false, error: "Category not found" }, { status: 404 })
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Category not found or cannot be deleted",
+          data: null,
+        },
+        { status: 404 },
+      )
     }
+
+    console.log("✅ Deleted category:", categoryId)
 
     return NextResponse.json({
       success: true,
+      data: { deleted: true, categoryId },
       message: "Category deleted successfully",
     })
   } catch (error) {
-    console.error("Error deleting category:", error)
-    return NextResponse.json({ success: false, error: "Failed to delete category" }, { status: 500 })
+    console.error("❌ Error deleting category:", error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Failed to delete category",
+        data: null,
+      },
+      { status: 500 },
+    )
   }
 }

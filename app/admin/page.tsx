@@ -204,52 +204,79 @@ export default function AdminPage() {
     try {
       // Load categories from admin API
       try {
+        console.log("Loading categories...")
         const categoriesResponse = await fetch("/api/admin/categories?include_private=true")
+        console.log("Categories response status:", categoriesResponse.status)
+
         if (!categoriesResponse.ok) {
           throw new Error(`Categories API failed: ${categoriesResponse.status}`)
         }
+
         const categoriesData = await categoriesResponse.json()
+        console.log("Categories response data:", categoriesData)
+
         if (categoriesData.success) {
-          setCategories(categoriesData.data)
+          if (Array.isArray(categoriesData.data)) {
+            setCategories(categoriesData.data)
+            console.log("✅ Categories loaded successfully:", categoriesData.data.length, "items")
+          } else {
+            console.warn("⚠️ Categories data is not an array:", categoriesData.data)
+            setCategories([])
+            addApiError(`Categories: Expected array but got ${typeof categoriesData.data}`)
+          }
         } else {
-          addApiError(`Categories: ${categoriesData.error}`)
+          console.error("❌ Categories API returned error:", categoriesData.error)
+          setCategories([])
+          addApiError(`Categories: ${categoriesData.error || "API returned success: false"}`)
         }
       } catch (error) {
+        console.error("❌ Categories fetch error:", error)
+        setCategories([])
         addApiError(`Categories: ${error instanceof Error ? error.message : "Unknown error"}`)
       }
 
       // Load posts from admin API
       try {
+        console.log("Loading posts...")
         const postsResponse = await fetch("/api/admin/posts")
         if (!postsResponse.ok) {
           throw new Error(`Admin posts API failed: ${postsResponse.status}`)
         }
         const postsData = await postsResponse.json()
-        if (postsData.success) {
+        console.log("Posts response:", postsData)
+        if (postsData.success && Array.isArray(postsData.data)) {
           setPosts(postsData.data)
         } else {
-          addApiError(`Posts: ${postsData.error}`)
+          console.warn("Posts data is not an array:", postsData.data)
+          setPosts([])
+          addApiError(`Posts: ${postsData.error || "Invalid data format"}`)
         }
       } catch (error) {
+        console.error("Posts error:", error)
+        setPosts([])
         addApiError(`Posts: ${error instanceof Error ? error.message : "Unknown error"}`)
       }
 
       // Load stats
       try {
+        console.log("Loading stats...")
         const statsResponse = await fetch("/api/forum/stats?shop_id=demo")
         if (!statsResponse.ok) {
           throw new Error(`Stats API failed: ${statsResponse.status}`)
         }
         const statsData = await statsResponse.json()
+        console.log("Stats response:", statsData)
         if (statsData.success) {
           setStats(statsData.data)
         } else {
           addApiError(`Stats: ${statsData.error}`)
         }
       } catch (error) {
+        console.error("Stats error:", error)
         addApiError(`Stats: ${error instanceof Error ? error.message : "Unknown error"}`)
       }
     } catch (error) {
+      console.error("General error:", error)
       addApiError(`General: ${error instanceof Error ? error.message : "Unknown error"}`)
     } finally {
       setDataLoading(false)
@@ -462,13 +489,17 @@ export default function AdminPage() {
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    })
+    try {
+      return new Date(dateString).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    } catch (error) {
+      return "Invalid date"
+    }
   }
 
   // Show loading while checking authentication
@@ -613,8 +644,8 @@ export default function AdminPage() {
             <MessageSquare className="h-4 w-4 text-gray-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{posts.length}</div>
-            <p className="text-xs text-gray-500">+12% from last month</p>
+            <div className="text-2xl font-bold">{Array.isArray(posts) ? posts.length : 0}</div>
+            <p className="text-xs text-gray-500">No posts this month</p>
           </CardContent>
         </Card>
 
@@ -625,7 +656,7 @@ export default function AdminPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalUsers}</div>
-            <p className="text-xs text-gray-500">+5% from last month</p>
+            <p className="text-xs text-gray-500">No new users this month</p>
           </CardContent>
         </Card>
 
@@ -635,8 +666,8 @@ export default function AdminPage() {
             <Settings className="h-4 w-4 text-gray-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{categories.length}</div>
-            <p className="text-xs text-gray-500">{categories.length} active</p>
+            <div className="text-2xl font-bold">{Array.isArray(categories) ? categories.length : 0}</div>
+            <p className="text-xs text-gray-500">Discussion categories</p>
           </CardContent>
         </Card>
 
@@ -672,7 +703,9 @@ export default function AdminPage() {
 
         <TabsContent value="categories" className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Manage Categories ({categories.length})</h2>
+            <h2 className="text-xl font-semibold">
+              Manage Categories ({Array.isArray(categories) ? categories.length : 0})
+            </h2>
             <Button onClick={() => setShowNewCategoryForm(true)} disabled={actionLoading === "create-category"}>
               <Plus className="h-4 w-4 mr-2" />
               {actionLoading === "create-category" ? "Creating..." : "New Category"}
@@ -742,7 +775,7 @@ export default function AdminPage() {
             </Card>
           )}
 
-          {categories.length === 0 && !dataLoading ? (
+          {(!Array.isArray(categories) || categories.length === 0) && !dataLoading ? (
             <Card>
               <CardContent className="p-8 text-center">
                 <p className="text-gray-500 mb-4">No categories found. Create your first category to get started.</p>
@@ -754,54 +787,55 @@ export default function AdminPage() {
             </Card>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {categories.map((category) => (
-                <Card key={category.id} className="border-l-4" style={{ borderLeftColor: category.color }}>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">{category.name}</CardTitle>
-                      <div className="flex gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setEditingCategory(category)}
-                          disabled={actionLoading?.startsWith(`update-${category.id}`)}
-                          title="Edit category"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => deleteCategory(category.id)}
-                          disabled={actionLoading === `delete-${category.id}` || category.postCount > 0}
-                          className="text-red-600 hover:text-red-700"
-                          title={category.postCount > 0 ? "Cannot delete category with posts" : "Delete category"}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+              {Array.isArray(categories) &&
+                categories.map((category) => (
+                  <Card key={category.id} className="border-l-4" style={{ borderLeftColor: category.color }}>
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-lg">{category.name}</CardTitle>
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setEditingCategory(category)}
+                            disabled={actionLoading?.startsWith(`update-${category.id}`)}
+                            title="Edit category"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => deleteCategory(category.id)}
+                            disabled={actionLoading === `delete-${category.id}` || category.postCount > 0}
+                            className="text-red-600 hover:text-red-700"
+                            title={category.postCount > 0 ? "Cannot delete category with posts" : "Delete category"}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                    <CardDescription>{category.description}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center justify-between text-sm mb-2">
-                      <span>{category.postCount} posts</span>
-                      <div className="flex gap-1">
-                        {category.isPrivate && (
-                          <Badge variant="secondary" className="text-xs">
-                            <Lock className="h-3 w-3 mr-1" />
-                            Private
+                      <CardDescription>{category.description}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center justify-between text-sm mb-2">
+                        <span>{category.postCount || 0} posts</span>
+                        <div className="flex gap-1">
+                          {category.isPrivate && (
+                            <Badge variant="secondary" className="text-xs">
+                              <Lock className="h-3 w-3 mr-1" />
+                              Private
+                            </Badge>
+                          )}
+                          <Badge variant="outline" className="text-xs">
+                            {category.icon}
                           </Badge>
-                        )}
-                        <Badge variant="outline" className="text-xs">
-                          {category.icon}
-                        </Badge>
+                        </div>
                       </div>
-                    </div>
-                    <p className="text-xs text-gray-500">Created: {formatDate(category.createdAt)}</p>
-                  </CardContent>
-                </Card>
-              ))}
+                      <p className="text-xs text-gray-500">Created: {formatDate(category.createdAt)}</p>
+                    </CardContent>
+                  </Card>
+                ))}
             </div>
           )}
 
@@ -869,14 +903,14 @@ export default function AdminPage() {
 
         <TabsContent value="posts" className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Manage Posts ({posts.length})</h2>
+            <h2 className="text-xl font-semibold">Manage Posts ({Array.isArray(posts) ? posts.length : 0})</h2>
             <Button variant="outline" size="sm" onClick={loadData}>
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
             </Button>
           </div>
 
-          {posts.length === 0 && !dataLoading ? (
+          {(!Array.isArray(posts) || posts.length === 0) && !dataLoading ? (
             <Card>
               <CardContent className="p-8 text-center">
                 <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -889,50 +923,52 @@ export default function AdminPage() {
             </Card>
           ) : (
             <div className="space-y-4">
-              {posts.map((post) => (
-                <Card key={post.id}>
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          {post.isPinned && <Pin className="h-4 w-4 text-blue-500" />}
-                          {post.isLocked && <Lock className="h-4 w-4 text-red-500" />}
-                          {post.status === "hidden" && <EyeOff className="h-4 w-4 text-gray-500" />}
-                          <h3 className="font-medium">{post.title}</h3>
+              {Array.isArray(posts) &&
+                posts.map((post) => (
+                  <Card key={post.id}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            {post.isPinned && <Pin className="h-4 w-4 text-blue-500" />}
+                            {post.isLocked && <Lock className="h-4 w-4 text-red-500" />}
+                            {post.status === "hidden" && <EyeOff className="h-4 w-4 text-gray-500" />}
+                            <h3 className="font-medium">{post.title}</h3>
+                          </div>
+                          <div className="flex items-center gap-4 text-sm text-gray-500 mb-2">
+                            <span>by {post.author}</span>
+                            <span>{formatDate(post.createdAt)}</span>
+                            <Badge variant="outline" className="text-xs">
+                              {(Array.isArray(categories) && categories.find((c) => c.id === post.categoryId)?.name) ||
+                                "Unknown Category"}
+                            </Badge>
+                            <Badge variant={post.status === "active" ? "default" : "secondary"} className="text-xs">
+                              {post.status}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-gray-600 line-clamp-2">{post.content}</p>
+                          <div className="flex items-center gap-4 text-xs text-gray-500 mt-2">
+                            <span>{post.replies || 0} replies</span>
+                            <span>{post.views || 0} views</span>
+                            <span>{post.likes || 0} likes</span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-4 text-sm text-gray-500 mb-2">
-                          <span>by {post.author}</span>
-                          <span>{formatDate(post.createdAt)}</span>
-                          <Badge variant="outline" className="text-xs">
-                            {categories.find((c) => c.id === post.categoryId)?.name || "Unknown Category"}
-                          </Badge>
-                          <Badge variant={post.status === "active" ? "default" : "secondary"} className="text-xs">
-                            {post.status}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-gray-600 line-clamp-2">{post.content}</p>
-                        <div className="flex items-center gap-4 text-xs text-gray-500 mt-2">
-                          <span>{post.replies} replies</span>
-                          <span>{post.views} views</span>
-                          <span>{post.likes} likes</span>
+                        <div className="flex gap-1 ml-4">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => deletePost(post.id)}
+                            disabled={actionLoading === `delete-${post.id}`}
+                            className="text-red-600 hover:text-red-700"
+                            title="Delete post"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex gap-1 ml-4">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => deletePost(post.id)}
-                          disabled={actionLoading === `delete-${post.id}`}
-                          className="text-red-600 hover:text-red-700"
-                          title="Delete post"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                ))}
             </div>
           )}
         </TabsContent>
