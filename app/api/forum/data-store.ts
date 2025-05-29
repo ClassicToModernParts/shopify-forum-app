@@ -6,6 +6,7 @@ class ForumDataStore {
   private posts: any[] = []
   private users: any[] = []
   private settings: any = {}
+  private replies: any[] = []
 
   constructor() {
     // Initialize with some default data
@@ -132,6 +133,37 @@ class ForumDataStore {
       },
       lastUpdated: new Date().toISOString(),
     }
+
+    // Add default replies
+    this.replies = [
+      {
+        id: "reply-1",
+        postId: "post-1",
+        content: "Welcome everyone! Feel free to introduce yourselves.",
+        author: "Admin",
+        createdAt: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
+        likes: 3,
+        status: "active",
+      },
+      {
+        id: "reply-2",
+        postId: "post-1",
+        content: "Hello! I'm new here and excited to join the community.",
+        author: "New User",
+        createdAt: new Date(Date.now() - 43200000).toISOString(), // 12 hours ago
+        likes: 1,
+        status: "active",
+      },
+      {
+        id: "reply-3",
+        postId: "post-2",
+        content: "This guide was really helpful. Thanks for sharing!",
+        author: "Customer",
+        createdAt: new Date(Date.now() - 21600000).toISOString(), // 6 hours ago
+        likes: 2,
+        status: "active",
+      },
+    ]
   }
 
   // Category methods
@@ -658,6 +690,164 @@ class ForumDataStore {
         topCategories: [],
         recentActivity: [],
       }
+    }
+  }
+
+  // Add a method to increment post views
+  incrementPostViews(postId: string) {
+    try {
+      console.log(`👁️ Incrementing views for post: ${postId}`)
+
+      if (!Array.isArray(this.posts)) {
+        console.warn("⚠️ Posts is not an array, resetting to default")
+        this.posts = []
+        return false
+      }
+
+      const postIndex = this.posts.findIndex((post) => post.id === postId)
+      if (postIndex === -1) {
+        console.warn(`⚠️ Post not found for view increment: ${postId}`)
+        return false
+      }
+
+      // Increment the view count
+      this.posts[postIndex].views = (this.posts[postIndex].views || 0) + 1
+      console.log(`✅ Views for post ${postId} incremented to ${this.posts[postIndex].views}`)
+      return true
+    } catch (error) {
+      console.error(`❌ Error incrementing post views for ${postId}:`, error)
+      return false
+    }
+  }
+
+  // Add a method to like a post
+  likePost(postId: string) {
+    try {
+      console.log(`❤️ Liking post: ${postId}`)
+
+      if (!Array.isArray(this.posts)) {
+        console.warn("⚠️ Posts is not an array, resetting to default")
+        this.posts = []
+        return null
+      }
+
+      const postIndex = this.posts.findIndex((post) => post.id === postId)
+      if (postIndex === -1) {
+        console.warn(`⚠️ Post not found for liking: ${postId}`)
+        return null
+      }
+
+      // Increment the like count
+      this.posts[postIndex].likes = (this.posts[postIndex].likes || 0) + 1
+      console.log(`✅ Likes for post ${postId} incremented to ${this.posts[postIndex].likes}`)
+      return {
+        likes: this.posts[postIndex].likes,
+      }
+    } catch (error) {
+      console.error(`❌ Error liking post ${postId}:`, error)
+      return null
+    }
+  }
+
+  // Add a method to add a reply to a post
+  addReply(replyData: any) {
+    try {
+      console.log(`💬 Adding reply to post: ${replyData.postId}`)
+
+      if (!Array.isArray(this.posts)) {
+        console.warn("⚠️ Posts is not an array, resetting to default")
+        this.posts = []
+        return null
+      }
+
+      // Check if post exists
+      const postIndex = this.posts.findIndex((post) => post.id === replyData.postId)
+      if (postIndex === -1) {
+        console.warn(`⚠️ Post not found for reply: ${replyData.postId}`)
+        return null
+      }
+
+      // Initialize replies array if it doesn't exist
+      if (!Array.isArray(this.replies)) {
+        this.replies = []
+      }
+
+      // Create the new reply
+      const newReply = {
+        id: `reply-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        postId: replyData.postId,
+        content: replyData.content,
+        author: replyData.author,
+        authorEmail: replyData.authorEmail || "",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        likes: 0,
+        status: "active",
+      }
+
+      // Add the reply to the replies array
+      this.replies.push(newReply)
+
+      // Increment the reply count on the post
+      this.posts[postIndex].replies = (this.posts[postIndex].replies || 0) + 1
+
+      // Update the post's updatedAt timestamp
+      this.posts[postIndex].updatedAt = new Date().toISOString()
+
+      console.log(`✅ Reply added to post ${replyData.postId}, new reply count: ${this.posts[postIndex].replies}`)
+      return newReply
+    } catch (error) {
+      console.error(`❌ Error adding reply to post:`, error)
+      return null
+    }
+  }
+
+  // Add a method to get replies for a post
+  getRepliesByPostId(postId: string) {
+    try {
+      console.log(`🔍 Getting replies for post: ${postId}`)
+
+      if (!Array.isArray(this.replies)) {
+        console.log(`ℹ️ No replies array, initializing empty array`)
+        this.replies = []
+        return []
+      }
+
+      const postReplies = this.replies.filter((reply) => reply.postId === postId && reply.status === "active")
+      console.log(`📊 Found ${postReplies.length} replies for post ${postId}`)
+      return postReplies
+    } catch (error) {
+      console.error(`❌ Error getting replies for post ${postId}:`, error)
+      return []
+    }
+  }
+
+  // Add a method to like a reply
+  likeReply(replyId: string) {
+    try {
+      console.log(`❤️ Liking reply: ${replyId}`)
+
+      if (!Array.isArray(this.replies)) {
+        console.warn("⚠️ Replies is not an array, resetting to default")
+        this.replies = []
+        return null
+      }
+
+      const replyIndex = this.replies.findIndex((reply) => reply.id === replyId)
+      if (replyIndex === -1) {
+        console.warn(`⚠️ Reply not found for liking: ${replyId}`)
+        return null
+      }
+
+      // Increment the like count
+      this.replies[replyIndex].likes = (this.replies[replyIndex].likes || 0) + 1
+      console.log(`✅ Likes for reply ${replyId} incremented to ${this.replies[replyIndex].likes}`)
+      return {
+        likes: this.replies[replyIndex].likes,
+      }
+    } catch (error) {
+      console.error(`❌ Error liking reply ${replyId}:`, error)
+      return null
     }
   }
 }

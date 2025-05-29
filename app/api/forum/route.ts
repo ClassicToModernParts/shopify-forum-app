@@ -267,9 +267,9 @@ export async function GET(request: NextRequest) {
           )
         }
 
-        // Increment view count (in real app, track unique views)
-        post.views += 1
-        console.log(`👁️ Incremented view count for post ${postId} to ${post.views}`)
+        // Increment view count using the data store method
+        forumDataStore.incrementPostViews(postId)
+        console.log(`👁️ Incremented view count for post ${postId}`)
 
         return NextResponse.json({
           success: true,
@@ -290,7 +290,7 @@ export async function GET(request: NextRequest) {
           )
         }
         console.log(`🔍 Getting replies for post: ${postId}`)
-        const postReplies = mockReplies.filter((reply) => reply.postId === postId)
+        const postReplies = forumDataStore.getRepliesByPostId(postId)
         console.log(`📊 Found ${postReplies.length} replies`)
         return NextResponse.json({
           success: true,
@@ -493,22 +493,72 @@ export async function POST(request: NextRequest) {
           )
         }
 
-        // TODO: Implement replies in data store
-        console.log("✅ Reply created (mock implementation)")
-        return NextResponse.json({
-          success: true,
-          data: { id: "temp-" + Date.now(), content: replyContent, author: replyAuthor },
-          message: "Reply created successfully",
-        })
+        try {
+          const newReply = forumDataStore.addReply({
+            postId,
+            content: replyContent,
+            author: replyAuthor,
+            authorEmail: replyAuthorEmail,
+          })
+
+          if (!newReply) {
+            throw new Error("Failed to create reply")
+          }
+
+          console.log("✅ Reply created successfully:", newReply)
+          return NextResponse.json({
+            success: true,
+            data: newReply,
+            message: "Reply created successfully",
+          })
+        } catch (error) {
+          console.error("❌ Error creating reply:", error)
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Failed to create reply",
+              message: error instanceof Error ? error.message : "Unknown error",
+            },
+            { status: 500 },
+          )
+        }
 
       case "like_post":
-        // TODO: Implement likes in data store
-        console.log("👍 Post liked (mock implementation)")
-        return NextResponse.json({
-          success: true,
-          data: { likes: 1 },
-          message: "Post liked successfully",
-        })
+        console.log("👍 Liking post:", data.postId)
+        if (!data.postId) {
+          console.warn("⚠️ Missing postId for like operation")
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Post ID is required",
+            },
+            { status: 400 },
+          )
+        }
+
+        try {
+          const result = forumDataStore.likePost(data.postId)
+          if (!result) {
+            throw new Error(`Failed to like post ${data.postId}`)
+          }
+
+          console.log("✅ Post liked successfully:", result)
+          return NextResponse.json({
+            success: true,
+            data: result,
+            message: "Post liked successfully",
+          })
+        } catch (error) {
+          console.error("❌ Error liking post:", error)
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Failed to like post",
+              message: error instanceof Error ? error.message : "Unknown error",
+            },
+            { status: 500 },
+          )
+        }
 
       case "pin_post":
         // TODO: Implement pinning in data store
@@ -554,6 +604,43 @@ export async function POST(request: NextRequest) {
             {
               success: false,
               error: "Failed to create category",
+              message: error instanceof Error ? error.message : "Unknown error",
+            },
+            { status: 500 },
+          )
+        }
+
+      case "like_reply":
+        console.log("👍 Liking reply:", data.replyId)
+        if (!data.replyId) {
+          console.warn("⚠️ Missing replyId for like operation")
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Reply ID is required",
+            },
+            { status: 400 },
+          )
+        }
+
+        try {
+          const result = forumDataStore.likeReply(data.replyId)
+          if (!result) {
+            throw new Error(`Failed to like reply ${data.replyId}`)
+          }
+
+          console.log("✅ Reply liked successfully:", result)
+          return NextResponse.json({
+            success: true,
+            data: result,
+            message: "Reply liked successfully",
+          })
+        } catch (error) {
+          console.error("❌ Error liking reply:", error)
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Failed to like reply",
               message: error instanceof Error ? error.message : "Unknown error",
             },
             { status: 500 },
