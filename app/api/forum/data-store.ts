@@ -187,6 +187,41 @@ class ForumDataStore {
     return category
   }
 
+  updateCategory(categoryId: string, updates: Partial<Category>): Category | null {
+    this.initializeIfEmpty()
+    const categoryIndex = this.categories.findIndex((cat) => cat.id === categoryId)
+    if (categoryIndex === -1) {
+      console.warn(`⚠️ Category not found for update: ${categoryId}`)
+      return null
+    }
+
+    // Update the category
+    this.categories[categoryIndex] = { ...this.categories[categoryIndex], ...updates }
+    console.log(`✅ Category ${categoryId} updated successfully`)
+    return this.categories[categoryIndex]
+  }
+
+  deleteCategory(categoryId: string): boolean {
+    this.initializeIfEmpty()
+    const categoryIndex = this.categories.findIndex((cat) => cat.id === categoryId)
+    if (categoryIndex === -1) {
+      console.warn(`⚠️ Category not found for deletion: ${categoryId}`)
+      return false
+    }
+
+    // Check if category has posts
+    const postsInCategory = this.posts.filter((post) => post.categoryId === categoryId && post.status === "active")
+    if (postsInCategory.length > 0) {
+      console.warn(`⚠️ Cannot delete category ${categoryId} - has ${postsInCategory.length} active posts`)
+      return false
+    }
+
+    // Remove the category
+    this.categories.splice(categoryIndex, 1)
+    console.log(`✅ Category ${categoryId} deleted successfully`)
+    return true
+  }
+
   // Posts
   getPosts(): Post[] {
     this.initializeIfEmpty()
@@ -345,7 +380,7 @@ class ForumDataStore {
 
   likeReply(replyId: string): { likes: number } | null {
     this.initializeIfEmpty()
-    const reply = this.replies.find((r) => r.id === replyId && r.status === "active")
+    const reply = this.replies.find((r) => r.id === replyId && reply.status === "active")
     if (reply) {
       reply.likes = (reply.likes || 0) + 1
       reply.updatedAt = new Date().toISOString()
@@ -398,6 +433,81 @@ class ForumDataStore {
       replies: this.replies,
       stats: this.getStats(),
     }
+  }
+
+  // Admin-specific methods (bypass normal permissions)
+  adminDeletePost(postId: string): boolean {
+    this.initializeIfEmpty()
+    const postIndex = this.posts.findIndex((p) => p.id === postId)
+    if (postIndex === -1) {
+      console.warn(`⚠️ Post not found for admin deletion: ${postId}`)
+      return false
+    }
+
+    const post = this.posts[postIndex]
+
+    // Admin can delete any post - soft delete
+    post.status = "deleted"
+    post.updatedAt = new Date().toISOString()
+
+    // Also soft delete all replies to this post
+    this.replies.forEach((reply) => {
+      if (reply.postId === postId) {
+        reply.status = "deleted"
+        reply.updatedAt = new Date().toISOString()
+      }
+    })
+
+    console.log(`✅ Post ${postId} deleted by admin`)
+    return true
+  }
+
+  adminDeleteReply(replyId: string): boolean {
+    this.initializeIfEmpty()
+    const reply = this.replies.find((r) => r.id === replyId)
+    if (!reply) {
+      console.warn(`⚠️ Reply not found for admin deletion: ${replyId}`)
+      return false
+    }
+
+    // Admin can delete any reply - soft delete
+    reply.status = "deleted"
+    reply.updatedAt = new Date().toISOString()
+
+    // Decrement reply count on the post
+    const post = this.posts.find((p) => p.id === reply.postId)
+    if (post && post.replies > 0) {
+      post.replies = post.replies - 1
+      post.updatedAt = new Date().toISOString()
+    }
+
+    console.log(`✅ Reply ${replyId} deleted by admin`)
+    return true
+  }
+
+  clearSampleData(): boolean {
+    this.initializeIfEmpty()
+
+    // Mark all sample posts as deleted instead of removing them
+    let deletedCount = 0
+    this.posts.forEach((post) => {
+      if (post.status === "active") {
+        post.status = "deleted"
+        post.updatedAt = new Date().toISOString()
+        deletedCount++
+      }
+    })
+
+    // Mark all replies as deleted
+    this.replies.forEach((reply) => {
+      if (reply.status === "active") {
+        reply.status = "deleted"
+        reply.updatedAt = new Date().toISOString()
+      }
+    })
+
+    console.log(`✅ Cleared ${deletedCount} posts and all replies`)
+    return true
   }
 }
 

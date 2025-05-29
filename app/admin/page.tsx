@@ -418,6 +418,22 @@ export default function AdminPage() {
     }
   }
 
+  // Add this function after the existing helper functions
+  const handleApiError = (operation: string, error: any) => {
+    const errorMsg = error instanceof Error ? error.message : "Unknown error"
+    const fullError = `${operation}: ${errorMsg}`
+
+    // Only add if not already present
+    setApiErrors((prev) => {
+      if (prev.includes(fullError)) {
+        return prev
+      }
+      return [...prev, fullError]
+    })
+    console.error("API Error:", fullError)
+  }
+
+  // Update the deleteCategory function to handle errors better
   const deleteCategory = async (categoryId: string) => {
     const category = categories.find((c) => c.id === categoryId)
     if (!category) return
@@ -425,6 +441,10 @@ export default function AdminPage() {
     if (!confirm(`Are you sure you want to delete "${category.name}"? This action cannot be undone.`)) return
 
     setActionLoading(`delete-${categoryId}`)
+
+    // Clear any existing errors for this operation
+    setApiErrors((prev) => prev.filter((error) => !error.includes("Delete category")))
+
     try {
       const response = await fetch("/api/admin/categories", {
         method: "DELETE",
@@ -433,7 +453,8 @@ export default function AdminPage() {
       })
 
       if (!response.ok) {
-        throw new Error(`Delete category failed: ${response.status}`)
+        const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }))
+        throw new Error(errorData.error || `HTTP ${response.status}`)
       }
 
       const data = await response.json()
@@ -442,13 +463,12 @@ export default function AdminPage() {
         loadData()
         setTimeout(() => setSettingsMessage(null), 3000)
       } else {
-        setSettingsMessage({ type: "error", text: data.error || "Failed to delete category" })
-        addApiError(`Delete category: ${data.error}`)
+        throw new Error(data.error || "API returned success: false")
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Unknown error"
       setSettingsMessage({ type: "error", text: "Failed to delete category" })
-      addApiError(`Delete category: ${errorMsg}`)
+      handleApiError("Delete category", error)
     } finally {
       setActionLoading(null)
     }

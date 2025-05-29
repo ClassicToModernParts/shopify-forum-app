@@ -1,195 +1,114 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { forumDataStore } from "../../forum/data-store"
 
-// Mock data store - in production, this would be your database
-let mockPosts = [
+// Mock posts data (replace with your actual data source)
+const mockPosts = [
   {
     id: "1",
-    title: "Welcome to Our Community Forum! 🎉",
-    content:
-      "We're excited to launch our new community forum where you can connect with other customers, get support, and share your experiences with our products.",
-    author: "Store Admin",
-    authorEmail: "admin@store.com",
-    categoryId: "1",
-    createdAt: "2024-01-10T12:00:00Z",
-    updatedAt: "2024-01-10T12:00:00Z",
-    replies: 12,
-    views: 245,
-    likes: 18,
-    isPinned: true,
+    title: "First Post",
+    content: "This is the first post.",
+    author: "Admin",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    isPinned: false,
     isLocked: false,
-    tags: ["announcement", "welcome"],
-    attachments: [],
     status: "active",
   },
   {
     id: "2",
-    title: "How to care for your new product",
-    content:
-      "Here are some tips for maintaining your product to ensure it lasts for years to come. Regular maintenance will help extend the life of your purchase and ensure optimal performance.",
-    author: "Sarah Johnson",
-    authorEmail: "sarah@example.com",
-    categoryId: "2",
-    createdAt: "2024-01-12T14:30:00Z",
-    updatedAt: "2024-01-12T14:30:00Z",
-    replies: 5,
-    views: 89,
-    likes: 7,
+    title: "Second Post",
+    content: "This is the second post.",
+    author: "Admin",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
     isPinned: false,
     isLocked: false,
-    tags: ["care", "maintenance", "tips"],
-    attachments: ["care-guide.pdf"],
-    status: "active",
-  },
-  {
-    id: "3",
-    title: "Product troubleshooting guide",
-    content:
-      "If you're experiencing issues with your product, here are some common solutions that might help resolve the problem quickly.",
-    author: "Mike Chen",
-    authorEmail: "mike@example.com",
-    categoryId: "2",
-    createdAt: "2024-01-15T09:15:00Z",
-    updatedAt: "2024-01-15T09:15:00Z",
-    replies: 8,
-    views: 156,
-    likes: 12,
-    isPinned: false,
-    isLocked: false,
-    tags: ["troubleshooting", "help"],
-    attachments: [],
-    status: "active",
-  },
-  {
-    id: "4",
-    title: "Feature request: Dark mode",
-    content:
-      "Would love to see a dark mode option for the forum interface. It would be great for late-night browsing and easier on the eyes!",
-    author: "Emma Wilson",
-    authorEmail: "emma@example.com",
-    categoryId: "3",
-    createdAt: "2024-01-18T16:45:00Z",
-    updatedAt: "2024-01-18T16:45:00Z",
-    replies: 15,
-    views: 203,
-    likes: 25,
-    isPinned: false,
-    isLocked: false,
-    tags: ["feature-request", "ui"],
-    attachments: [],
-    status: "active",
-  },
-  {
-    id: "5",
-    title: "Shipping and delivery questions",
-    content:
-      "I have some questions about shipping times and delivery options. Can someone from the team help clarify the different shipping methods available?",
-    author: "David Lee",
-    authorEmail: "david@example.com",
-    categoryId: "1",
-    createdAt: "2024-01-20T11:20:00Z",
-    updatedAt: "2024-01-20T11:20:00Z",
-    replies: 3,
-    views: 67,
-    likes: 4,
-    isPinned: false,
-    isLocked: false,
-    tags: ["shipping", "delivery", "support"],
-    attachments: [],
     status: "active",
   },
 ]
 
-// GET - Retrieve posts (for admin viewing)
 export async function GET(request: NextRequest) {
   try {
-    const url = new URL(request.url)
-    const status = url.searchParams.get("status") // active, hidden, all
-    const limit = Number.parseInt(url.searchParams.get("limit") || "50")
-    const offset = Number.parseInt(url.searchParams.get("offset") || "0")
-    const search = url.searchParams.get("search") || ""
+    console.log("🏛️ Admin Posts GET request")
 
-    let filteredPosts = mockPosts
+    // Wait for data store to be initialized
+    await new Promise((resolve) => setTimeout(resolve, 100))
 
-    // Filter by status if specified
-    if (status && status !== "all") {
-      filteredPosts = filteredPosts.filter((post) => post.status === status)
-    }
+    const posts = forumDataStore.getPosts()
+    console.log("📊 Raw posts from store:", posts.length)
 
-    // Filter by search term if specified
-    if (search) {
-      const searchLower = search.toLowerCase()
-      filteredPosts = filteredPosts.filter(
-        (post) =>
-          post.title.toLowerCase().includes(searchLower) ||
-          post.content.toLowerCase().includes(searchLower) ||
-          post.author.toLowerCase().includes(searchLower),
-      )
-    }
-
-    // Sort by creation date (newest first)
-    filteredPosts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-
-    // Apply pagination
-    const paginatedPosts = filteredPosts.slice(offset, offset + limit)
+    // Ensure we return an array
+    const postsArray = Array.isArray(posts) ? posts : []
+    console.log("📋 Posts array to return:", postsArray.length)
 
     return NextResponse.json({
       success: true,
-      data: paginatedPosts,
-      total: filteredPosts.length,
-      offset,
-      limit,
-      message: `Retrieved ${paginatedPosts.length} posts`,
+      data: postsArray,
+      message: "Posts retrieved successfully",
     })
   } catch (error) {
-    console.error("Error fetching posts:", error)
-    return NextResponse.json({ success: false, error: "Failed to fetch posts" }, { status: 500 })
+    console.error("❌ Error fetching posts:", error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: `Failed to fetch posts: ${error instanceof Error ? error.message : "Unknown error"}`,
+        data: [], // Always return empty array on error
+      },
+      { status: 500 },
+    )
   }
 }
 
-// DELETE - Delete single post or bulk delete
 export async function DELETE(request: NextRequest) {
   try {
-    const { postId, postIds } = await request.json()
+    console.log("🏛️ Admin Posts DELETE request")
+    const body = await request.json()
+    console.log("📝 Post deletion data:", body)
 
-    if (postIds && Array.isArray(postIds)) {
-      // Bulk delete
-      const initialLength = mockPosts.length
-      const postsToDelete = mockPosts.filter((post) => postIds.includes(post.id))
-      mockPosts = mockPosts.filter((post) => !postIds.includes(post.id))
-      const deletedCount = initialLength - mockPosts.length
+    const { postId, forceDelete } = body
 
-      console.log(
-        `Admin bulk deleted ${deletedCount} posts:`,
-        postsToDelete.map((p) => p.title),
+    if (!postId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Post ID is required",
+          data: null,
+        },
+        { status: 400 },
       )
-
-      return NextResponse.json({
-        success: true,
-        message: `${deletedCount} posts deleted successfully`,
-        deletedCount,
-        deletedPosts: postsToDelete,
-      })
-    } else if (postId) {
-      // Single delete
-      const postIndex = mockPosts.findIndex((post) => post.id === postId)
-      if (postIndex === -1) {
-        return NextResponse.json({ success: false, error: "Post not found" }, { status: 404 })
-      }
-
-      const deletedPost = mockPosts.splice(postIndex, 1)[0]
-      console.log(`Admin deleted post: ${deletedPost.title}`)
-
-      return NextResponse.json({
-        success: true,
-        message: "Post deleted successfully",
-        deletedPost,
-      })
     }
 
-    return NextResponse.json({ success: false, error: "Post ID or IDs required" }, { status: 400 })
+    // For admin, we can force delete any post
+    const deleted = forumDataStore.adminDeletePost(postId)
+
+    if (!deleted) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Post not found or could not be deleted",
+          data: null,
+        },
+        { status: 404 },
+      )
+    }
+
+    console.log("✅ Post deleted by admin:", postId)
+
+    return NextResponse.json({
+      success: true,
+      data: { deleted: true, postId },
+      message: "Post deleted successfully",
+    })
   } catch (error) {
-    console.error("Error deleting post:", error)
-    return NextResponse.json({ success: false, error: "Failed to delete post" }, { status: 500 })
+    console.error("❌ Error deleting post:", error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: `Failed to delete post: ${error instanceof Error ? error.message : "Unknown error"}`,
+        data: null,
+      },
+      { status: 500 },
+    )
   }
 }
 
