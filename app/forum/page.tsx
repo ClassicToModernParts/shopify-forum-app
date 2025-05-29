@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { MessageSquare, Users, Clock, Plus, Eye, Heart, Pin, Lock, ArrowLeft, Send, X, LogIn } from "lucide-react"
+import { MessageSquare, Users, Clock, Plus, LogIn } from "lucide-react"
 import Link from "next/link"
 import useUserAuth from "@/hooks/useUserAuth"
 
@@ -329,6 +329,8 @@ export default function ForumPage() {
       }
 
       const data = await response.json()
+      console.log("📊 Create post API response:", data)
+
       if (data.success) {
         console.log("✅ Post created successfully:", data.data)
         setNewPost({ title: "", content: "", author: "", categoryId: "", tags: "" })
@@ -344,8 +346,27 @@ export default function ForumPage() {
         loadForumStats()
         setError(null)
       } else {
-        console.error("❌ Create post API returned error:", data.error)
-        setError(data.error || "Failed to create post. Please try again.")
+        console.error("❌ Create post API returned error:", data)
+        
+        // More detailed error message
+        let errorMessage = data.error || "Failed to create post. Please try again."
+        
+        if (data.missingFields) {
+          const missing = Object.entries(data.missingFields)
+            .filter(([_, isMissing]) => isMissing)
+            .map(([field, _]) => field)
+          errorMessage = `Missing required fields: ${missing.join(", ")}`
+        }
+        
+        if (data.availableCategories) {
+          errorMessage += ` Available categories: ${data.availableCategories.map(c => c.name).join(", ")}`
+        }
+        
+        if (data.details) {
+          console.error("❌ Detailed error:", data.details)
+        }
+        
+        setError(errorMessage)
       }
     } catch (error) {
       console.error("❌ Error creating post:", error)
@@ -513,7 +534,6 @@ export default function ForumPage() {
     setShowCategoryPosts(false)
     setSelectedCategory(null)
     setCategoryPosts([])
-    setSelectedPost(null)
   }
 
   const handleCategoryClick = (categoryId: string) => {
@@ -541,460 +561,6 @@ export default function ForumPage() {
     )
   }
 
-  // Individual Post View
-  if (selectedPost) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <header className="bg-white shadow-sm border-b sticky top-0 z-10">
-          <div className="container mx-auto px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <button
-                  onClick={() => {
-                    setSelectedPost(null)
-                    if (showCategoryPosts) {
-                      loadPosts(selectedCategory || undefined, searchQuery, sortBy)
-                    }
-                  }}
-                  className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
-                >
-                  <ArrowLeft className="h-5 w-5" />
-                  <span>Back to {showCategoryPosts ? currentCategoryName : "Forum"}</span>
-                </button>
-                <div className="h-6 w-px bg-gray-300" />
-                <Link href="/" className="text-gray-600 hover:text-gray-900">
-                  Home
-                </Link>
-              </div>
-              {isAuthenticated ? (
-                <button
-                  onClick={() => setShowReplyModal(true)}
-                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  <Send className="h-4 w-4" />
-                  <span>Reply</span>
-                </button>
-              ) : (
-                <Link href="/login">
-                  <Button>
-                    <LogIn className="h-4 w-4 mr-2" />
-                    Login to Reply
-                  </Button>
-                </Link>
-              )}
-            </div>
-          </div>
-        </header>
-
-        <div className="container mx-auto px-6 py-8">
-          <div className="max-w-4xl mx-auto">
-            <div className="bg-white rounded-lg shadow-sm border p-8 mb-6">
-              <div className="flex items-start justify-between mb-6">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-3 mb-4">
-                    {selectedPost.isPinned && <Pin className="h-5 w-5 text-blue-500" />}
-                    {selectedPost.isLocked && <Lock className="h-5 w-5 text-red-500" />}
-                    <span
-                      className="px-3 py-1 rounded-full text-sm font-medium text-white"
-                      style={{ backgroundColor: getCategoryById(selectedPost.categoryId)?.color }}
-                    >
-                      {getCategoryById(selectedPost.categoryId)?.name}
-                    </span>
-                  </div>
-                  <h1 className="text-3xl font-bold text-gray-900 mb-4">{selectedPost.title}</h1>
-                  <div className="flex items-center space-x-4 text-sm text-gray-500 mb-6">
-                    <span className="font-medium">{selectedPost.author}</span>
-                    <span>•</span>
-                    <span>{formatDate(selectedPost.createdAt)}</span>
-                    <span>•</span>
-                    <div className="flex items-center space-x-1">
-                      <Eye className="h-4 w-4" />
-                      <span>{selectedPost.views}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="prose max-w-none mb-6">
-                <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{selectedPost.content}</p>
-              </div>
-
-              {selectedPost.tags && selectedPost.tags.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-6">
-                  {selectedPost.tags.map((tag, index) => (
-                    <span key={index} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
-                      #{tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              <div className="flex items-center justify-between pt-6 border-t">
-                <div className="flex items-center space-x-6">
-                  {isAuthenticated ? (
-                    <button
-                      onClick={() => likePost(selectedPost.id)}
-                      className="flex items-center space-x-2 text-gray-600 hover:text-red-500 transition-colors"
-                    >
-                      <Heart className="h-5 w-5" />
-                      <span>{selectedPost.likes}</span>
-                    </button>
-                  ) : (
-                    <div className="flex items-center space-x-2 text-gray-400">
-                      <Heart className="h-5 w-5" />
-                      <span>{selectedPost.likes}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center space-x-2 text-gray-600">
-                    <MessageSquare className="h-5 w-5" />
-                    <span>{replies.length} replies</span>
-                  </div>
-                </div>
-                {isAuthenticated ? (
-                  <button
-                    onClick={() => setShowReplyModal(true)}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  >
-                    Reply to Post
-                  </button>
-                ) : (
-                  <Link href="/login">
-                    <Button variant="outline">
-                      <LogIn className="h-4 w-4 mr-2" />
-                      Login to Reply
-                    </Button>
-                  </Link>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <h2 className="text-xl font-semibold text-gray-900">Replies ({replies.length})</h2>
-
-              {replies.length === 0 ? (
-                <div className="bg-white rounded-lg shadow-sm border p-8 text-center">
-                  <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500 mb-4">No replies yet. Be the first to respond!</p>
-                  {isAuthenticated ? (
-                    <button
-                      onClick={() => setShowReplyModal(true)}
-                      className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                    >
-                      Add Reply
-                    </button>
-                  ) : (
-                    <Link href="/login">
-                      <Button>
-                        <LogIn className="h-4 w-4 mr-2" />
-                        Login to Reply
-                      </Button>
-                    </Link>
-                  )}
-                </div>
-              ) : (
-                replies.map((reply) => (
-                  <div key={reply.id} className="bg-white rounded-lg shadow-sm border p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-medium text-sm">
-                          {reply.author.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <span className="font-medium text-gray-900">{reply.author}</span>
-                          <div className="text-sm text-gray-500">{formatDate(reply.createdAt)}</div>
-                        </div>
-                      </div>
-                      {isAuthenticated ? (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            likeReply(reply.id)
-                          }}
-                          className="flex items-center space-x-2 text-gray-500 hover:text-red-500 transition-colors"
-                        >
-                          <Heart className="h-4 w-4" />
-                          <span>{reply.likes}</span>
-                        </button>
-                      ) : (
-                        <div className="flex items-center space-x-2 text-gray-400">
-                          <Heart className="h-4 w-4" />
-                          <span>{reply.likes}</span>
-                        </div>
-                      )}
-                    </div>
-                    <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{reply.content}</p>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-
-        {showReplyModal && isAuthenticated && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-2xl">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold">Reply to Post</h2>
-                <button onClick={() => setShowReplyModal(false)} className="text-gray-400 hover:text-gray-600">
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
-
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">{error}</div>
-              )}
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Your Reply *</label>
-                  <textarea
-                    placeholder="Write your reply..."
-                    rows={6}
-                    value={newReply.content}
-                    onChange={(e) => setNewReply({ ...newReply, content: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    onClick={createReply}
-                    disabled={loading}
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    {loading ? "Posting..." : "Post Reply"}
-                  </button>
-                  <button
-                    onClick={() => setShowReplyModal(false)}
-                    className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  // Category Posts View
-  if (showCategoryPosts) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <header className="bg-white shadow-sm border-b">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center py-4">
-              <div className="flex items-center space-x-4">
-                <button
-                  onClick={handleBackToCategories}
-                  className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
-                >
-                  <ArrowLeft className="h-5 w-5" />
-                  <span>Back to Categories</span>
-                </button>
-                <div className="h-6 w-px bg-gray-300" />
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900">{currentCategoryName}</h1>
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-4">
-                {isAuthenticated ? (
-                  <Button onClick={handleNewPostClick}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    New Post
-                  </Button>
-                ) : (
-                  <Link href="/login">
-                    <Button>
-                      <LogIn className="h-4 w-4 mr-2" />
-                      Login to Post
-                    </Button>
-                  </Link>
-                )}
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">{error}</div>}
-
-          <div className="bg-white rounded-lg shadow-sm border">
-            <div className="p-6">
-              <h2 className="text-xl font-bold mb-4">Posts in {currentCategoryName}</h2>
-
-              {loading ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                  <p className="mt-2 text-gray-600">Loading posts...</p>
-                </div>
-              ) : categoryPosts.length > 0 ? (
-                <div className="space-y-4">
-                  {categoryPosts.map((post) => (
-                    <div
-                      key={post.id}
-                      className="border rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
-                      onClick={() => handlePostClick(post)}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h3 className="font-semibold text-lg text-gray-900">{post.title}</h3>
-                          <p className="text-gray-600 line-clamp-2 mt-1">{post.content}</p>
-                          <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
-                            <span>{post.author}</span>
-                            <span>•</span>
-                            <span>{formatDate(post.createdAt)}</span>
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-end space-y-2">
-                          <div className="flex items-center space-x-3 text-gray-500">
-                            <div className="flex items-center space-x-1">
-                              <MessageSquare className="h-4 w-4" />
-                              <span>{post.replies}</span>
-                            </div>
-                            <div className="flex items-center space-x-1">
-                              <Eye className="h-4 w-4" />
-                              <span>{post.views}</span>
-                            </div>
-                            <div className="flex items-center space-x-1">
-                              <Heart className="h-4 w-4" />
-                              <span>{post.likes}</span>
-                            </div>
-                          </div>
-                          {post.tags && post.tags.length > 0 && (
-                            <div className="flex flex-wrap gap-1 justify-end">
-                              {post.tags.slice(0, 2).map((tag, index) => (
-                                <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
-                                  #{tag}
-                                </span>
-                              ))}
-                              {post.tags.length > 2 && (
-                                <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-full text-xs">
-                                  +{post.tags.length - 2}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No posts in this category yet</h3>
-                  <p className="text-gray-600 mb-4">Be the first to start a conversation!</p>
-                  {isAuthenticated ? (
-                    <Button onClick={handleNewPostClick}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create First Post
-                    </Button>
-                  ) : (
-                    <Link href="/login">
-                      <Button>
-                        <LogIn className="h-4 w-4 mr-2" />
-                        Login to Create Post
-                      </Button>
-                    </Link>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </main>
-
-        {showNewPostModal && isAuthenticated && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-3xl">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold">Create New Post</h2>
-                <button onClick={() => setShowNewPostModal(false)} className="text-gray-400 hover:text-gray-600">
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
-
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">{error}</div>
-              )}
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Title *</label>
-                  <input
-                    type="text"
-                    placeholder="Enter post title..."
-                    value={newPost.title}
-                    onChange={(e) => setNewPost({ ...newPost, title: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2">Category *</label>
-                  <select
-                    value={newPost.categoryId}
-                    onChange={(e) => setNewPost({ ...newPost, categoryId: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Select a category</option>
-                    {categories.map((category) => (
-                      <option key={category.id} value={category.id}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2">Content *</label>
-                  <textarea
-                    placeholder="Write your post..."
-                    rows={8}
-                    value={newPost.content}
-                    onChange={(e) => setNewPost({ ...newPost, content: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2">Tags (comma separated)</label>
-                  <input
-                    type="text"
-                    placeholder="tag1, tag2, tag3..."
-                    value={newPost.tags}
-                    onChange={(e) => setNewPost({ ...newPost, tags: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    onClick={createPost}
-                    disabled={loading}
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    {loading ? "Creating..." : "Create Post"}
-                  </button>
-                  <button
-                    onClick={() => setShowNewPostModal(false)}
-                    className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  // Main Categories View
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm border-b">
@@ -1036,38 +602,262 @@ export default function ForumPage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">{error}</div>}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow-sm border p-6">
-            <div className="flex items-center">
-              <MessageSquare className="h-8 w-8 text-blue-600" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Posts</p>
-                <p className="text-2xl font-bold text-gray-900">{forumData.totalPosts}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-sm border p-6">
-            <div className="flex items-center">
-              <Users className="h-8 w-8 text-green-600" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Users</p>
-                <p className="text-2xl font-bold text-gray-900">{forumData.totalUsers}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-sm border p-6">
-            <div className="flex items-center">
-              <Clock className="h-8 w-8 text-orange-600" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Online Now</p>
-                <p className="text-2xl font-bold text-gray-900">{forumData.onlineUsers}</p>
-              </div>
+      {/* Forum Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <div className="flex items-center">
+            <MessageSquare className="h-8 w-8 text-blue-600" />
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Total Posts</p>
+              <p className="text-2xl font-bold text-gray-900">{forumData.totalPosts}</p>
             </div>
           </div>
         </div>
 
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <div className="flex items-center">
+            <Users className="h-8 w-8 text-green-600" />
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Total Users</p>
+              <p className="text-2xl font-bold text-gray-900">{forumData.totalUsers}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <div className="flex items-center">
+            <Clock className="h-8 w-8 text-orange-600" />
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Online Now</p>
+              <p className="text-2xl font-bold text-gray-900">{forumData.onlineUsers}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Individual Post View */}
+      {selectedPost ? (
+        <div className="bg-white rounded-lg shadow-sm border">
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-6">
+              <button
+                onClick={() => setSelectedPost(null)}
+                className="text-blue-600 hover:text-blue-800 font-medium"
+              >
+                ← Back to {showCategoryPosts ? currentCategoryName : 'Categories'}
+              </button>
+              {isAuthenticated && (
+                <Button onClick={() => setShowReplyModal(true)}>
+                  Reply to Post
+                </Button>
+              )}
+            </div>
+
+            {/* Post Content */}
+            <div className="border-b pb-6 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <h1 className="text-2xl font-bold text-gray-900">{selectedPost.title}</h1>
+                <div className="flex items-center space-x-4 text-sm text-gray-500">
+                  <span>{selectedPost.views} views</span>
+                  <span>{selectedPost.likes} likes</span>
+                  <span>{selectedPost.replies} replies</span>
+                </div>
+              </div>
+              
+              <div className="flex items-center space-x-4 mb-4">
+                <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">
+                  <span className="text-sm font-medium text-gray-700">
+                    {selectedPost.author.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <div>
+                  <p className="font-medium text-gray-900">{selectedPost.author}</p>
+                  <p className="text-sm text-gray-500">{formatDate(selectedPost.createdAt)}</p>
+                </div>
+              </div>
+
+              <div className="prose max-w-none mb-4">
+                <p className="text-gray-700 whitespace-pre-wrap">{selectedPost.content}</p>
+              </div>
+
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={() => likePost(selectedPost.id)}
+                  className="flex items-center space-x-2 text-gray-500 hover:text-blue-600"
+                >
+                  <span>👍</span>
+                  <span>{selectedPost.likes}</span>
+                </button>
+                {selectedPost.tags && selectedPost.tags.length > 0 && (
+                  <div className="flex items-center space-x-2">
+                    {selectedPost.tags.map((tag, index) => (
+                      <span
+                        key={index}
+                        className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Replies */}
+            <div>
+              <h3 className="text-lg font-semibold mb-4">
+                Replies ({replies.length})
+              </h3>
+              
+              {replies.length > 0 ? (
+                <div className="space-y-4">
+                  {replies.map((reply) => (
+                    <div key={reply.id} className="border-l-4 border-gray-200 pl-4">
+                      <div className="flex items-center space-x-4 mb-2">
+                        <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                          <span className="text-xs font-medium text-gray-700">
+                            {reply.author.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">{reply.author}</p>
+                          <p className="text-xs text-gray-500">{formatDate(reply.createdAt)}</p>
+                        </div>
+                      </div>
+                      <p className="text-gray-700 mb-2 whitespace-pre-wrap">{reply.content}</p>
+                      <button
+                        onClick={() => likeReply(reply.id)}
+                        className="flex items-center space-x-1 text-gray-500 hover:text-blue-600 text-sm"
+                      >
+                        <span>👍</span>
+                        <span>{reply.likes}</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-center py-8">
+                  No replies yet. Be the first to reply!
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : showCategoryPosts ? (
+        /* Category Posts View */
+        <div className="bg-white rounded-lg shadow-sm border">
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <button
+                  onClick={handleBackToCategories}
+                  className="text-blue-600 hover:text-blue-800 font-medium mb-2"
+                >
+                  ← Back to Categories
+                </button>
+                <h2 className="text-2xl font-bold">{currentCategoryName}</h2>
+                <p className="text-gray-600">Browse posts in this category</p>
+              </div>
+              {isAuthenticated && (
+                <Button onClick={handleNewPostClick}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Post
+                </Button>
+              )}
+            </div>
+
+            {/* Search and Sort */}
+            <div className="flex items-center space-x-4 mb-6">
+              <input
+                type="text"
+                placeholder="Search posts..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value)
+                  loadPosts(selectedCategory || undefined, e.target.value, sortBy)
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              <select
+                value={sortBy}
+                onChange={(e) => {
+                  setSortBy(e.target.value)
+                  loadPosts(selectedCategory || undefined, searchQuery, e.target.value)
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="recent">Most Recent</option>
+                <option value="popular">Most Popular</option>
+                <option value="replies">Most Replies</option>
+                <option value="oldest">Oldest First</option>
+              </select>
+            </div>
+
+            {/* Posts List */}
+            {loading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="mt-2 text-gray-600">Loading posts...</p>
+              </div>
+            ) : categoryPosts.length > 0 ? (
+              <div className="space-y-4">
+                {categoryPosts.map((post) => (
+                  <div
+                    key={post.id}
+                    className="border rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
+                    onClick={() => handlePostClick(post)}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-gray-900 mb-2">{post.title}</h3>
+                        <p className="text-gray-600 text-sm mb-3 line-clamp-2">
+                          {post.content.substring(0, 150)}...
+                        </p>
+                        <div className="flex items-center space-x-4 text-sm text-gray-500">
+                          <span>By {post.author}</span>
+                          <span>{formatDate(post.createdAt)}</span>
+                          {post.tags && post.tags.length > 0 && (
+                            <div className="flex space-x-1">
+                              {post.tags.slice(0, 3).map((tag, index) => (
+                                <span
+                                  key={index}
+                                  className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded"
+                                >
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right ml-4">
+                        <div className="flex items-center space-x-4 text-sm text-gray-500">
+                          <span>{post.views} views</span>
+                          <span>{post.likes} likes</span>
+                          <span>{post.replies} replies</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No posts in this category yet</h3>
+                <p className="text-gray-600 mb-4">Be the first to start a discussion!</p>
+                {isAuthenticated && (
+                  <Button onClick={handleNewPostClick}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create First Post
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        /* Categories View */
         <div className="bg-white rounded-lg shadow-sm border">
           <div className="p-6">
             <div className="flex justify-between items-center mb-6">
@@ -1162,39 +952,31 @@ export default function ForumPage() {
             )}
           </div>
         </div>
+      )}
 
-        {showNewPostModal && isAuthenticated && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-3xl">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold">Create New Post</h2>
-                <button onClick={() => setShowNewPostModal(false)} className="text-gray-400 hover:text-gray-600">
-                  <X className="h-6 w-6" />
-                </button>
-              </div>
-
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">{error}</div>
-              )}
-
+      {/* New Post Modal */}
+      {showNewPostModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-screen overflow-y-auto">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold mb-4">Create New Post</h3>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium mb-2">Title *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
                   <input
                     type="text"
-                    placeholder="Enter post title..."
                     value={newPost.title}
                     onChange={(e) => setNewPost({ ...newPost, title: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter post title..."
                   />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium mb-2">Category *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
                   <select
                     value={newPost.categoryId}
                     onChange={(e) => setNewPost({ ...newPost, categoryId: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="">Select a category</option>
                     {categories.map((category) => (
@@ -1204,49 +986,82 @@ export default function ForumPage() {
                     ))}
                   </select>
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium mb-2">Content *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Content</label>
                   <textarea
-                    placeholder="Write your post..."
-                    rows={8}
                     value={newPost.content}
                     onChange={(e) => setNewPost({ ...newPost, content: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={6}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Write your post content..."
                   />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium mb-2">Tags (comma separated)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tags (comma-separated)</label>
                   <input
                     type="text"
-                    placeholder="tag1, tag2, tag3..."
                     value={newPost.tags}
                     onChange={(e) => setNewPost({ ...newPost, tags: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="e.g., help, question, discussion"
                   />
                 </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    onClick={createPost}
-                    disabled={loading}
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    {loading ? "Creating..." : "Create Post"}
-                  </button>
-                  <button
-                    onClick={() => setShowNewPostModal(false)}
-                    className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                </div>
+              </div>
+              <div className="flex justify-end space-x-3 mt-6">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowNewPostModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={createPost}
+                  disabled={loading}
+                >
+                  {loading ? "Creating..." : "Create Post"}
+                </Button>
               </div>
             </div>
           </div>
-        )}
-      </main>
-    </div>
-  )
-}
+        </div>
+      )}
+
+      {/* Reply Modal */}
+      {showReplyModal && selectedPost && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold mb-4">Reply to: {selectedPost.title}</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Your Reply</label>
+                  <textarea
+                    value={newReply.content}
+                    onChange={(e) => setNewReply({ ...newReply, content: e.target.value })}
+                    rows={6}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Write your reply..."
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end space-x-3 mt-6">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowReplyModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={createReply}
+                  disabled={loading}
+                >
+                  {loading ? "Posting..." : "Post Reply"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </main>
+  </div>
+)

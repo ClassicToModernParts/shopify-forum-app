@@ -419,9 +419,16 @@ export async function POST(request: NextRequest) {
         console.log("📝 Creating new post")
         const { title, content, author, authorEmail, categoryId, tags = [] } = data
 
-        // Validate required fields
+        // Enhanced validation with detailed logging
+        console.log("🔍 Post creation data:", { title, content, author, categoryId, tags })
+
         if (!title || !content || !author || !categoryId) {
-          console.warn("⚠️ Missing required fields for post creation")
+          console.warn("⚠️ Missing required fields for post creation:", {
+            title: !!title,
+            content: !!content,
+            author: !!author,
+            categoryId: !!categoryId,
+          })
           return NextResponse.json(
             {
               success: false,
@@ -432,26 +439,37 @@ export async function POST(request: NextRequest) {
                 author: !author,
                 categoryId: !categoryId,
               },
+              receivedData: { title, content, author, categoryId },
             },
             { status: 400 },
           )
         }
 
-        // Check if category exists
-        const category = forumDataStore.getCategoryById(categoryId)
-        if (!category) {
-          console.warn(`⚠️ Category not found: ${categoryId}`)
-          return NextResponse.json(
-            {
-              success: false,
-              error: `Category with ID ${categoryId} not found`,
-            },
-            { status: 404 },
-          )
-        }
-
+        // Check if category exists with better error handling
         try {
-          console.log("🔍 Creating post with data:", { title, content, author, categoryId })
+          const category = forumDataStore.getCategoryById(categoryId)
+          console.log("🔍 Category lookup result:", category ? "Found" : "Not found")
+
+          if (!category) {
+            console.warn(`⚠️ Category not found: ${categoryId}`)
+            // Let's also check what categories exist
+            const allCategories = forumDataStore.getCategories()
+            console.log(
+              "📂 Available categories:",
+              allCategories.map((c) => ({ id: c.id, name: c.name })),
+            )
+
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Category with ID ${categoryId} not found`,
+                availableCategories: allCategories.map((c) => ({ id: c.id, name: c.name })),
+              },
+              { status: 404 },
+            )
+          }
+
+          console.log("🔍 Creating post with validated data:", { title, content, author, categoryId })
           const newPost = forumDataStore.createPost({
             title,
             content,
@@ -461,6 +479,10 @@ export async function POST(request: NextRequest) {
             tags,
           })
 
+          if (!newPost) {
+            throw new Error("createPost returned null/undefined")
+          }
+
           console.log("✅ Post created successfully:", newPost)
           return NextResponse.json({
             success: true,
@@ -469,11 +491,13 @@ export async function POST(request: NextRequest) {
           })
         } catch (error) {
           console.error("❌ Error creating post:", error)
+          console.error("❌ Error stack:", error instanceof Error ? error.stack : "No stack trace")
           return NextResponse.json(
             {
               success: false,
               error: "Failed to create post",
               message: error instanceof Error ? error.message : "Unknown error",
+              details: error instanceof Error ? error.stack : "No details available",
             },
             { status: 500 },
           )
