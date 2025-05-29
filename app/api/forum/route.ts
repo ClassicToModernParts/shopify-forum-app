@@ -506,18 +506,45 @@ export async function POST(request: NextRequest) {
       case "create_reply":
         console.log("💬 Creating new reply")
         const { postId, content: replyContent, author: replyAuthor, authorEmail: replyAuthorEmail } = data
+
+        console.log("🔍 Reply creation data:", { postId, replyContent, replyAuthor, replyAuthorEmail })
+
         if (!postId || !replyContent || !replyAuthor) {
-          console.warn("⚠️ Missing required fields for reply creation")
+          console.warn("⚠️ Missing required fields for reply creation:", {
+            postId: !!postId,
+            replyContent: !!replyContent,
+            replyAuthor: !!replyAuthor,
+          })
           return NextResponse.json(
             {
               success: false,
               error: "Post ID, content, and author are required",
+              missingFields: {
+                postId: !postId,
+                content: !replyContent,
+                author: !replyAuthor,
+              },
             },
             { status: 400 },
           )
         }
 
+        // Verify the post exists
         try {
+          const post = forumDataStore.getPostById(postId)
+          if (!post) {
+            console.warn(`⚠️ Post not found for reply: ${postId}`)
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Post with ID ${postId} not found`,
+              },
+              { status: 404 },
+            )
+          }
+
+          console.log(`✅ Post found for reply: ${post.title}`)
+
           const newReply = forumDataStore.addReply({
             postId,
             content: replyContent,
@@ -526,7 +553,7 @@ export async function POST(request: NextRequest) {
           })
 
           if (!newReply) {
-            throw new Error("Failed to create reply")
+            throw new Error("addReply returned null/undefined")
           }
 
           console.log("✅ Reply created successfully:", newReply)
@@ -537,11 +564,13 @@ export async function POST(request: NextRequest) {
           })
         } catch (error) {
           console.error("❌ Error creating reply:", error)
+          console.error("❌ Error stack:", error instanceof Error ? error.stack : "No stack trace")
           return NextResponse.json(
             {
               success: false,
               error: "Failed to create reply",
               message: error instanceof Error ? error.message : "Unknown error",
+              details: error instanceof Error ? error.stack : "No details available",
             },
             { status: 500 },
           )

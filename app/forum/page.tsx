@@ -88,10 +88,20 @@ export default function ForumPage() {
   const [currentCategoryName, setCurrentCategoryName] = useState("")
 
   useEffect(() => {
-    checkSystemInitialization()
-    loadCategories()
-    loadPosts()
-    loadForumStats()
+    const initializeForum = async () => {
+      try {
+        await checkSystemInitialization()
+        await loadCategories()
+        await loadPosts()
+        await loadForumStats()
+      } catch (error) {
+        console.error("❌ Error initializing forum:", error)
+        setError("Failed to load forum. Please refresh the page.")
+        setIsLoading(false)
+      }
+    }
+
+    initializeForum()
   }, [])
 
   const checkSystemInitialization = async () => {
@@ -115,7 +125,16 @@ export default function ForumPage() {
   const loadForumStats = async () => {
     try {
       console.log("📊 Loading forum stats...")
-      const response = await fetch("/api/forum/stats")
+
+      // Add timeout to prevent hanging
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+
+      const response = await fetch("/api/forum/stats", {
+        signal: controller.signal,
+      })
+
+      clearTimeout(timeoutId)
 
       if (!response.ok) {
         console.warn(`⚠️ Stats API returned ${response.status}, using defaults`)
