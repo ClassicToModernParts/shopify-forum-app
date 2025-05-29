@@ -101,6 +101,7 @@ export async function GET(request: NextRequest) {
         }
 
         const replies = forumDataStore.getRepliesByPostId(postId)
+        console.log(`📊 Returning ${replies.length} replies for post ${postId}`)
         return NextResponse.json({
           success: true,
           data: replies,
@@ -196,6 +197,8 @@ export async function POST(request: NextRequest) {
         console.log("💬 Creating new reply")
         const { postId, content: replyContent, author: replyAuthor, authorEmail: replyAuthorEmail } = data
 
+        console.log("🔍 Reply creation data:", { postId, replyContent, replyAuthor, replyAuthorEmail })
+
         if (!postId || !replyContent || !replyAuthor) {
           return NextResponse.json(
             {
@@ -217,6 +220,8 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ success: false, error: `Post with ID ${postId} not found` }, { status: 404 })
         }
 
+        console.log(`✅ Post found for reply: ${targetPost.title}`)
+
         const newReply = forumDataStore.addReply({
           postId,
           content: replyContent,
@@ -233,6 +238,48 @@ export async function POST(request: NextRequest) {
           success: true,
           data: newReply,
           message: "Reply created successfully",
+        })
+
+      case "delete_post":
+        console.log("🗑️ Deleting post")
+        const { postId: deletePostId, userEmail: deleteUserEmail } = data
+
+        if (!deletePostId || !deleteUserEmail) {
+          return NextResponse.json({ success: false, error: "Post ID and user email are required" }, { status: 400 })
+        }
+
+        const deleteSuccess = forumDataStore.deletePost(deletePostId, deleteUserEmail)
+        if (!deleteSuccess) {
+          return NextResponse.json(
+            { success: false, error: "Failed to delete post - not found or unauthorized" },
+            { status: 403 },
+          )
+        }
+
+        return NextResponse.json({
+          success: true,
+          message: "Post deleted successfully",
+        })
+
+      case "delete_reply":
+        console.log("🗑️ Deleting reply")
+        const { replyId: deleteReplyId, userEmail: deleteReplyUserEmail } = data
+
+        if (!deleteReplyId || !deleteReplyUserEmail) {
+          return NextResponse.json({ success: false, error: "Reply ID and user email are required" }, { status: 400 })
+        }
+
+        const deleteReplySuccess = forumDataStore.deleteReply(deleteReplyId, deleteReplyUserEmail)
+        if (!deleteReplySuccess) {
+          return NextResponse.json(
+            { success: false, error: "Failed to delete reply - not found or unauthorized" },
+            { status: 403 },
+          )
+        }
+
+        return NextResponse.json({
+          success: true,
+          message: "Reply deleted successfully",
         })
 
       case "like_post":

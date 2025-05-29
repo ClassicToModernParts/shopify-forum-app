@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { MessageSquare, Users, Clock, Plus, LogIn } from "lucide-react"
+import { MessageSquare, Users, Clock, Plus, LogIn, Trash2 } from "lucide-react"
 import Link from "next/link"
 import useUserAuth from "@/hooks/useUserAuth"
 
@@ -86,6 +86,8 @@ export default function ForumPage() {
   const [categoryPosts, setCategoryPosts] = useState<Post[]>([])
   const [showCategoryPosts, setShowCategoryPosts] = useState(false)
   const [currentCategoryName, setCurrentCategoryName] = useState("")
+  const [showPostActions, setShowPostActions] = useState<{ [key: string]: boolean }>({})
+  const [showReplyActions, setShowReplyActions] = useState<{ [key: string]: boolean }>({})
 
   useEffect(() => {
     const initializeForum = async () => {
@@ -276,6 +278,7 @@ export default function ForumPage() {
         console.log("✅ Replies loaded:", data.data)
         const repliesArray = Array.isArray(data.data) ? data.data : []
         setReplies(repliesArray)
+        console.log(`📊 Set ${repliesArray.length} replies in state`)
       } else {
         console.error("❌ Replies API returned error:", data.error)
         setReplies([])
@@ -396,6 +399,7 @@ export default function ForumPage() {
 
     try {
       console.log("💬 Creating new reply:", newReply)
+      console.log("💬 Selected post:", selectedPost?.id)
 
       if (!newReply.content || !selectedPost) {
         setError("Please fill in all required fields")
@@ -421,12 +425,27 @@ export default function ForumPage() {
       }
 
       const data = await response.json()
+      console.log("📊 Create reply API response:", data)
+
       if (data.success) {
         console.log("✅ Reply created successfully:", data.data)
         setNewReply({ content: "", author: "" })
         setShowReplyModal(false)
-        loadReplies(selectedPost.id)
-        loadPosts(selectedCategory || undefined, searchQuery, sortBy)
+
+        // Reload replies and update post reply count
+        await loadReplies(selectedPost.id)
+
+        // Update the selected post's reply count
+        setSelectedPost((prev) => (prev ? { ...prev, replies: (prev.replies || 0) + 1 } : null))
+
+        // Reload posts to update counts
+        if (showCategoryPosts && selectedCategory) {
+          loadPosts(selectedCategory, searchQuery, sortBy)
+        } else {
+          loadPosts(undefined, searchQuery, sortBy)
+        }
+
+        loadForumStats()
         setError(null)
       } else {
         console.error("❌ Create reply API returned error:", data.error)
@@ -437,6 +456,105 @@ export default function ForumPage() {
       setError("Failed to create reply. Please try again.")
     } finally {
       setLoading(false)
+    }
+  }
+
+  const deletePost = async (postId: string) => {
+    if (!requireAuth("delete posts")) return
+
+    try {
+      console.log("🗑️ Deleting post:", postId)
+      const response = await fetch("/api/forum", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "delete_post",
+          shopId: "demo",
+          postId,
+          userEmail: user?.email || "",
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Delete post API failed: ${response.status}`)
+      }
+
+      const data = await response.json()
+      if (data.success) {
+        console.log("✅ Post deleted successfully")
+
+        // If we're viewing this post, go back
+        if (selectedPost?.id === postId) {
+          setSelectedPost(null)
+        }
+
+        // Reload posts
+        if (showCategoryPosts && selectedCategory) {
+          loadPosts(selectedCategory, searchQuery, sortBy)
+        } else {
+          loadPosts(undefined, searchQuery, sortBy)
+        }
+
+        loadCategories()
+        loadForumStats()
+        setError(null)
+      } else {
+        console.error("❌ Delete post API returned error:", data.error)
+        setError(data.error || "Failed to delete post.")
+      }
+    } catch (error) {
+      console.error("❌ Error deleting post:", error)
+      setError("Failed to delete post. Please try again.")
+    }
+  }
+
+  const deleteReply = async (replyId: string) => {
+    if (!requireAuth("delete replies")) return
+
+    try {
+      console.log("🗑️ Deleting reply:", replyId)
+      const response = await fetch("/api/forum", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "delete_reply",
+          shopId: "demo",
+          replyId,
+          userEmail: user?.email || "",
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Delete reply API failed: ${response.status}`)
+      }
+
+      const data = await response.json()
+      if (data.success) {
+        console.log("✅ Reply deleted successfully")
+
+        // Reload replies for this post
+        if (selectedPost) {
+          await loadReplies(selectedPost.id)
+          // Update post reply count
+          setSelectedPost((prev) => (prev ? { ...prev, replies: Math.max(0, (prev.replies || 0) - 1) } : null))
+        }
+
+        // Reload posts to update counts
+        if (showCategoryPosts && selectedCategory) {
+          loadPosts(selectedCategory, searchQuery, sortBy)
+        } else {
+          loadPosts(undefined, searchQuery, sortBy)
+        }
+
+        loadForumStats()
+        setError(null)
+      } else {
+        console.error("❌ Delete reply API returned error:", data.error)
+        setError(data.error || "Failed to delete reply.")
+      }
+    } catch (error) {
+      console.error("❌ Error deleting reply:", error)
+      setError("Failed to delete reply. Please try again.")
     }
   }
 
@@ -504,6 +622,14 @@ export default function ForumPage() {
     } catch (error) {
       console.error("❌ Error liking reply:", error)
     }
+  }
+
+  const canDeletePost = (post: Post) => {
+    return isAuthenticated && user && (user.email === post.authorEmail || user.email === "admin@store.com")
+  }
+
+  const canDeleteReply = (reply: Reply) => {
+    return isAuthenticated && user && (user.email === reply.authorEmail || user.email === "admin@store.com")
   }
 
   const formatDate = (dateString: string) => {
@@ -654,7 +780,19 @@ export default function ForumPage() {
                 <button onClick={() => setSelectedPost(null)} className="text-blue-600 hover:text-blue-800 font-medium">
                   ← Back to {showCategoryPosts ? currentCategoryName : "Categories"}
                 </button>
-                {isAuthenticated && <Button onClick={() => setShowReplyModal(true)}>Reply to Post</Button>}
+                <div className="flex items-center space-x-2">
+                  {isAuthenticated && <Button onClick={() => setShowReplyModal(true)}>Reply to Post</Button>}
+                  {canDeletePost(selectedPost) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => deletePost(selectedPost.id)}
+                      className="text-red-600 hover:text-red-800 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
               </div>
 
               <div className="border-b pb-6 mb-6">
@@ -710,16 +848,27 @@ export default function ForumPage() {
                   <div className="space-y-4">
                     {replies.map((reply) => (
                       <div key={reply.id} className="border-l-4 border-gray-200 pl-4">
-                        <div className="flex items-center space-x-4 mb-2">
-                          <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-                            <span className="text-xs font-medium text-gray-700">
-                              {reply.author.charAt(0).toUpperCase()}
-                            </span>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center space-x-4">
+                            <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                              <span className="text-xs font-medium text-gray-700">
+                                {reply.author.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                            <div>
+                              <p className="font-medium text-gray-900">{reply.author}</p>
+                              <p className="text-xs text-gray-500">{formatDate(reply.createdAt)}</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-medium text-gray-900">{reply.author}</p>
-                            <p className="text-xs text-gray-500">{formatDate(reply.createdAt)}</p>
-                          </div>
+                          {canDeleteReply(reply) && (
+                            <button
+                              onClick={() => deleteReply(reply.id)}
+                              className="text-red-600 hover:text-red-800 p-1"
+                              title="Delete reply"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
                         <p className="text-gray-700 mb-2 whitespace-pre-wrap">{reply.content}</p>
                         <button
@@ -796,7 +945,7 @@ export default function ForumPage() {
                   {categoryPosts.map((post) => (
                     <div
                       key={post.id}
-                      className="border rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
+                      className="border rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer relative"
                       onClick={() => handlePostClick(post)}
                     >
                       <div className="flex items-start justify-between">
@@ -818,11 +967,23 @@ export default function ForumPage() {
                           </div>
                         </div>
                         <div className="text-right ml-4">
-                          <div className="flex items-center space-x-4 text-sm text-gray-500">
+                          <div className="flex items-center space-x-4 text-sm text-gray-500 mb-2">
                             <span>{post.views} views</span>
                             <span>{post.likes} likes</span>
                             <span>{post.replies} replies</span>
                           </div>
+                          {canDeletePost(post) && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                deletePost(post.id)
+                              }}
+                              className="text-red-600 hover:text-red-800 p-1"
+                              title="Delete post"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>

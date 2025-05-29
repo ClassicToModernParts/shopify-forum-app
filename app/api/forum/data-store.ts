@@ -95,17 +95,73 @@ class ForumDataStore {
         categoryId: "general",
         createdAt: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
         updatedAt: new Date(Date.now() - 86400000).toISOString(),
-        replies: 0,
-        views: 5,
-        likes: 2,
+        replies: 2,
+        views: 15,
+        likes: 3,
         isPinned: true,
         tags: ["welcome", "introduction"],
+        status: "active",
+      },
+      {
+        id: "post-2",
+        title: "How to use the forum effectively",
+        content:
+          "Here are some tips on how to make the most of our community forum. Remember to be respectful and helpful!",
+        author: "Moderator",
+        authorEmail: "mod@store.com",
+        categoryId: "support",
+        createdAt: new Date(Date.now() - 43200000).toISOString(), // 12 hours ago
+        updatedAt: new Date(Date.now() - 43200000).toISOString(),
+        replies: 1,
+        views: 8,
+        likes: 2,
+        tags: ["tips", "guidelines"],
+        status: "active",
+      },
+    ]
+
+    // Create sample replies
+    this.replies = [
+      {
+        id: "reply-1",
+        postId: "post-1",
+        content: "Thank you for the warm welcome! I'm excited to be part of this community.",
+        author: "New User",
+        authorEmail: "newuser@example.com",
+        createdAt: new Date(Date.now() - 21600000).toISOString(), // 6 hours ago
+        updatedAt: new Date(Date.now() - 21600000).toISOString(),
+        likes: 1,
+        status: "active",
+      },
+      {
+        id: "reply-2",
+        postId: "post-1",
+        content: "Great to have you here! Don't hesitate to ask questions if you need help.",
+        author: "Community Helper",
+        authorEmail: "helper@example.com",
+        createdAt: new Date(Date.now() - 10800000).toISOString(), // 3 hours ago
+        updatedAt: new Date(Date.now() - 10800000).toISOString(),
+        likes: 2,
+        status: "active",
+      },
+      {
+        id: "reply-3",
+        postId: "post-2",
+        content: "These are really helpful tips! Thanks for sharing.",
+        author: "Active User",
+        authorEmail: "active@example.com",
+        createdAt: new Date(Date.now() - 7200000).toISOString(), // 2 hours ago
+        updatedAt: new Date(Date.now() - 7200000).toISOString(),
+        likes: 0,
         status: "active",
       },
     ]
 
     this.initialized = true
     console.log("✅ Forum data store initialized with sample data")
+    console.log(
+      `📊 Initialized with ${this.categories.length} categories, ${this.posts.length} posts, ${this.replies.length} replies`,
+    )
   }
 
   // Categories
@@ -134,12 +190,12 @@ class ForumDataStore {
   // Posts
   getPosts(): Post[] {
     this.initializeIfEmpty()
-    return [...this.posts]
+    return [...this.posts].filter((post) => post.status === "active")
   }
 
   getPostById(id: string): Post | null {
     this.initializeIfEmpty()
-    return this.posts.find((post) => post.id === id) || null
+    return this.posts.find((post) => post.id === id && post.status === "active") || null
   }
 
   createPost(data: Omit<Post, "id" | "createdAt" | "updatedAt" | "replies" | "views" | "likes">): Post {
@@ -162,12 +218,45 @@ class ForumDataStore {
     return post
   }
 
+  deletePost(postId: string, userEmail: string): boolean {
+    this.initializeIfEmpty()
+    const postIndex = this.posts.findIndex((p) => p.id === postId)
+    if (postIndex === -1) {
+      console.warn(`⚠️ Post not found for deletion: ${postId}`)
+      return false
+    }
+
+    const post = this.posts[postIndex]
+
+    // Check if user owns the post or is admin
+    if (post.authorEmail !== userEmail && userEmail !== "admin@store.com") {
+      console.warn(`⚠️ User ${userEmail} not authorized to delete post ${postId}`)
+      return false
+    }
+
+    // Soft delete - mark as deleted instead of removing
+    post.status = "deleted"
+    post.updatedAt = new Date().toISOString()
+
+    // Also soft delete all replies to this post
+    this.replies.forEach((reply) => {
+      if (reply.postId === postId) {
+        reply.status = "deleted"
+        reply.updatedAt = new Date().toISOString()
+      }
+    })
+
+    console.log(`✅ Post ${postId} deleted by ${userEmail}`)
+    return true
+  }
+
   incrementPostViews(postId: string): boolean {
     this.initializeIfEmpty()
-    const post = this.posts.find((p) => p.id === postId)
+    const post = this.posts.find((p) => p.id === postId && p.status === "active")
     if (post) {
       post.views = (post.views || 0) + 1
       post.updatedAt = new Date().toISOString()
+      console.log(`👁️ Post ${postId} views incremented to ${post.views}`)
       return true
     }
     return false
@@ -175,10 +264,11 @@ class ForumDataStore {
 
   likePost(postId: string): { likes: number } | null {
     this.initializeIfEmpty()
-    const post = this.posts.find((p) => p.id === postId)
+    const post = this.posts.find((p) => p.id === postId && p.status === "active")
     if (post) {
       post.likes = (post.likes || 0) + 1
       post.updatedAt = new Date().toISOString()
+      console.log(`👍 Post ${postId} likes incremented to ${post.likes}`)
       return { likes: post.likes }
     }
     return null
@@ -187,11 +277,16 @@ class ForumDataStore {
   // Replies
   getRepliesByPostId(postId: string): Reply[] {
     this.initializeIfEmpty()
-    return this.replies.filter((reply) => reply.postId === postId)
+    const replies = this.replies.filter((reply) => reply.postId === postId && reply.status === "active")
+    console.log(`💬 Found ${replies.length} active replies for post ${postId}`)
+    return replies
   }
 
   addReply(data: Omit<Reply, "id" | "createdAt" | "updatedAt" | "likes">): Reply {
     this.initializeIfEmpty()
+
+    console.log("💬 Adding reply with data:", data)
+
     const reply: Reply = {
       id: `reply-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       createdAt: new Date().toISOString(),
@@ -200,25 +295,61 @@ class ForumDataStore {
       status: "active",
       ...data,
     }
+
+    // Add to replies array
     this.replies.push(reply)
+    console.log("✅ Reply added to array. Total replies:", this.replies.length)
 
     // Increment reply count on the post
     const post = this.posts.find((p) => p.id === data.postId)
     if (post) {
       post.replies = (post.replies || 0) + 1
       post.updatedAt = new Date().toISOString()
+      console.log(`📈 Post ${data.postId} reply count updated to ${post.replies}`)
+    } else {
+      console.warn(`⚠️ Post ${data.postId} not found when adding reply`)
     }
 
-    console.log("✅ Reply created:", reply)
+    console.log("✅ Reply created successfully:", reply)
     return reply
+  }
+
+  deleteReply(replyId: string, userEmail: string): boolean {
+    this.initializeIfEmpty()
+    const reply = this.replies.find((r) => r.id === replyId)
+    if (!reply) {
+      console.warn(`⚠️ Reply not found for deletion: ${replyId}`)
+      return false
+    }
+
+    // Check if user owns the reply or is admin
+    if (reply.authorEmail !== userEmail && userEmail !== "admin@store.com") {
+      console.warn(`⚠️ User ${userEmail} not authorized to delete reply ${replyId}`)
+      return false
+    }
+
+    // Soft delete - mark as deleted
+    reply.status = "deleted"
+    reply.updatedAt = new Date().toISOString()
+
+    // Decrement reply count on the post
+    const post = this.posts.find((p) => p.id === reply.postId)
+    if (post && post.replies > 0) {
+      post.replies = post.replies - 1
+      post.updatedAt = new Date().toISOString()
+    }
+
+    console.log(`✅ Reply ${replyId} deleted by ${userEmail}`)
+    return true
   }
 
   likeReply(replyId: string): { likes: number } | null {
     this.initializeIfEmpty()
-    const reply = this.replies.find((r) => r.id === replyId)
+    const reply = this.replies.find((r) => r.id === replyId && r.status === "active")
     if (reply) {
       reply.likes = (reply.likes || 0) + 1
       reply.updatedAt = new Date().toISOString()
+      console.log(`👍 Reply ${replyId} likes incremented to ${reply.likes}`)
       return { likes: reply.likes }
     }
     return null
@@ -227,11 +358,15 @@ class ForumDataStore {
   // Debug methods
   getStats() {
     this.initializeIfEmpty()
+    const activePosts = this.posts.filter((p) => p.status === "active")
+    const activeReplies = this.replies.filter((r) => r.status === "active")
+
     return {
       totalCategories: this.categories.length,
-      totalPosts: this.posts.length,
-      totalReplies: this.replies.length,
-      totalUsers: 1, // Mock for now
+      totalPosts: activePosts.length,
+      totalReplies: activeReplies.length,
+      totalUsers: 3, // Mock for now
+      activeToday: 2, // Mock for now
       onlineUsers: 1, // Mock for now
     }
   }
@@ -240,8 +375,8 @@ class ForumDataStore {
     this.initializeIfEmpty()
     return {
       categories: this.categories,
-      posts: this.posts,
-      replies: this.replies,
+      posts: this.posts.filter((p) => p.status === "active"),
+      replies: this.replies.filter((r) => r.status === "active"),
       stats: this.getStats(),
     }
   }
@@ -252,6 +387,17 @@ class ForumDataStore {
     this.replies = []
     this.initialized = false
     console.log("🔄 Forum data store reset")
+  }
+
+  // Debug method to see all data including deleted
+  getAllDataWithDeleted() {
+    this.initializeIfEmpty()
+    return {
+      categories: this.categories,
+      posts: this.posts,
+      replies: this.replies,
+      stats: this.getStats(),
+    }
   }
 }
 
