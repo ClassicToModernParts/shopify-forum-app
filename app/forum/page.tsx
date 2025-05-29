@@ -131,7 +131,6 @@ export default function ForumPage() {
       }
     } catch (error) {
       console.error("❌ Error loading forum stats:", error)
-      // Use default values instead of showing error
       setForumData({
         totalPosts: 0,
         totalUsers: 0,
@@ -223,38 +222,22 @@ export default function ForumPage() {
     }
   }
 
-  // Update the handlePostClick function to properly increment views
   const handlePostClick = async (post: Post) => {
     console.log("🔍 Post clicked:", post.id)
     setSelectedPost(post)
 
     try {
-      // Increment view count
       const viewResponse = await fetch(`/api/forum?type=post&shop_id=demo&post_id=${post.id}`)
       if (viewResponse.ok) {
         const viewData = await viewResponse.json()
         if (viewData.success && viewData.data) {
-          // Update the post with the latest view count
           setSelectedPost((prev) => (prev ? { ...prev, views: viewData.data.views } : null))
         }
       }
-
-      // Load replies
       await loadReplies(post.id)
     } catch (error) {
       console.error("❌ Error handling post click:", error)
     }
-  }
-
-  const handleSearch = () => {
-    console.log("🔍 Search triggered:", searchQuery)
-    loadPosts(selectedCategory || undefined, searchQuery, sortBy)
-  }
-
-  const handleSortChange = (newSort: string) => {
-    console.log("🔄 Sort changed:", newSort)
-    setSortBy(newSort)
-    loadPosts(selectedCategory || undefined, searchQuery, newSort)
   }
 
   const createPost = async () => {
@@ -291,7 +274,6 @@ export default function ForumPage() {
         setNewPost({ title: "", content: "", author: "", categoryId: "", tags: "" })
         setShowNewPostModal(false)
 
-        // If we're viewing a category, reload that category's posts
         if (showCategoryPosts && selectedCategory) {
           loadPosts(selectedCategory, searchQuery, sortBy)
         } else {
@@ -299,7 +281,7 @@ export default function ForumPage() {
         }
 
         loadCategories()
-        loadForumStats() // Refresh stats after creating post
+        loadForumStats()
         setError(null)
       } else {
         console.error("❌ Create post API returned error:", data.error)
@@ -359,7 +341,6 @@ export default function ForumPage() {
     }
   }
 
-  // Update the likePost function to use the real API
   const likePost = async (postId: string) => {
     try {
       console.log("👍 Liking post:", postId)
@@ -380,14 +361,8 @@ export default function ForumPage() {
       const data = await response.json()
       if (data.success) {
         console.log("✅ Post liked successfully:", data.data)
-
-        // Update the post in the posts list
         setPosts((prevPosts) => prevPosts.map((p) => (p.id === postId ? { ...p, likes: data.data.likes } : p)))
-
-        // Update the post in category posts if applicable
         setCategoryPosts((prevPosts) => prevPosts.map((p) => (p.id === postId ? { ...p, likes: data.data.likes } : p)))
-
-        // Update the selected post if applicable
         if (selectedPost && selectedPost.id === postId) {
           setSelectedPost({ ...selectedPost, likes: data.data.likes })
         }
@@ -399,7 +374,6 @@ export default function ForumPage() {
     }
   }
 
-  // Add a function to like replies
   const likeReply = async (replyId: string) => {
     try {
       console.log("👍 Liking reply:", replyId)
@@ -420,8 +394,6 @@ export default function ForumPage() {
       const data = await response.json()
       if (data.success) {
         console.log("✅ Reply liked successfully:", data.data)
-
-        // Update the reply in the replies list
         setReplies((prevReplies) => prevReplies.map((r) => (r.id === replyId ? { ...r, likes: data.data.likes } : r)))
       } else {
         console.error("❌ Like reply API returned error:", data.error)
@@ -446,7 +418,6 @@ export default function ForumPage() {
 
   const handleNewPostClick = () => {
     console.log("📝 New post button clicked")
-    // Set default author if user is logged in
     if (user) {
       setNewPost((prev) => ({
         ...prev,
@@ -454,7 +425,6 @@ export default function ForumPage() {
       }))
     }
 
-    // Set default category if one is selected
     if (selectedCategory) {
       setNewPost((prev) => ({
         ...prev,
@@ -482,7 +452,6 @@ export default function ForumPage() {
     setSelectedPost(null)
     setShowCategoryPosts(true)
 
-    // Find the category name
     const category = categories.find((c) => c.id === categoryId)
     if (category) {
       setCurrentCategoryName(category.name)
@@ -502,11 +471,9 @@ export default function ForumPage() {
     )
   }
 
-  // Single Post View
   if (selectedPost) {
     return (
       <div className="min-h-screen bg-gray-50">
-        {/* Header */}
         <header className="bg-white shadow-sm border-b sticky top-0 z-10">
           <div className="container mx-auto px-6 py-4">
             <div className="flex items-center justify-between">
@@ -541,7 +508,6 @@ export default function ForumPage() {
 
         <div className="container mx-auto px-6 py-8">
           <div className="max-w-4xl mx-auto">
-            {/* Post Content */}
             <div className="bg-white rounded-lg shadow-sm border p-8 mb-6">
               <div className="flex items-start justify-between mb-6">
                 <div className="flex-1">
@@ -606,7 +572,6 @@ export default function ForumPage() {
               </div>
             </div>
 
-            {/* Replies */}
             <div className="space-y-4">
               <h2 className="text-xl font-semibold text-gray-900">Replies ({replies.length})</h2>
 
@@ -653,7 +618,6 @@ export default function ForumPage() {
           </div>
         </div>
 
-        {/* Reply Modal */}
         {showReplyModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-lg p-6 w-full max-w-2xl">
@@ -714,11 +678,9 @@ export default function ForumPage() {
     )
   }
 
-  // Category Posts View
   if (showCategoryPosts) {
     return (
       <div className="min-h-screen bg-gray-50">
-        {/* Header */}
         <header className="bg-white shadow-sm border-b">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center py-4">
@@ -746,11 +708,9 @@ export default function ForumPage() {
           </div>
         </header>
 
-        {/* Main Content */}
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">{error}</div>}
 
-          {/* Posts List */}
           <div className="bg-white rounded-lg shadow-sm border">
             <div className="p-6">
               <h2 className="text-xl font-bold mb-4">Posts in {currentCategoryName}</h2>
@@ -827,7 +787,6 @@ export default function ForumPage() {
           </div>
         </main>
 
-        {/* New Post Modal */}
         {showNewPostModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-lg p-6 w-full max-w-3xl">
@@ -922,15 +881,12 @@ export default function ForumPage() {
             </div>
           </div>
         )}
-      </main>
-    </div>
-  )
+      </div>
+    )
   }
 
-  // Main Forum View (Categories)
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
@@ -967,11 +923,9 @@ export default function ForumPage() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">{error}</div>}
 
-        {/* Forum Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white rounded-lg shadow-sm border p-6">
             <div className="flex items-center">
@@ -1004,7 +958,6 @@ export default function ForumPage() {
           </div>
         </div>
 
-        {/* Categories Section */}
         <div className="bg-white rounded-lg shadow-sm border">
           <div className="p-6">
             <div className="flex justify-between items-center mb-6">
@@ -1065,7 +1018,6 @@ export default function ForumPage() {
           </div>
         </div>
 
-        {/* New Post Modal */}
         {showNewPostModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-lg p-6 w-full max-w-3xl">
