@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { MessageSquare, Users, Clock, Plus, Eye, Heart, Pin, Lock, ArrowLeft, Send, X } from "lucide-react"
+import { MessageSquare, Users, Clock, Plus, Eye, Heart, Pin, Lock, ArrowLeft, Send, X, LogIn } from "lucide-react"
 import Link from "next/link"
 import useUserAuth from "@/hooks/useUserAuth"
 
@@ -240,11 +240,21 @@ export default function ForumPage() {
     }
   }
 
+  const requireAuth = (action: string) => {
+    if (!isAuthenticated) {
+      setError(`Please log in to ${action}. You need an account to interact with the forum.`)
+      return false
+    }
+    return true
+  }
+
   const createPost = async () => {
+    if (!requireAuth("create posts")) return
+
     try {
       console.log("📝 Creating new post:", newPost)
 
-      if (!newPost.title || !newPost.content || !newPost.author || !newPost.categoryId) {
+      if (!newPost.title || !newPost.content || !newPost.categoryId) {
         setError("Please fill in all required fields")
         return
       }
@@ -257,6 +267,8 @@ export default function ForumPage() {
           type: "create_post",
           shopId: "demo",
           ...newPost,
+          author: user?.name || user?.email || "Anonymous",
+          authorEmail: user?.email || "",
           tags: newPost.tags
             .split(",")
             .map((tag) => tag.trim())
@@ -296,10 +308,12 @@ export default function ForumPage() {
   }
 
   const createReply = async () => {
+    if (!requireAuth("reply to posts")) return
+
     try {
       console.log("💬 Creating new reply:", newReply)
 
-      if (!newReply.content || !newReply.author || !selectedPost) {
+      if (!newReply.content || !selectedPost) {
         setError("Please fill in all required fields")
         return
       }
@@ -313,7 +327,8 @@ export default function ForumPage() {
           shopId: "demo",
           postId: selectedPost.id,
           content: newReply.content,
-          author: newReply.author,
+          author: user?.name || user?.email || "Anonymous",
+          authorEmail: user?.email || "",
         }),
       })
 
@@ -342,6 +357,8 @@ export default function ForumPage() {
   }
 
   const likePost = async (postId: string) => {
+    if (!requireAuth("like posts")) return
+
     try {
       console.log("👍 Liking post:", postId)
       const response = await fetch("/api/forum", {
@@ -375,6 +392,8 @@ export default function ForumPage() {
   }
 
   const likeReply = async (replyId: string) => {
+    if (!requireAuth("like replies")) return
+
     try {
       console.log("👍 Liking reply:", replyId)
       const response = await fetch("/api/forum", {
@@ -417,6 +436,8 @@ export default function ForumPage() {
   const getCategoryById = (id: string) => categories.find((c) => c.id === id)
 
   const handleNewPostClick = () => {
+    if (!requireAuth("create posts")) return
+
     console.log("📝 New post button clicked")
     if (user) {
       setNewPost((prev) => ({
@@ -495,13 +516,22 @@ export default function ForumPage() {
                   Home
                 </Link>
               </div>
-              <button
-                onClick={() => setShowReplyModal(true)}
-                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                <Send className="h-4 w-4" />
-                <span>Reply</span>
-              </button>
+              {isAuthenticated ? (
+                <button
+                  onClick={() => setShowReplyModal(true)}
+                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  <Send className="h-4 w-4" />
+                  <span>Reply</span>
+                </button>
+              ) : (
+                <Link href="/login">
+                  <Button>
+                    <LogIn className="h-4 w-4 mr-2" />
+                    Login to Reply
+                  </Button>
+                </Link>
+              )}
             </div>
           </div>
         </header>
@@ -551,24 +581,40 @@ export default function ForumPage() {
 
               <div className="flex items-center justify-between pt-6 border-t">
                 <div className="flex items-center space-x-6">
-                  <button
-                    onClick={() => likePost(selectedPost.id)}
-                    className="flex items-center space-x-2 text-gray-600 hover:text-red-500 transition-colors"
-                  >
-                    <Heart className="h-5 w-5" />
-                    <span>{selectedPost.likes}</span>
-                  </button>
+                  {isAuthenticated ? (
+                    <button
+                      onClick={() => likePost(selectedPost.id)}
+                      className="flex items-center space-x-2 text-gray-600 hover:text-red-500 transition-colors"
+                    >
+                      <Heart className="h-5 w-5" />
+                      <span>{selectedPost.likes}</span>
+                    </button>
+                  ) : (
+                    <div className="flex items-center space-x-2 text-gray-400">
+                      <Heart className="h-5 w-5" />
+                      <span>{selectedPost.likes}</span>
+                    </div>
+                  )}
                   <div className="flex items-center space-x-2 text-gray-600">
                     <MessageSquare className="h-5 w-5" />
                     <span>{replies.length} replies</span>
                   </div>
                 </div>
-                <button
-                  onClick={() => setShowReplyModal(true)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Reply to Post
-                </button>
+                {isAuthenticated ? (
+                  <button
+                    onClick={() => setShowReplyModal(true)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    Reply to Post
+                  </button>
+                ) : (
+                  <Link href="/login">
+                    <Button variant="outline">
+                      <LogIn className="h-4 w-4 mr-2" />
+                      Login to Reply
+                    </Button>
+                  </Link>
+                )}
               </div>
             </div>
 
@@ -579,12 +625,21 @@ export default function ForumPage() {
                 <div className="bg-white rounded-lg shadow-sm border p-8 text-center">
                   <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-500 mb-4">No replies yet. Be the first to respond!</p>
-                  <button
-                    onClick={() => setShowReplyModal(true)}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  >
-                    Add Reply
-                  </button>
+                  {isAuthenticated ? (
+                    <button
+                      onClick={() => setShowReplyModal(true)}
+                      className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                      Add Reply
+                    </button>
+                  ) : (
+                    <Link href="/login">
+                      <Button>
+                        <LogIn className="h-4 w-4 mr-2" />
+                        Login to Reply
+                      </Button>
+                    </Link>
+                  )}
                 </div>
               ) : (
                 replies.map((reply) => (
@@ -599,16 +654,23 @@ export default function ForumPage() {
                           <div className="text-sm text-gray-500">{formatDate(reply.createdAt)}</div>
                         </div>
                       </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          likeReply(reply.id)
-                        }}
-                        className="flex items-center space-x-2 text-gray-500 hover:text-red-500 transition-colors"
-                      >
-                        <Heart className="h-4 w-4" />
-                        <span>{reply.likes}</span>
-                      </button>
+                      {isAuthenticated ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            likeReply(reply.id)
+                          }}
+                          className="flex items-center space-x-2 text-gray-500 hover:text-red-500 transition-colors"
+                        >
+                          <Heart className="h-4 w-4" />
+                          <span>{reply.likes}</span>
+                        </button>
+                      ) : (
+                        <div className="flex items-center space-x-2 text-gray-400">
+                          <Heart className="h-4 w-4" />
+                          <span>{reply.likes}</span>
+                        </div>
+                      )}
                     </div>
                     <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{reply.content}</p>
                   </div>
@@ -618,7 +680,7 @@ export default function ForumPage() {
           </div>
         </div>
 
-        {showReplyModal && (
+        {showReplyModal && isAuthenticated && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-lg p-6 w-full max-w-2xl">
               <div className="flex items-center justify-between mb-4">
@@ -633,17 +695,6 @@ export default function ForumPage() {
               )}
 
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Your Name *</label>
-                  <input
-                    type="text"
-                    placeholder="Enter your name..."
-                    value={newReply.author}
-                    onChange={(e) => setNewReply({ ...newReply, author: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
                 <div>
                   <label className="block text-sm font-medium mb-2">Your Reply *</label>
                   <textarea
@@ -699,10 +750,19 @@ export default function ForumPage() {
               </div>
 
               <div className="flex items-center space-x-4">
-                <Button onClick={handleNewPostClick}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  New Post
-                </Button>
+                {isAuthenticated ? (
+                  <Button onClick={handleNewPostClick}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    New Post
+                  </Button>
+                ) : (
+                  <Link href="/login">
+                    <Button>
+                      <LogIn className="h-4 w-4 mr-2" />
+                      Login to Post
+                    </Button>
+                  </Link>
+                )}
               </div>
             </div>
           </div>
@@ -777,17 +837,26 @@ export default function ForumPage() {
                   <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">No posts in this category yet</h3>
                   <p className="text-gray-600 mb-4">Be the first to start a conversation!</p>
-                  <Button onClick={handleNewPostClick}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create First Post
-                  </Button>
+                  {isAuthenticated ? (
+                    <Button onClick={handleNewPostClick}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create First Post
+                    </Button>
+                  ) : (
+                    <Link href="/login">
+                      <Button>
+                        <LogIn className="h-4 w-4 mr-2" />
+                        Login to Create Post
+                      </Button>
+                    </Link>
+                  )}
                 </div>
               )}
             </div>
           </div>
         </main>
 
-        {showNewPostModal && (
+        {showNewPostModal && isAuthenticated && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-lg p-6 w-full max-w-3xl">
               <div className="flex items-center justify-between mb-4">
@@ -827,17 +896,6 @@ export default function ForumPage() {
                       </option>
                     ))}
                   </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2">Your Name *</label>
-                  <input
-                    type="text"
-                    placeholder="Enter your name..."
-                    value={newPost.author}
-                    onChange={(e) => setNewPost({ ...newPost, author: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
                 </div>
 
                 <div>
@@ -965,10 +1023,19 @@ export default function ForumPage() {
                 <h2 className="text-2xl font-bold">Categories</h2>
                 <p className="text-gray-600">Browse topics and join the conversation</p>
               </div>
-              <Button onClick={handleNewPostClick}>
-                <Plus className="h-4 w-4 mr-2" />
-                New Post
-              </Button>
+              {isAuthenticated ? (
+                <Button onClick={handleNewPostClick}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Post
+                </Button>
+              ) : (
+                <Link href="/login">
+                  <Button>
+                    <LogIn className="h-4 w-4 mr-2" />
+                    Login to Post
+                  </Button>
+                </Link>
+              )}
             </div>
 
             {categories && categories.length > 0 ? (
@@ -1002,23 +1069,21 @@ export default function ForumPage() {
               <div className="text-center py-12">
                 <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No categories yet</h3>
-                <p className="text-gray-600 mb-4">Be the first to start a conversation!</p>
-                {!isAuthenticated && (
-                  <div className="space-x-2">
-                    <Link href="/login">
-                      <Button variant="outline">Login</Button>
-                    </Link>
-                    <Link href="/register">
-                      <Button>Sign Up to Post</Button>
-                    </Link>
-                  </div>
-                )}
+                <p className="text-gray-600 mb-4">Create an account and be the first to start a conversation!</p>
+                <div className="space-x-2">
+                  <Link href="/login">
+                    <Button variant="outline">Login</Button>
+                  </Link>
+                  <Link href="/register">
+                    <Button>Sign Up to Post</Button>
+                  </Link>
+                </div>
               </div>
             )}
           </div>
         </div>
 
-        {showNewPostModal && (
+        {showNewPostModal && isAuthenticated && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-lg p-6 w-full max-w-3xl">
               <div className="flex items-center justify-between mb-4">
@@ -1058,17 +1123,6 @@ export default function ForumPage() {
                       </option>
                     ))}
                   </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2">Your Name *</label>
-                  <input
-                    type="text"
-                    placeholder="Enter your name..."
-                    value={newPost.author}
-                    onChange={(e) => setNewPost({ ...newPost, author: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
                 </div>
 
                 <div>

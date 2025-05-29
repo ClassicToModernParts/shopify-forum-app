@@ -9,103 +9,18 @@ class ForumDataStore {
   private replies: any[] = []
 
   constructor() {
-    // Initialize with some default data
+    // Initialize with default settings only
     this.initializeDefaultData()
   }
 
   private initializeDefaultData() {
-    // Default categories
-    this.categories = [
-      {
-        id: "cat-1",
-        name: "General Discussion",
-        description: "General topics related to our products",
-        postCount: 5,
-        color: "#3B82F6",
-        icon: "MessageSquare",
-        isPrivate: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-      {
-        id: "cat-2",
-        name: "Product Support",
-        description: "Get help with our products",
-        postCount: 3,
-        color: "#10B981",
-        icon: "HelpCircle",
-        isPrivate: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-      {
-        id: "cat-3",
-        name: "Feature Requests",
-        description: "Suggest new features for our products",
-        postCount: 2,
-        color: "#F59E0B",
-        icon: "Lightbulb",
-        isPrivate: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-    ]
+    // Start with empty arrays - no placeholder data
+    this.categories = []
+    this.posts = []
+    this.users = []
+    this.replies = []
 
-    // Default posts
-    this.posts = [
-      {
-        id: "post-1",
-        title: "Welcome to our community forum!",
-        content: "This is the first post in our community forum. Feel free to introduce yourself!",
-        author: "Admin",
-        categoryId: "cat-1",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        replies: 2,
-        views: 120,
-        likes: 15,
-        isPinned: true,
-        isLocked: false,
-        tags: ["welcome", "introduction"],
-        status: "active",
-      },
-      {
-        id: "post-2",
-        title: "How to get started with our product",
-        content: "Here are some tips to get started with our product...",
-        author: "Support Team",
-        categoryId: "cat-2",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        replies: 5,
-        views: 85,
-        likes: 10,
-        isPinned: false,
-        isLocked: false,
-        tags: ["guide", "tips"],
-        status: "active",
-      },
-    ]
-
-    // Default users
-    this.users = [
-      {
-        id: "user-1",
-        name: "Admin User",
-        email: "admin@example.com",
-        role: "admin",
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: "user-2",
-        name: "Regular User",
-        email: "user@example.com",
-        role: "user",
-        createdAt: new Date().toISOString(),
-      },
-    ]
-
-    // Default settings
+    // Only keep default settings
     this.settings = {
       general: {
         forumName: "Community Forum",
@@ -133,37 +48,6 @@ class ForumDataStore {
       },
       lastUpdated: new Date().toISOString(),
     }
-
-    // Add default replies
-    this.replies = [
-      {
-        id: "reply-1",
-        postId: "post-1",
-        content: "Welcome everyone! Feel free to introduce yourselves.",
-        author: "Admin",
-        createdAt: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
-        likes: 3,
-        status: "active",
-      },
-      {
-        id: "reply-2",
-        postId: "post-1",
-        content: "Hello! I'm new here and excited to join the community.",
-        author: "New User",
-        createdAt: new Date(Date.now() - 43200000).toISOString(), // 12 hours ago
-        likes: 1,
-        status: "active",
-      },
-      {
-        id: "reply-3",
-        postId: "post-2",
-        content: "This guide was really helpful. Thanks for sharing!",
-        author: "Customer",
-        createdAt: new Date(Date.now() - 21600000).toISOString(), // 6 hours ago
-        likes: 2,
-        status: "active",
-      },
-    ]
   }
 
   // Category methods
