@@ -7,22 +7,22 @@ class ForumDataStore {
   private users: any[] = []
   private settings: any = {}
   private replies: any[] = []
+  private initialized = false
 
   constructor() {
-    // Initialize with default settings only
+    console.log("🔧 ForumDataStore: Initializing...")
     this.initializeDefaultData()
-
-    // Auto-initialize system if completely empty
     this.autoInitializeIfEmpty()
   }
 
   private async autoInitializeIfEmpty() {
     try {
-      // Small delay to ensure the constructor completes
       setTimeout(async () => {
-        if (this.users.length === 0 && this.categories.length === 0) {
+        if (!this.initialized && this.users.length === 0 && this.categories.length === 0) {
           console.log("🔄 Auto-initializing empty system...")
           await this.createDefaultAdmin()
+          this.createDefaultCategories()
+          this.initialized = true
         }
       }, 1000)
     } catch (error) {
@@ -32,28 +32,54 @@ class ForumDataStore {
 
   private async createDefaultAdmin() {
     try {
-      // Create default admin user
       const adminUser = await this.addUser({
         username: "admin",
         name: "System Administrator",
         password: this.simpleHash("admin123"),
         role: "admin",
       })
-
       console.log("✅ Default admin user created:", adminUser.username)
     } catch (error) {
       console.error("❌ Failed to create default admin:", error)
     }
   }
 
+  private createDefaultCategories() {
+    try {
+      const defaultCategories = [
+        {
+          name: "General Discussion",
+          description: "General topics and conversations",
+          color: "#3B82F6",
+          icon: "MessageSquare",
+        },
+        {
+          name: "Help & Support",
+          description: "Get help with your questions",
+          color: "#10B981",
+          icon: "HelpCircle",
+        },
+      ]
+
+      for (const categoryData of defaultCategories) {
+        try {
+          const category = this.createCategory(categoryData)
+          console.log("✅ Default category created:", category.name)
+        } catch (error) {
+          console.error("❌ Failed to create default category:", error)
+        }
+      }
+    } catch (error) {
+      console.error("❌ Failed to create default categories:", error)
+    }
+  }
+
   private initializeDefaultData() {
-    // Start with empty arrays - no placeholder data
     this.categories = []
     this.posts = []
     this.users = []
     this.replies = []
 
-    // Only keep default settings
     this.settings = {
       general: {
         forumName: "Community Forum",
@@ -123,9 +149,19 @@ class ForumDataStore {
     try {
       console.log("📝 Creating new category:", categoryData)
 
+      // Validate required fields
+      if (!categoryData.name || !categoryData.description) {
+        throw new Error("Category name and description are required")
+      }
+
       const newCategory = {
-        id: `cat-${Date.now()}`,
-        ...categoryData,
+        id: `cat-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        name: categoryData.name,
+        description: categoryData.description,
+        color: categoryData.color || "#3B82F6",
+        icon: categoryData.icon || "MessageSquare",
+        isPrivate: categoryData.isPrivate || false,
+        moderators: categoryData.moderators || ["admin@store.com"],
         postCount: 0,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -191,7 +227,6 @@ class ForumDataStore {
         return false
       }
 
-      // Check if category has posts
       if (!Array.isArray(this.posts)) {
         console.warn("⚠️ Posts is not an array, resetting to default")
         this.posts = []
@@ -253,16 +288,39 @@ class ForumDataStore {
     try {
       console.log("📝 Creating new post:", postData)
 
+      // Validate required fields
+      if (!postData.title || !postData.content || !postData.author || !postData.categoryId) {
+        const missing = []
+        if (!postData.title) missing.push("title")
+        if (!postData.content) missing.push("content")
+        if (!postData.author) missing.push("author")
+        if (!postData.categoryId) missing.push("categoryId")
+        throw new Error(`Missing required fields: ${missing.join(", ")}`)
+      }
+
+      // Verify category exists
+      const category = this.getCategoryById(postData.categoryId)
+      if (!category) {
+        throw new Error(`Category with ID ${postData.categoryId} not found`)
+      }
+
       // Ensure tags is an array
       const tags = Array.isArray(postData.tags)
         ? postData.tags
         : typeof postData.tags === "string"
-          ? postData.tags.split(",").map((t) => t.trim())
+          ? postData.tags
+              .split(",")
+              .map((t) => t.trim())
+              .filter(Boolean)
           : []
 
       const newPost = {
-        id: `post-${Date.now()}`,
-        ...postData,
+        id: `post-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        title: postData.title,
+        content: postData.content,
+        author: postData.author,
+        authorEmail: postData.authorEmail || "",
+        categoryId: postData.categoryId,
         tags,
         replies: 0,
         views: 0,
@@ -291,6 +349,7 @@ class ForumDataStore {
       const categoryIndex = this.categories.findIndex((cat) => cat.id === postData.categoryId)
       if (categoryIndex !== -1) {
         this.categories[categoryIndex].postCount = (this.categories[categoryIndex].postCount || 0) + 1
+        this.categories[categoryIndex].lastActivity = newPost.createdAt
         console.log(
           `📊 Updated post count for category ${postData.categoryId} to ${this.categories[categoryIndex].postCount}`,
         )
@@ -352,12 +411,9 @@ class ForumDataStore {
       }
 
       const categoryId = this.posts[index].categoryId
-
-      // Delete the post
       this.posts.splice(index, 1)
       console.log(`✅ Post ${id} deleted successfully`)
 
-      // Update category post count
       if (!Array.isArray(this.categories)) {
         console.warn("⚠️ Categories is not an array, resetting to default")
         this.categories = []
@@ -412,7 +468,7 @@ class ForumDataStore {
 
       const newUser = {
         ...user,
-        id: `user-${Date.now()}`,
+        id: `user-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         createdAt: new Date().toISOString(),
         lastActive: new Date().toISOString(),
       }
@@ -539,7 +595,7 @@ class ForumDataStore {
     for (let i = 0; i < text.length; i++) {
       const char = text.charCodeAt(i)
       hash = (hash << 5) - hash + char
-      hash = hash & hash // Convert to 32bit integer
+      hash = hash & hash
     }
     return hash.toString()
   }
@@ -549,24 +605,17 @@ class ForumDataStore {
     try {
       console.log("📊 Calculating forum stats")
 
-      // Ensure arrays exist
       if (!Array.isArray(this.categories)) this.categories = []
       if (!Array.isArray(this.posts)) this.posts = []
       if (!Array.isArray(this.users)) this.users = []
 
-      // Calculate basic stats
       const totalPosts = this.posts.length
       const totalUsers = this.users.length
       const totalCategories = this.categories.length
-
-      // Calculate active users (mock data)
       const activeToday = Math.min(totalUsers, 3)
-
-      // Calculate monthly stats (mock data)
       const postsThisMonth = Math.floor(totalPosts * 0.7)
       const newUsersThisMonth = Math.floor(totalUsers * 0.3)
 
-      // Get top categories
       const topCategories = this.categories
         .map((cat) => ({
           id: cat.id,
@@ -576,7 +625,6 @@ class ForumDataStore {
         .sort((a, b) => b.posts - a.posts)
         .slice(0, 3)
 
-      // Get recent activity (mock data)
       const recentActivity = this.posts.slice(0, 5).map((post) => ({
         id: post.id,
         type: "post",
@@ -610,7 +658,6 @@ class ForumDataStore {
     }
   }
 
-  // Add a method to increment post views
   incrementPostViews(postId: string) {
     try {
       console.log(`👁️ Incrementing views for post: ${postId}`)
@@ -627,7 +674,6 @@ class ForumDataStore {
         return false
       }
 
-      // Increment the view count
       this.posts[postIndex].views = (this.posts[postIndex].views || 0) + 1
       console.log(`✅ Views for post ${postId} incremented to ${this.posts[postIndex].views}`)
       return true
@@ -637,7 +683,6 @@ class ForumDataStore {
     }
   }
 
-  // Add a method to like a post
   likePost(postId: string) {
     try {
       console.log(`❤️ Liking post: ${postId}`)
@@ -654,7 +699,6 @@ class ForumDataStore {
         return null
       }
 
-      // Increment the like count
       this.posts[postIndex].likes = (this.posts[postIndex].likes || 0) + 1
       console.log(`✅ Likes for post ${postId} incremented to ${this.posts[postIndex].likes}`)
       return {
@@ -666,7 +710,6 @@ class ForumDataStore {
     }
   }
 
-  // Add a method to add a reply to a post
   addReply(replyData: any) {
     try {
       console.log(`💬 Adding reply to post: ${replyData.postId}`)
@@ -677,19 +720,16 @@ class ForumDataStore {
         return null
       }
 
-      // Check if post exists
       const postIndex = this.posts.findIndex((post) => post.id === replyData.postId)
       if (postIndex === -1) {
         console.warn(`⚠️ Post not found for reply: ${replyData.postId}`)
         return null
       }
 
-      // Initialize replies array if it doesn't exist
       if (!Array.isArray(this.replies)) {
         this.replies = []
       }
 
-      // Create the new reply
       const newReply = {
         id: `reply-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         postId: replyData.postId,
@@ -702,13 +742,8 @@ class ForumDataStore {
         status: "active",
       }
 
-      // Add the reply to the replies array
       this.replies.push(newReply)
-
-      // Increment the reply count on the post
       this.posts[postIndex].replies = (this.posts[postIndex].replies || 0) + 1
-
-      // Update the post's updatedAt timestamp
       this.posts[postIndex].updatedAt = new Date().toISOString()
 
       console.log(`✅ Reply added to post ${replyData.postId}, new reply count: ${this.posts[postIndex].replies}`)
@@ -719,7 +754,6 @@ class ForumDataStore {
     }
   }
 
-  // Add a method to get replies for a post
   getRepliesByPostId(postId: string) {
     try {
       console.log(`🔍 Getting replies for post: ${postId}`)
@@ -739,7 +773,6 @@ class ForumDataStore {
     }
   }
 
-  // Add a method to like a reply
   likeReply(replyId: string) {
     try {
       console.log(`❤️ Liking reply: ${replyId}`)
@@ -756,7 +789,6 @@ class ForumDataStore {
         return null
       }
 
-      // Increment the like count
       this.replies[replyIndex].likes = (this.replies[replyIndex].likes || 0) + 1
       console.log(`✅ Likes for reply ${replyId} incremented to ${this.replies[replyIndex].likes}`)
       return {
