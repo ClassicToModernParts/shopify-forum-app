@@ -79,6 +79,7 @@ export default function ForumPage() {
   const [forumData, setForumData] = useState<ForumData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const { user, isAuthenticated, logout } = useUserAuth()
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     loadCategories()
@@ -88,11 +89,15 @@ export default function ForumPage() {
   useEffect(() => {
     const fetchForumData = async () => {
       try {
-        const response = await fetch("/api/forum")
+        const response = await fetch("/api/forum/stats")
+        if (!response.ok) {
+          throw new Error(`Stats API failed: ${response.status}`)
+        }
         const data = await response.json()
         setForumData(data)
       } catch (error) {
         console.error("Error fetching forum data:", error)
+        setError("Failed to load forum data. Please try again later.")
       } finally {
         setIsLoading(false)
       }
@@ -103,31 +108,50 @@ export default function ForumPage() {
 
   const loadCategories = async () => {
     try {
+      console.log("🔍 Loading categories...")
       const response = await fetch("/api/forum?type=categories&shop_id=demo")
+      if (!response.ok) {
+        throw new Error(`Categories API failed: ${response.status}`)
+      }
       const data = await response.json()
       if (data.success) {
-        setCategories(data.data)
+        console.log("✅ Categories loaded:", data.data)
+        setCategories(Array.isArray(data.data) ? data.data : [])
+      } else {
+        console.error("❌ Categories API returned error:", data.error)
+        setError("Failed to load categories. Please try again later.")
       }
     } catch (error) {
-      console.error("Error loading categories:", error)
+      console.error("❌ Error loading categories:", error)
+      setError("Failed to load categories. Please try again later.")
     }
   }
 
   const loadPosts = async (categoryId?: string, search?: string, sort?: string) => {
     setLoading(true)
     try {
+      console.log("🔍 Loading posts...", { categoryId, search, sort })
       let url = `/api/forum?type=posts&shop_id=demo`
       if (categoryId) url += `&category_id=${categoryId}`
       if (search) url += `&search=${encodeURIComponent(search)}`
       if (sort) url += `&sort_by=${sort}`
 
       const response = await fetch(url)
+      if (!response.ok) {
+        throw new Error(`Posts API failed: ${response.status}`)
+      }
+
       const data = await response.json()
       if (data.success) {
-        setPosts(data.data)
+        console.log("✅ Posts loaded:", data.data)
+        setPosts(Array.isArray(data.data) ? data.data : [])
+      } else {
+        console.error("❌ Posts API returned error:", data.error)
+        setError("Failed to load posts. Please try again later.")
       }
     } catch (error) {
-      console.error("Error loading posts:", error)
+      console.error("❌ Error loading posts:", error)
+      setError("Failed to load posts. Please try again later.")
     } finally {
       setLoading(false)
     }
@@ -135,23 +159,33 @@ export default function ForumPage() {
 
   const loadReplies = async (postId: string) => {
     try {
+      console.log("🔍 Loading replies for post:", postId)
       const response = await fetch(`/api/forum?type=replies&shop_id=demo&post_id=${postId}`)
+      if (!response.ok) {
+        throw new Error(`Replies API failed: ${response.status}`)
+      }
+
       const data = await response.json()
       if (data.success) {
-        setReplies(data.data)
+        console.log("✅ Replies loaded:", data.data)
+        setReplies(Array.isArray(data.data) ? data.data : [])
+      } else {
+        console.error("❌ Replies API returned error:", data.error)
       }
     } catch (error) {
-      console.error("Error loading replies:", error)
+      console.error("❌ Error loading replies:", error)
     }
   }
 
   const handleCategoryClick = (categoryId: string) => {
+    console.log("🔍 Category clicked:", categoryId)
     setSelectedCategory(categoryId)
     setSelectedPost(null)
     loadPosts(categoryId, searchQuery, sortBy)
   }
 
   const handlePostClick = async (post: Post) => {
+    console.log("🔍 Post clicked:", post.id)
     setSelectedPost(post)
     await loadReplies(post.id)
 
@@ -159,26 +193,31 @@ export default function ForumPage() {
     try {
       await fetch(`/api/forum?type=post&shop_id=demo&post_id=${post.id}`)
     } catch (error) {
-      console.error("Error incrementing view count:", error)
+      console.error("❌ Error incrementing view count:", error)
     }
   }
 
   const handleSearch = () => {
+    console.log("🔍 Search triggered:", searchQuery)
     loadPosts(selectedCategory || undefined, searchQuery, sortBy)
   }
 
   const handleSortChange = (newSort: string) => {
+    console.log("🔄 Sort changed:", newSort)
     setSortBy(newSort)
     loadPosts(selectedCategory || undefined, searchQuery, newSort)
   }
 
   const createPost = async () => {
-    if (!newPost.title || !newPost.content || !newPost.author || !newPost.categoryId) {
-      alert("Please fill in all required fields")
-      return
-    }
-
     try {
+      console.log("📝 Creating new post:", newPost)
+
+      if (!newPost.title || !newPost.content || !newPost.author || !newPost.categoryId) {
+        setError("Please fill in all required fields")
+        return
+      }
+
+      setLoading(true)
       const response = await fetch("/api/forum", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -193,25 +232,40 @@ export default function ForumPage() {
         }),
       })
 
+      if (!response.ok) {
+        throw new Error(`Create post API failed: ${response.status}`)
+      }
+
       const data = await response.json()
       if (data.success) {
+        console.log("✅ Post created successfully:", data.data)
         setNewPost({ title: "", content: "", author: "", categoryId: "", tags: "" })
         setShowNewPostModal(false)
         loadPosts(selectedCategory || undefined, searchQuery, sortBy)
         loadCategories()
+        setError(null)
+      } else {
+        console.error("❌ Create post API returned error:", data.error)
+        setError(data.error || "Failed to create post. Please try again.")
       }
     } catch (error) {
-      console.error("Error creating post:", error)
+      console.error("❌ Error creating post:", error)
+      setError("Failed to create post. Please try again.")
+    } finally {
+      setLoading(false)
     }
   }
 
   const createReply = async () => {
-    if (!newReply.content || !newReply.author || !selectedPost) {
-      alert("Please fill in all required fields")
-      return
-    }
-
     try {
+      console.log("💬 Creating new reply:", newReply)
+
+      if (!newReply.content || !newReply.author || !selectedPost) {
+        setError("Please fill in all required fields")
+        return
+      }
+
+      setLoading(true)
       const response = await fetch("/api/forum", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -224,21 +278,34 @@ export default function ForumPage() {
         }),
       })
 
+      if (!response.ok) {
+        throw new Error(`Create reply API failed: ${response.status}`)
+      }
+
       const data = await response.json()
       if (data.success) {
+        console.log("✅ Reply created successfully:", data.data)
         setNewReply({ content: "", author: "" })
         setShowReplyModal(false)
         loadReplies(selectedPost.id)
         loadPosts(selectedCategory || undefined, searchQuery, sortBy)
+        setError(null)
+      } else {
+        console.error("❌ Create reply API returned error:", data.error)
+        setError(data.error || "Failed to create reply. Please try again.")
       }
     } catch (error) {
-      console.error("Error creating reply:", error)
+      console.error("❌ Error creating reply:", error)
+      setError("Failed to create reply. Please try again.")
+    } finally {
+      setLoading(false)
     }
   }
 
   const likePost = async (postId: string) => {
     try {
-      await fetch("/api/forum", {
+      console.log("👍 Liking post:", postId)
+      const response = await fetch("/api/forum", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -247,12 +314,23 @@ export default function ForumPage() {
           postId,
         }),
       })
-      loadPosts(selectedCategory || undefined, searchQuery, sortBy)
-      if (selectedPost && selectedPost.id === postId) {
-        setSelectedPost({ ...selectedPost, likes: selectedPost.likes + 1 })
+
+      if (!response.ok) {
+        throw new Error(`Like post API failed: ${response.status}`)
+      }
+
+      const data = await response.json()
+      if (data.success) {
+        console.log("✅ Post liked successfully")
+        loadPosts(selectedCategory || undefined, searchQuery, sortBy)
+        if (selectedPost && selectedPost.id === postId) {
+          setSelectedPost({ ...selectedPost, likes: selectedPost.likes + 1 })
+        }
+      } else {
+        console.error("❌ Like post API returned error:", data.error)
       }
     } catch (error) {
-      console.error("Error liking post:", error)
+      console.error("❌ Error liking post:", error)
     }
   }
 
@@ -268,6 +346,32 @@ export default function ForumPage() {
   }
 
   const getCategoryById = (id: string) => categories.find((c) => c.id === id)
+
+  const handleNewPostClick = () => {
+    console.log("📝 New post button clicked")
+    // Set default author if user is logged in
+    if (user) {
+      setNewPost((prev) => ({
+        ...prev,
+        author: user.name || user.email || "",
+      }))
+    }
+
+    // Set default category if one is selected
+    if (selectedCategory) {
+      setNewPost((prev) => ({
+        ...prev,
+        categoryId: selectedCategory,
+      }))
+    } else if (categories.length > 0) {
+      setNewPost((prev) => ({
+        ...prev,
+        categoryId: categories[0].id,
+      }))
+    }
+
+    setShowNewPostModal(true)
+  }
 
   if (isLoading) {
     return (
@@ -346,7 +450,7 @@ export default function ForumPage() {
                 <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{selectedPost.content}</p>
               </div>
 
-              {selectedPost.tags.length > 0 && (
+              {selectedPost.tags && selectedPost.tags.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-6">
                   {selectedPost.tags.map((tag, index) => (
                     <span key={index} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
@@ -431,6 +535,10 @@ export default function ForumPage() {
                 </button>
               </div>
 
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">{error}</div>
+              )}
+
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium mb-2">Your Name *</label>
@@ -457,9 +565,10 @@ export default function ForumPage() {
                 <div className="flex gap-3 pt-4">
                   <button
                     onClick={createReply}
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    disabled={loading}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                   >
-                    Post Reply
+                    {loading ? "Posting..." : "Post Reply"}
                   </button>
                   <button
                     onClick={() => setShowReplyModal(false)}
@@ -518,6 +627,8 @@ export default function ForumPage() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">{error}</div>}
+
         {/* Forum Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Card>
@@ -565,31 +676,40 @@ export default function ForumPage() {
                 <CardTitle className="text-2xl font-bold">Categories</CardTitle>
                 <CardDescription>Browse topics and join the conversation</CardDescription>
               </div>
-              {isAuthenticated && (
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  New Post
-                </Button>
-              )}
+              <Button onClick={handleNewPostClick}>
+                <Plus className="h-4 w-4 mr-2" />
+                New Post
+              </Button>
             </div>
           </CardHeader>
           <CardContent>
-            {forumData?.categories && forumData.categories.length > 0 ? (
+            {categories && categories.length > 0 ? (
               <div className="space-y-4">
                 <div className="bg-blue-50 p-4 rounded-lg">
-                  <Button variant="ghost" className="w-full justify-start text-blue-700 hover:text-blue-800">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start text-blue-700 hover:text-blue-800"
+                    onClick={() => {
+                      setSelectedCategory(null)
+                      loadPosts()
+                    }}
+                  >
                     <MessageSquare className="h-5 w-5 mr-3" />
                     All Categories
                   </Button>
                 </div>
 
-                {forumData.categories.map((category) => (
+                {categories.map((category) => (
                   <div
                     key={category.id}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                    onClick={() => handleCategoryClick(category.id)}
                   >
                     <div className="flex items-center space-x-4">
-                      <div className={`w-3 h-3 rounded-full ${category.color}`}></div>
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: category.color || "#3B82F6" }}
+                      ></div>
                       <div>
                         <h3 className="font-semibold text-gray-900">{category.name}</h3>
                         <p className="text-sm text-gray-600">{category.description}</p>
@@ -597,7 +717,7 @@ export default function ForumPage() {
                     </div>
                     <div className="text-right">
                       <Badge variant="secondary">{category.postCount}</Badge>
-                      <p className="text-xs text-gray-500 mt-1">{category.lastActivity}</p>
+                      <p className="text-xs text-gray-500 mt-1">{formatDate(category.lastActivity)}</p>
                     </div>
                   </div>
                 ))}
@@ -621,6 +741,102 @@ export default function ForumPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* New Post Modal */}
+        {showNewPostModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-3xl">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold">Create New Post</h2>
+                <button onClick={() => setShowNewPostModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">{error}</div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Title *</label>
+                  <input
+                    type="text"
+                    placeholder="Enter post title..."
+                    value={newPost.title}
+                    onChange={(e) => setNewPost({ ...newPost, title: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Category *</label>
+                  <select
+                    value={newPost.categoryId}
+                    onChange={(e) => setNewPost({ ...newPost, categoryId: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select a category</option>
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Your Name *</label>
+                  <input
+                    type="text"
+                    placeholder="Enter your name..."
+                    value={newPost.author}
+                    onChange={(e) => setNewPost({ ...newPost, author: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Content *</label>
+                  <textarea
+                    placeholder="Write your post..."
+                    rows={8}
+                    value={newPost.content}
+                    onChange={(e) => setNewPost({ ...newPost, content: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Tags (comma separated)</label>
+                  <input
+                    type="text"
+                    placeholder="tag1, tag2, tag3..."
+                    value={newPost.tags}
+                    onChange={(e) => setNewPost({ ...newPost, tags: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    onClick={createPost}
+                    disabled={loading}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {loading ? "Creating..." : "Create Post"}
+                  </button>
+                  <button
+                    onClick={() => setShowNewPostModal(false)}
+                    className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   )
