@@ -488,6 +488,21 @@ export default function ForumPage() {
     setCategoryPosts([])
   }
 
+  const handleCategoryClick = (categoryId: string) => {
+    console.log("🔍 Category clicked:", categoryId)
+    setSelectedCategory(categoryId)
+    setSelectedPost(null)
+    setShowCategoryPosts(true)
+
+    // Find the category name
+    const category = categories.find((c) => c.id === categoryId)
+    if (category) {
+      setCurrentCategoryName(category.name)
+    }
+
+    loadPosts(categoryId, searchQuery, sortBy)
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
