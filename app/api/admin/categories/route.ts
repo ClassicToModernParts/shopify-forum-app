@@ -7,6 +7,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const includePrivate = searchParams.get("include_private") === "true"
 
+    // Wait for data store to be initialized
+    await new Promise((resolve) => setTimeout(resolve, 100))
+
     const categories = forumDataStore.getCategories()
     console.log("📊 Raw categories from store:", categories)
 
@@ -24,7 +27,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: "Failed to fetch categories",
+        error: `Failed to fetch categories: ${error instanceof Error ? error.message : "Unknown error"}`,
         data: [], // Always return empty array on error
       },
       { status: 500 },
