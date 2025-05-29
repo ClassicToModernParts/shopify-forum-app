@@ -17,7 +17,9 @@ import {
   Plus,
   Edit,
   Trash2,
+  Pin,
   Lock,
+  EyeOff,
   ArrowLeft,
   CheckCircle,
   AlertCircle,
@@ -94,8 +96,6 @@ export default function AdminPage() {
   const [selectedPosts, setSelectedPosts] = useState<string[]>([])
   const [editingPost, setEditingPost] = useState<Post | null>(null)
   const [editForm, setEditForm] = useState({ title: "", content: "" })
-  const [postStatusFilter, setPostStatusFilter] = useState("active")
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
 
   const [stats, setStats] = useState({
     totalPosts: 0,
@@ -235,10 +235,10 @@ export default function AdminPage() {
         addApiError(`Categories: ${error instanceof Error ? error.message : "Unknown error"}`)
       }
 
-      // Load posts from admin API with status filter
+      // Load posts from admin API
       try {
-        console.log(`Loading posts with status filter: ${postStatusFilter}...`)
-        const postsResponse = await fetch(`/api/admin/posts?status=${postStatusFilter}`)
+        console.log("Loading posts...")
+        const postsResponse = await fetch("/api/admin/posts")
         if (!postsResponse.ok) {
           throw new Error(`Admin posts API failed: ${postsResponse.status}`)
         }
@@ -455,17 +455,15 @@ export default function AdminPage() {
   }
 
   // Post management functions
-  const deletePost = async (postId: string) => {
-    setConfirmDelete(postId)
-  }
+  const deletePost = async (postId: string, forceDelete = false) => {
+    if (!confirm("Are you sure you want to delete this post?")) return
 
-  const confirmDeletePost = async (postId: string) => {
     setActionLoading(`delete-${postId}`)
     try {
       const response = await fetch("/api/admin/posts", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ postId }),
+        body: JSON.stringify({ postId, forceDelete }),
       })
 
       if (!response.ok) {
@@ -487,22 +485,20 @@ export default function AdminPage() {
       addApiError(`Delete post: ${errorMsg}`)
     } finally {
       setActionLoading(null)
-      setConfirmDelete(null)
     }
   }
 
-  const cancelDeletePost = () => {
-    setConfirmDelete(null)
-  }
+  const deleteSelectedPosts = async () => {
+    if (selectedPosts.length === 0) {
+      setSettingsMessage({ type: "error", text: "No posts selected." })
+      return
+    }
 
-  const bulkDeletePosts = async () => {
-    if (selectedPosts.length === 0) return
-    
-    if (!confirm(`Are you sure you want to delete ${selectedPosts.length} selected posts? This action cannot be undone.`)) return
+    if (!confirm(`Are you sure you want to delete ${selectedPosts.length} posts?`)) return
 
-    setActionLoading("bulk-delete")
+    setActionLoading("delete-selected")
     try {
-      const response = await fetch("/api/admin/posts", {
+      const response = await fetch("/api/admin/posts/bulk", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ postIds: selectedPosts }),
@@ -514,36 +510,51 @@ export default function AdminPage() {
 
       const data = await response.json()
       if (data.success) {
-        setSettingsMessage({ type: "success", text: `${data.deletedCount} posts deleted successfully!` })
-        setSelectedPosts([])
+        setSettingsMessage({ type: "success", text: `${selectedPosts.length} posts deleted successfully!` })
         loadData()
+        setSelectedPosts([]) // Clear selected posts after deletion
         setTimeout(() => setSettingsMessage(null), 3000)
       } else {
-        setSettingsMessage({ type: "error", text: data.error || "Failed to delete posts" })
-        addApiError(`Bulk delete: ${data.error}`)
+        setSettingsMessage({ type: "error", text: data.error || "Failed to delete selected posts" })
+        addApiError(`Bulk delete posts: ${data.error}`)
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Unknown error"
-      setSettingsMessage({ type: "error", text: "Failed to delete posts" })
-      addApiError(`Bulk delete: ${errorMsg}`)
+      setSettingsMessage({ type: "error", text: "Failed to delete selected posts" })
+      addApiError(`Bulk delete posts: ${errorMsg}`)
     } finally {
       setActionLoading(null)
     }
   }
 
-  const togglePostSelection = (postId: string) => {
-    setSelectedPosts(prev => 
-      prev.includes(postId) 
-        ? prev.filter(id => id !== postId)
-        : [...prev, postId]
-    )
-  }
+  const clearSampleData = async () => {
+    if (!confirm("Are you sure you want to clear all sample data? This action is irreversible.")) return
 
-  const selectAllPosts = () => {
-    if (selectedPosts.length === posts.length) {
-      setSelectedPosts([])
-    } else {
-      setSelectedPosts(posts.map(post => post.id))
+    setActionLoading("clear-sample-data")
+    try {
+      const response = await fetch("/api/admin/sample-data", {
+        method: "DELETE",
+      })
+
+      if (!response.ok) {
+        throw new Error(`Clear sample data failed: ${response.status}`)
+      }
+
+      const data = await response.json()
+      if (data.success) {
+        setSettingsMessage({ type: "success", text: "Sample data cleared successfully!" })
+        loadData()
+        setTimeout(() => setSettingsMessage(null), 3000)
+      } else {
+        setSettingsMessage({ type: "error", text: data.error || "Failed to clear sample data" })
+        addApiError(`Clear sample data: ${data.error}`)
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Unknown error"
+      setSettingsMessage({ type: "error", text: "Failed to clear sample data" })
+      addApiError(`Clear sample data: ${errorMsg}`)
+    } finally {
+      setActionLoading(null)
     }
   }
 
@@ -902,4 +913,275 @@ export default function AdminPage() {
           {showNewCategoryForm && (
             <Card>
               <CardHeader>
-                <Car\
+                <CardTitle>Create New Category</CardTitle>
+                <CardDescription>Add a new discussion category to your forum</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Name *</label>
+                    <Input
+                      placeholder="Category name..."
+                      value={newCategory.name}
+                      onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Color</label>
+                    <input
+                      type="color"
+                      className="w-full h-10 border rounded-lg"
+                      value={newCategory.color}
+                      onChange={(e) => setNewCategory({ ...newCategory, color: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Description *</label>
+                  <Textarea
+                    rows={3}
+                    placeholder="Describe what this category is for..."
+                    value={newCategory.description}
+                    onChange={(e) => setNewCategory({ ...newCategory, description: e.target.value })}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm font-medium">Private Category</span>
+                    <p className="text-xs text-gray-500">Only visible to moderators and admins</p>
+                  </div>
+                  <Switch
+                    checked={newCategory.isPrivate}
+                    onCheckedChange={(checked) => setNewCategory({ ...newCategory, isPrivate: checked })}
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <Button onClick={createCategory} disabled={actionLoading === "create-category"}>
+                    {actionLoading === "create-category" ? "Creating..." : "Create Category"}
+                  </Button>
+                  <Button variant="outline" onClick={() => setShowNewCategoryForm(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="posts" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold">Manage Posts ({Array.isArray(posts) ? posts.length : 0})</h2>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={loadData} disabled={dataLoading}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                {dataLoading ? "Refreshing..." : "Refresh"}
+              </Button>
+              {selectedPosts.length > 0 && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={deleteSelectedPosts}
+                  disabled={actionLoading === "delete-selected"}
+                >
+                  {actionLoading === "delete-selected" ? "Deleting..." : `Delete Selected (${selectedPosts.length})`}
+                </Button>
+              )}
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={clearSampleData}
+                disabled={actionLoading === "clear-sample-data"}
+              >
+                {actionLoading === "clear-sample-data" ? "Clearing..." : "Clear Sample Data"}
+              </Button>
+            </div>
+          </div>
+
+          {(!Array.isArray(posts) || posts.length === 0) && !dataLoading ? (
+            <Card>
+              <CardContent className="p-8 text-center">
+                <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-500 mb-4">No posts found. This might indicate an API issue.</p>
+                <Button onClick={loadData} variant="outline">
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Retry Loading
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {Array.isArray(posts) &&
+                posts.map((post) => (
+                  <Card key={post.id}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Input
+                              type="checkbox"
+                              checked={selectedPosts.includes(post.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedPosts([...selectedPosts, post.id])
+                                } else {
+                                  setSelectedPosts(selectedPosts.filter((id) => id !== post.id))
+                                }
+                              }}
+                            />
+                            {post.isPinned && <Pin className="h-4 w-4 text-blue-500" />}
+                            {post.isLocked && <Lock className="h-4 w-4 text-red-500" />}
+                            {post.status === "hidden" && <EyeOff className="h-4 w-4 text-gray-500" />}
+                            <h3 className="font-medium">{post.title}</h3>
+                          </div>
+                          <div className="flex items-center gap-4 text-sm text-gray-500 mb-2">
+                            <span>by {post.author}</span>
+                            <span>{formatDate(post.createdAt)}</span>
+                            <Badge variant="outline" className="text-xs">
+                              {(Array.isArray(categories) && categories.find((c) => c.id === post.categoryId)?.name) ||
+                                "Unknown Category"}
+                            </Badge>
+                            <Badge variant={post.status === "active" ? "default" : "secondary"} className="text-xs">
+                              {post.status}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-gray-600 line-clamp-2">{post.content}</p>
+                          <div className="flex items-center gap-4 text-xs text-gray-500 mt-2">
+                            <span>{post.replies || 0} replies</span>
+                            <span>{post.views || 0} views</span>
+                            <span>{post.likes || 0} likes</span>
+                          </div>
+                        </div>
+                        <div className="flex gap-1 ml-4">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => deletePost(post.id)}
+                            disabled={actionLoading === `delete-${post.id}`}
+                            className="text-red-600 hover:text-red-700"
+                            title="Delete post"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="users" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold">User Management</h2>
+            <Button size="sm">
+              <Plus className="h-4 w-4 mr-2" />
+              Add User
+            </Button>
+          </div>
+
+          <Card>
+            <CardContent className="p-8 text-center">
+              <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500">User management functionality coming soon...</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="settings" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold">Forum Settings</h2>
+            <div className="flex gap-2">
+              <Button onClick={loadSettings} variant="outline" size="sm">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Reload
+              </Button>
+              <Button onClick={saveSettings} disabled={settingsLoading}>
+                {settingsLoading ? "Saving..." : "Save All Changes"}
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* General Settings */}
+            <Card>
+              <CardHeader>
+                <CardTitle>General Settings</CardTitle>
+                <CardDescription>Configure basic forum settings</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Forum Name *</label>
+                  <Input
+                    value={settings.general.forumName}
+                    onChange={(e) => updateSettings("general", "forumName", e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Description</label>
+                  <Textarea
+                    rows={3}
+                    value={settings.general.description}
+                    onChange={(e) => updateSettings("general", "description", e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Contact Email *</label>
+                  <Input
+                    type="email"
+                    value={settings.general.contactEmail}
+                    onChange={(e) => updateSettings("general", "contactEmail", e.target.value)}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Moderation Settings */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Moderation</CardTitle>
+                <CardDescription>Configure moderation and security settings</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm font-medium">Require approval for new posts</span>
+                    <p className="text-xs text-gray-500">All posts need admin approval before being visible</p>
+                  </div>
+                  <Switch
+                    checked={settings.moderation.requireApproval}
+                    onCheckedChange={(checked) => updateSettings("moderation", "requireApproval", checked)}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm font-medium">Enable automatic spam detection</span>
+                    <p className="text-xs text-gray-500">Automatically flag potential spam posts</p>
+                  </div>
+                  <Switch
+                    checked={settings.moderation.autoSpamDetection}
+                    onCheckedChange={(checked) => updateSettings("moderation", "autoSpamDetection", checked)}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {lastSaved && (
+            <Card className="bg-green-50 border-green-200">
+              <CardContent className="p-4">
+                <p className="text-sm text-green-800">
+                  <CheckCircle className="h-4 w-4 inline mr-2" />
+                  Settings last saved: {formatDate(lastSaved)}
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
+  )
+}

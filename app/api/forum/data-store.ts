@@ -96,8 +96,8 @@ class ForumDataStore {
         createdAt: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
         updatedAt: new Date(Date.now() - 86400000).toISOString(),
         replies: 2,
-        views: 5,
-        likes: 2,
+        views: 15,
+        likes: 3,
         isPinned: true,
         tags: ["welcome", "introduction"],
         status: "active",
@@ -116,42 +116,6 @@ class ForumDataStore {
         views: 8,
         likes: 2,
         tags: ["tips", "guidelines"],
-        status: "active",
-      },
-      {
-        id: "post-3",
-        title: "Feature request: Dark mode",
-        content:
-          "Would love to see a dark mode option for the forum interface. It would be great for late-night browsing and easier on the eyes!",
-        author: "Emma Wilson",
-        authorEmail: "emma@example.com",
-        categoryId: "general",
-        createdAt: new Date("2024-01-18T11:45:00Z").toISOString(),
-        updatedAt: new Date("2024-01-18T11:45:00Z").toISOString(),
-        replies: 15,
-        views: 203,
-        likes: 25,
-        isPinned: false,
-        isLocked: false,
-        tags: ["feature-request", "ui"],
-        status: "active",
-      },
-      {
-        id: "post-4",
-        title: "Shipping and delivery questions",
-        content:
-          "I have some questions about shipping times and delivery options. Can someone from the team help clarify the different shipping methods available?",
-        author: "David Lee",
-        authorEmail: "david@example.com",
-        categoryId: "support",
-        createdAt: new Date("2024-01-20T06:20:00Z").toISOString(),
-        updatedAt: new Date("2024-01-20T06:20:00Z").toISOString(),
-        replies: 3,
-        views: 67,
-        likes: 4,
-        isPinned: false,
-        isLocked: false,
-        tags: ["shipping", "delivery", "support"],
         status: "active",
       },
     ]
@@ -231,7 +195,7 @@ class ForumDataStore {
 
   getPostById(id: string): Post | null {
     this.initializeIfEmpty()
-    return this.posts.find((post) => post.id === id) || null
+    return this.posts.find((post) => post.id === id && post.status === "active") || null
   }
 
   createPost(data: Omit<Post, "id" | "createdAt" | "updatedAt" | "replies" | "views" | "likes">): Post {
@@ -284,64 +248,6 @@ class ForumDataStore {
 
     console.log(`✅ Post ${postId} deleted by ${userEmail}`)
     return true
-  }
-
-  // Admin-specific method to delete any post without ownership check
-  adminDeletePost(postId: string): boolean {
-    this.initializeIfEmpty()
-    const postIndex = this.posts.findIndex((p) => p.id === postId)
-    if (postIndex === -1) {
-      console.warn(`⚠️ Admin: Post not found for deletion: ${postId}`)
-      return false
-    }
-
-    const post = this.posts[postIndex]
-
-    // Soft delete - mark as deleted instead of removing
-    post.status = "deleted"
-    post.updatedAt = new Date().toISOString()
-
-    // Also soft delete all replies to this post
-    this.replies.forEach((reply) => {
-      if (reply.postId === postId) {
-        reply.status = "deleted"
-        reply.updatedAt = new Date().toISOString()
-      }
-    })
-
-    console.log(`✅ Admin deleted post: ${postId}`)
-    return true
-  }
-
-  // Hard delete a post (completely remove it) - admin only
-  adminHardDeletePost(postId: string): boolean {
-    this.initializeIfEmpty()
-    const postIndex = this.posts.findIndex((p) => p.id === postId)
-    if (postIndex === -1) {
-      return false
-    }
-
-    // Remove the post
-    this.posts.splice(postIndex, 1)
-
-    // Remove all replies to this post
-    this.replies = this.replies.filter((reply) => reply.postId !== postId)
-
-    console.log(`✅ Admin hard deleted post: ${postId}`)
-    return true
-  }
-
-  updatePost(postId: string, updates: Partial<Post>): Post | null {
-    this.initializeIfEmpty()
-    const post = this.posts.find((p) => p.id === postId)
-    if (!post) {
-      return null
-    }
-
-    // Update the post
-    Object.assign(post, { ...updates, updatedAt: new Date().toISOString() })
-    console.log(`✅ Post ${postId} updated:`, updates)
-    return post
   }
 
   incrementPostViews(postId: string): boolean {
@@ -434,29 +340,6 @@ class ForumDataStore {
     }
 
     console.log(`✅ Reply ${replyId} deleted by ${userEmail}`)
-    return true
-  }
-
-  // Admin-specific method to delete any reply without ownership check
-  adminDeleteReply(replyId: string): boolean {
-    this.initializeIfEmpty()
-    const reply = this.replies.find((r) => r.id === replyId)
-    if (!reply) {
-      return false
-    }
-
-    // Soft delete - mark as deleted
-    reply.status = "deleted"
-    reply.updatedAt = new Date().toISOString()
-
-    // Decrement reply count on the post
-    const post = this.posts.find((p) => p.id === reply.postId)
-    if (post && post.replies > 0) {
-      post.replies = post.replies - 1
-      post.updatedAt = new Date().toISOString()
-    }
-
-    console.log(`✅ Admin deleted reply: ${replyId}`)
     return true
   }
 
