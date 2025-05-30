@@ -147,23 +147,62 @@ export class AuthService {
     try {
       console.log(`🔐 AuthService: Login attempt for ${loginData.username}`)
 
+      // First, let's check if any users exist at all
+      try {
+        const allUsers = await persistentForumDataStore.getAllUsers()
+        console.log(`🔐 AuthService: Total users in system: ${allUsers.length}`)
+
+        if (allUsers.length === 0) {
+          console.log("⚠️ AuthService: No users found in system. System may need initialization.")
+          return {
+            success: false,
+            message: "System not initialized. Please use the 'Reinitialize System' button.",
+          }
+        }
+
+        // Log all usernames for debugging
+        console.log(
+          "🔐 AuthService: Available usernames:",
+          allUsers.map((u) => u.username),
+        )
+      } catch (error) {
+        console.error("❌ AuthService: Error checking user count:", error)
+      }
+
       // Find user by username using persistent store
-      const user = await persistentForumDataStore.getUserByUsername(loginData.username)
+      let user
+      try {
+        user = await persistentForumDataStore.getUserByUsername(loginData.username)
+        console.log(`🔐 AuthService: User lookup result for ${loginData.username}:`, user ? "Found" : "Not found")
+      } catch (error) {
+        console.error(`❌ AuthService: Error looking up user ${loginData.username}:`, error)
+        return {
+          success: false,
+          message: "Database error during login. Please try again.",
+        }
+      }
+
       if (!user) {
         console.log(`❌ AuthService: User ${loginData.username} not found`)
         return {
           success: false,
-          message: "Invalid username or password",
+          message: "Invalid username or password. Try: ctm_admin, tech_expert, builder_pro, or testuser",
         }
       }
 
       // Compare passwords
       const hashedPassword = simpleHash(loginData.password)
+      console.log(`🔐 AuthService: Password comparison for ${loginData.username}`)
+      console.log(`🔐 AuthService: Input password: "${loginData.password}"`)
+      console.log(`🔐 AuthService: Input password hash: ${hashedPassword}`)
+      console.log(`🔐 AuthService: Stored password hash: ${user.password}`)
+      console.log(`🔐 AuthService: Passwords match: ${hashedPassword === user.password}`)
+
       if (hashedPassword !== user.password) {
         console.log(`❌ AuthService: Invalid password for ${loginData.username}`)
         return {
           success: false,
-          message: "Invalid username or password",
+          message: "Invalid username or password. Check the default credentials in the debug section.",
         }
       }
 

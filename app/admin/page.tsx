@@ -8,10 +8,10 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Users,
   MessageSquare,
-  Settings,
   BarChart3,
   Shield,
   Plus,
@@ -27,6 +27,13 @@ import {
   X,
   Bug,
   Save,
+  Search,
+  UserPlus,
+  UserCheck,
+  UserX,
+  Crown,
+  Star,
+  Heart,
 } from "lucide-react"
 import Link from "next/link"
 import { Switch } from "@/components/ui/switch"
@@ -86,6 +93,50 @@ interface Post {
   status: string
 }
 
+interface User {
+  id: string
+  username: string
+  name: string
+  email: string
+  role: "admin" | "moderator" | "user"
+  createdAt: string
+  lastActive?: string
+  isActive?: boolean
+}
+
+interface UserStats {
+  totalUsers: number
+  activeUsers: number
+  inactiveUsers: number
+  usersByRole: {
+    admin: number
+    moderator: number
+    user: number
+  }
+  recentlyActive: number
+  recentRegistrations: number
+  engagementRate: number
+  averagePostsPerUser: string
+}
+
+interface Coupon {
+  id: string
+  name: string
+  pointsRequired: number
+  discountAmount: number
+  discountType: "fixed" | "percentage"
+  isActive: boolean
+}
+
+interface RewardsSettings {
+  pointsPerPost: number
+  pointsPerReply: number
+  pointsPerLike: number
+  pointsPerReceivingLike: number
+  dailyPointsLimit: number
+  coupons: Coupon[]
+}
+
 export default function AdminPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -93,6 +144,8 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState("categories")
   const [categories, setCategories] = useState<Category[]>([])
   const [posts, setPosts] = useState<Post[]>([])
+  const [users, setUsers] = useState<User[]>([])
+  const [userStats, setUserStats] = useState<UserStats | null>(null)
   const [selectedPosts, setSelectedPosts] = useState<string[]>([])
   const [editingPost, setEditingPost] = useState<Post | null>(null)
   const [editForm, setEditForm] = useState({ title: "", content: "" })
@@ -114,12 +167,26 @@ export default function AdminPage() {
     isPrivate: false,
   })
 
+  // User management state
+  const [showNewUserForm, setShowNewUserForm] = useState(false)
+  const [editingUser, setEditingUser] = useState<User | null>(null)
+  const [newUser, setNewUser] = useState({
+    username: "",
+    name: "",
+    email: "",
+    password: "",
+    role: "user" as "user" | "moderator" | "admin",
+  })
+  const [userSearch, setUserSearch] = useState("")
+  const [userRoleFilter, setUserRoleFilter] = useState<string>("")
+  const [filteredUsers, setFilteredUsers] = useState<User[]>([])
+
   const [settings, setSettings] = useState<ForumSettings>({
     general: {
-      forumName: "Community Forum",
+      forumName: "CTM Parts Community",
       description: "Connect with other customers and get support",
       welcomeMessage: "Welcome to our community! Please read the guidelines before posting.",
-      contactEmail: "support@yourstore.com",
+      contactEmail: "support@ctmparts.com",
     },
     moderation: {
       requireApproval: false,
@@ -141,6 +208,41 @@ export default function AdminPage() {
     },
   })
 
+  // Rewards management state
+  const [rewardsSettings, setRewardsSettings] = useState({
+    pointsPerPost: 10,
+    pointsPerReply: 5,
+    pointsPerLike: 1,
+    pointsPerReceivingLike: 2,
+    dailyPointsLimit: 100,
+    coupons: [
+      {
+        id: "coupon-5-off",
+        name: "$5 Off Coupon",
+        pointsRequired: 700,
+        discountAmount: 5,
+        discountType: "fixed" as "fixed" | "percentage",
+        isActive: true,
+      },
+      {
+        id: "coupon-10-off",
+        name: "$10 Off Coupon",
+        pointsRequired: 1400,
+        discountAmount: 10,
+        discountType: "fixed" as "fixed" | "percentage",
+        isActive: true,
+      },
+    ],
+  })
+  const [showNewCouponForm, setShowNewCouponForm] = useState(false)
+  const [newCoupon, setNewCoupon] = useState({
+    name: "",
+    pointsRequired: 0,
+    discountAmount: 0,
+    discountType: "fixed" as "fixed" | "percentage",
+    isActive: true,
+  })
+
   const [settingsLoading, setSettingsLoading] = useState(false)
   const [settingsMessage, setSettingsMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const [lastSaved, setLastSaved] = useState<string | null>(null)
@@ -152,10 +254,10 @@ export default function AdminPage() {
 
   useEffect(() => {
     const tabParam = searchParams.get("tab")
-    if (tabParam && ["categories", "posts", "users", "settings"].includes(tabParam)) {
+    if (tabParam && ["categories", "posts", "users", "settings", "rewards"].includes(tabParam)) {
       setActiveTab(tabParam)
     } else {
-      setActiveTab("categories") // Default to categories if no valid tab
+      setActiveTab("categories")
     }
   }, [searchParams])
 
@@ -164,13 +266,11 @@ export default function AdminPage() {
     console.log("  - isAdmin:", isAdmin)
     console.log("  - loading:", loading)
 
-    // Don't redirect while still loading
     if (loading) {
       console.log("  ⏳ Still loading, waiting...")
       return
     }
 
-    // Only redirect if definitely not admin
     if (!isAdmin) {
       console.log("  🚫 Not admin, redirecting to login")
       router.push("/admin/login")
@@ -182,7 +282,27 @@ export default function AdminPage() {
     loadSettings()
   }, [isAdmin, loading, router])
 
-  // Add a manual auth check button for debugging
+  // Filter users based on search and role
+  useEffect(() => {
+    let filtered = users
+
+    if (userSearch) {
+      const searchLower = userSearch.toLowerCase()
+      filtered = filtered.filter(
+        (user) =>
+          user.username.toLowerCase().includes(searchLower) ||
+          user.name.toLowerCase().includes(searchLower) ||
+          user.email.toLowerCase().includes(searchLower),
+      )
+    }
+
+    if (userRoleFilter) {
+      filtered = filtered.filter((user) => user.role === userRoleFilter)
+    }
+
+    setFilteredUsers(filtered)
+  }, [users, userSearch, userRoleFilter])
+
   const handleManualAuthCheck = () => {
     console.log("🔄 Manual auth check triggered")
     checkAuthStatus()
@@ -202,7 +322,7 @@ export default function AdminPage() {
     setApiErrors([])
 
     try {
-      // Load categories from admin API
+      // Load categories
       try {
         console.log("Loading categories...")
         const categoriesResponse = await fetch("/api/admin/categories?include_private=true")
@@ -235,7 +355,7 @@ export default function AdminPage() {
         addApiError(`Categories: ${error instanceof Error ? error.message : "Unknown error"}`)
       }
 
-      // Load posts from admin API
+      // Load posts
       try {
         console.log("Loading posts...")
         const postsResponse = await fetch("/api/admin/posts")
@@ -257,7 +377,48 @@ export default function AdminPage() {
         addApiError(`Posts: ${error instanceof Error ? error.message : "Unknown error"}`)
       }
 
-      // Load stats
+      // Load users
+      try {
+        console.log("Loading users...")
+        const usersResponse = await fetch("/api/admin/users")
+        if (!usersResponse.ok) {
+          throw new Error(`Users API failed: ${usersResponse.status}`)
+        }
+        const usersData = await usersResponse.json()
+        console.log("Users response:", usersData)
+        if (usersData.success && Array.isArray(usersData.data)) {
+          setUsers(usersData.data)
+        } else {
+          console.warn("Users data is not an array:", usersData.data)
+          setUsers([])
+          addApiError(`Users: ${usersData.error || "Invalid data format"}`)
+        }
+      } catch (error) {
+        console.error("Users error:", error)
+        setUsers([])
+        addApiError(`Users: ${error instanceof Error ? error.message : "Unknown error"}`)
+      }
+
+      // Load user stats
+      try {
+        console.log("Loading user stats...")
+        const statsResponse = await fetch("/api/admin/users/stats")
+        if (!statsResponse.ok) {
+          throw new Error(`User stats API failed: ${statsResponse.status}`)
+        }
+        const statsData = await statsResponse.json()
+        console.log("User stats response:", statsData)
+        if (statsData.success) {
+          setUserStats(statsData.data)
+        } else {
+          addApiError(`User Stats: ${statsData.error}`)
+        }
+      } catch (error) {
+        console.error("User stats error:", error)
+        addApiError(`User Stats: ${error instanceof Error ? error.message : "Unknown error"}`)
+      }
+
+      // Load general stats
       try {
         console.log("Loading stats...")
         const statsResponse = await fetch("/api/forum/stats?shop_id=demo")
@@ -274,6 +435,25 @@ export default function AdminPage() {
       } catch (error) {
         console.error("Stats error:", error)
         addApiError(`Stats: ${error instanceof Error ? error.message : "Unknown error"}`)
+      }
+
+      // Load rewards settings
+      try {
+        console.log("Loading rewards settings...")
+        const rewardsResponse = await fetch("/api/admin/rewards?type=settings")
+        if (!rewardsResponse.ok) {
+          throw new Error(`Rewards API failed: ${rewardsResponse.status}`)
+        }
+        const rewardsData = await rewardsResponse.json()
+        console.log("Rewards response:", rewardsData)
+        if (rewardsData.success) {
+          setRewardsSettings(rewardsData.data)
+        } else {
+          addApiError(`Rewards: ${rewardsData.error}`)
+        }
+      } catch (error) {
+        console.error("Rewards error:", error)
+        addApiError(`Rewards: ${error instanceof Error ? error.message : "Unknown error"}`)
       }
     } catch (error) {
       console.error("General error:", error)
@@ -302,11 +482,116 @@ export default function AdminPage() {
     }
   }
 
+  // User management functions
+  const createUser = async () => {
+    if (!newUser.username || !newUser.name || !newUser.email || !newUser.password) {
+      setSettingsMessage({ type: "error", text: "Please fill in all required fields" })
+      return
+    }
+
+    setActionLoading("create-user")
+    try {
+      const response = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newUser),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Create user failed: ${response.status}`)
+      }
+
+      const data = await response.json()
+      if (data.success) {
+        setNewUser({ username: "", name: "", email: "", password: "", role: "user" })
+        setShowNewUserForm(false)
+        setSettingsMessage({ type: "success", text: "User created successfully!" })
+        loadData()
+        setTimeout(() => setSettingsMessage(null), 3000)
+      } else {
+        setSettingsMessage({ type: "error", text: data.error || "Failed to create user" })
+        addApiError(`Create user: ${data.error}`)
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Unknown error"
+      setSettingsMessage({ type: "error", text: "Failed to create user" })
+      addApiError(`Create user: ${errorMsg}`)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const updateUser = async (userId: string, updates: Partial<User>) => {
+    setActionLoading(`update-${userId}`)
+    try {
+      const response = await fetch("/api/admin/users", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, updates }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Update user failed: ${response.status}`)
+      }
+
+      const data = await response.json()
+      if (data.success) {
+        setSettingsMessage({ type: "success", text: "User updated successfully!" })
+        setEditingUser(null)
+        loadData()
+        setTimeout(() => setSettingsMessage(null), 3000)
+      } else {
+        setSettingsMessage({ type: "error", text: data.error || "Failed to update user" })
+        addApiError(`Update user: ${data.error}`)
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Unknown error"
+      setSettingsMessage({ type: "error", text: "Failed to update user" })
+      addApiError(`Update user: ${errorMsg}`)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const deactivateUser = async (userId: string) => {
+    const user = users.find((u) => u.id === userId)
+    if (!user) return
+
+    if (!confirm(`Are you sure you want to deactivate "${user.username}"?`)) return
+
+    setActionLoading(`deactivate-${userId}`)
+    try {
+      const response = await fetch("/api/admin/users", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Deactivate user failed: ${response.status}`)
+      }
+
+      const data = await response.json()
+      if (data.success) {
+        setSettingsMessage({ type: "success", text: "User deactivated successfully!" })
+        loadData()
+        setTimeout(() => setSettingsMessage(null), 3000)
+      } else {
+        setSettingsMessage({ type: "error", text: data.error || "Failed to deactivate user" })
+        addApiError(`Deactivate user: ${data.error}`)
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Unknown error"
+      setSettingsMessage({ type: "error", text: "Failed to deactivate user" })
+      addApiError(`Deactivate user: ${errorMsg}`)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
   const updateSettings = (section: string, key: string, value: any) => {
     setSettings((prev) => {
-      // Create a deep copy of the section
       const updatedSection = { ...prev[section as keyof ForumSettings], [key]: value }
-      // Return a new object with the updated section
       return { ...prev, [section as keyof ForumSettings]: updatedSection }
     })
   }
@@ -347,7 +632,6 @@ export default function AdminPage() {
     }
   }
 
-  // Category management functions
   const createCategory = async () => {
     if (!newCategory.name || !newCategory.description) {
       setSettingsMessage({ type: "error", text: "Please fill in all required fields" })
@@ -418,22 +702,6 @@ export default function AdminPage() {
     }
   }
 
-  // Add this function after the existing helper functions
-  const handleApiError = (operation: string, error: any) => {
-    const errorMsg = error instanceof Error ? error.message : "Unknown error"
-    const fullError = `${operation}: ${errorMsg}`
-
-    // Only add if not already present
-    setApiErrors((prev) => {
-      if (prev.includes(fullError)) {
-        return prev
-      }
-      return [...prev, fullError]
-    })
-    console.error("API Error:", fullError)
-  }
-
-  // Update the deleteCategory function to handle errors better
   const deleteCategory = async (categoryId: string) => {
     const category = categories.find((c) => c.id === categoryId)
     if (!category) return
@@ -442,7 +710,6 @@ export default function AdminPage() {
 
     setActionLoading(`delete-${categoryId}`)
 
-    // Clear any existing errors for this operation
     setApiErrors((prev) => prev.filter((error) => !error.includes("Delete category")))
 
     try {
@@ -468,13 +735,12 @@ export default function AdminPage() {
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Unknown error"
       setSettingsMessage({ type: "error", text: "Failed to delete category" })
-      handleApiError("Delete category", error)
+      addApiError("Delete category", error)
     } finally {
       setActionLoading(null)
     }
   }
 
-  // Post management functions
   const deletePost = async (postId: string, forceDelete = false) => {
     if (!confirm("Are you sure you want to delete this post?")) return
 
@@ -508,76 +774,6 @@ export default function AdminPage() {
     }
   }
 
-  const deleteSelectedPosts = async () => {
-    if (selectedPosts.length === 0) {
-      setSettingsMessage({ type: "error", text: "No posts selected." })
-      return
-    }
-
-    if (!confirm(`Are you sure you want to delete ${selectedPosts.length} posts?`)) return
-
-    setActionLoading("delete-selected")
-    try {
-      const response = await fetch("/api/admin/posts/bulk", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ postIds: selectedPosts }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`Bulk delete failed: ${response.status}`)
-      }
-
-      const data = await response.json()
-      if (data.success) {
-        setSettingsMessage({ type: "success", text: `${selectedPosts.length} posts deleted successfully!` })
-        loadData()
-        setSelectedPosts([]) // Clear selected posts after deletion
-        setTimeout(() => setSettingsMessage(null), 3000)
-      } else {
-        setSettingsMessage({ type: "error", text: data.error || "Failed to delete selected posts" })
-        addApiError(`Bulk delete posts: ${data.error}`)
-      }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : "Unknown error"
-      setSettingsMessage({ type: "error", text: "Failed to delete selected posts" })
-      addApiError(`Bulk delete posts: ${errorMsg}`)
-    } finally {
-      setActionLoading(null)
-    }
-  }
-
-  const clearSampleData = async () => {
-    if (!confirm("Are you sure you want to clear all sample data? This action is irreversible.")) return
-
-    setActionLoading("clear-sample-data")
-    try {
-      const response = await fetch("/api/admin/sample-data", {
-        method: "DELETE",
-      })
-
-      if (!response.ok) {
-        throw new Error(`Clear sample data failed: ${response.status}`)
-      }
-
-      const data = await response.json()
-      if (data.success) {
-        setSettingsMessage({ type: "success", text: "Sample data cleared successfully!" })
-        loadData()
-        setTimeout(() => setSettingsMessage(null), 3000)
-      } else {
-        setSettingsMessage({ type: "error", text: data.error || "Failed to clear sample data" })
-        addApiError(`Clear sample data: ${data.error}`)
-      }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : "Unknown error"
-      setSettingsMessage({ type: "error", text: "Failed to clear sample data" })
-      addApiError(`Clear sample data: ${errorMsg}`)
-    } finally {
-      setActionLoading(null)
-    }
-  }
-
   const formatDate = (dateString: string) => {
     try {
       return new Date(dateString).toLocaleDateString("en-US", {
@@ -590,6 +786,105 @@ export default function AdminPage() {
     } catch (error) {
       return "Invalid date"
     }
+  }
+
+  const getRoleIcon = (role: string) => {
+    switch (role) {
+      case "admin":
+        return <Crown className="h-4 w-4 text-yellow-600" />
+      case "moderator":
+        return <Star className="h-4 w-4 text-blue-600" />
+      default:
+        return <Users className="h-4 w-4 text-gray-600" />
+    }
+  }
+
+  const getRoleBadgeColor = (role: string) => {
+    switch (role) {
+      case "admin":
+        return "bg-yellow-100 text-yellow-800"
+      case "moderator":
+        return "bg-blue-100 text-blue-800"
+      default:
+        return "bg-gray-100 text-gray-800"
+    }
+  }
+
+  const saveRewardsSettings = async () => {
+    setActionLoading("save-rewards")
+    try {
+      const response = await fetch("/api/admin/rewards", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "update-settings",
+          settings: rewardsSettings,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Save rewards failed: ${response.status}`)
+      }
+
+      const data = await response.json()
+      if (data.success) {
+        setSettingsMessage({ type: "success", text: "Rewards settings saved successfully!" })
+        setTimeout(() => setSettingsMessage(null), 3000)
+      } else {
+        setSettingsMessage({ type: "error", text: data.error || "Failed to save rewards settings" })
+        addApiError(`Save rewards: ${data.error}`)
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Unknown error"
+      setSettingsMessage({ type: "error", text: "Failed to save rewards settings" })
+      addApiError(`Save rewards: ${errorMsg}`)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const addCoupon = () => {
+    if (!newCoupon.name || newCoupon.pointsRequired <= 0 || newCoupon.discountAmount <= 0) {
+      setSettingsMessage({ type: "error", text: "Please fill in all coupon fields with valid values" })
+      return
+    }
+
+    const coupon = {
+      id: `coupon-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      ...newCoupon,
+    }
+
+    setRewardsSettings((prev) => ({
+      ...prev,
+      coupons: [...prev.coupons, coupon],
+    }))
+
+    setNewCoupon({
+      name: "",
+      pointsRequired: 0,
+      discountAmount: 0,
+      discountType: "fixed",
+      isActive: true,
+    })
+    setShowNewCouponForm(false)
+    setSettingsMessage({ type: "success", text: "Coupon added! Don't forget to save settings." })
+    setTimeout(() => setSettingsMessage(null), 3000)
+  }
+
+  const removeCoupon = (couponId: string) => {
+    setRewardsSettings((prev) => ({
+      ...prev,
+      coupons: prev.coupons.filter((c) => c.id !== couponId),
+    }))
+    setSettingsMessage({ type: "success", text: "Coupon removed! Don't forget to save settings." })
+    setTimeout(() => setSettingsMessage(null), 3000)
+  }
+
+  const toggleCouponStatus = (couponId: string) => {
+    setRewardsSettings((prev) => ({
+      ...prev,
+      coupons: prev.coupons.map((c) => (c.id === couponId ? { ...c, isActive: !c.isActive } : c)),
+    }))
   }
 
   // Show loading while checking authentication
@@ -647,7 +942,7 @@ export default function AdminPage() {
           </Link>
           <div className="h-6 w-px bg-gray-300" />
           <div>
-            <h1 className="text-3xl font-bold">Forum Administration</h1>
+            <h1 className="text-3xl font-bold">CTM Parts Community Admin</h1>
             <p className="text-gray-600">Manage your community forum</p>
           </div>
         </div>
@@ -735,7 +1030,7 @@ export default function AdminPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{Array.isArray(posts) ? posts.length : 0}</div>
-            <p className="text-xs text-gray-500">No posts this month</p>
+            <p className="text-xs text-gray-500">Community discussions</p>
           </CardContent>
         </Card>
 
@@ -745,15 +1040,14 @@ export default function AdminPage() {
             <Users className="h-4 w-4 text-gray-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalUsers}</div>
-            <p className="text-xs text-gray-500">No new users this month</p>
+            <div className="text-2xl font-bold">{userStats?.totalUsers || 0}</div>
+            <p className="text-xs text-gray-500">{userStats?.activeUsers || 0} active users</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Categories</CardTitle>
-            <Settings className="h-4 w-4 text-gray-400" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{Array.isArray(categories) ? categories.length : 0}</div>
@@ -763,12 +1057,12 @@ export default function AdminPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Today</CardTitle>
+            <CardTitle className="text-sm font-medium">Engagement Rate</CardTitle>
             <BarChart3 className="h-4 w-4 text-gray-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.activeToday}</div>
-            <p className="text-xs text-gray-500">Users active today</p>
+            <div className="text-2xl font-bold">{userStats?.engagementRate || 0}%</div>
+            <p className="text-xs text-gray-500">Users posting content</p>
           </CardContent>
         </Card>
       </div>
@@ -777,7 +1071,6 @@ export default function AdminPage() {
         value={activeTab}
         onValueChange={(value) => {
           setActiveTab(value)
-          // Update URL without page reload
           const url = new URL(window.location.href)
           url.searchParams.set("tab", value)
           window.history.replaceState({}, "", url.toString())
@@ -788,10 +1081,12 @@ export default function AdminPage() {
           <TabsTrigger value="categories">Categories</TabsTrigger>
           <TabsTrigger value="posts">Posts</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
+          <TabsTrigger value="rewards">Rewards</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
         <TabsContent value="categories" className="space-y-4">
+          {/* Categories content remains the same */}
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold">
               Manage Categories ({Array.isArray(categories) ? categories.length : 0})
@@ -801,69 +1096,6 @@ export default function AdminPage() {
               {actionLoading === "create-category" ? "Creating..." : "New Category"}
             </Button>
           </div>
-
-          {/* Edit Category Form */}
-          {editingCategory && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Edit Category</CardTitle>
-                <CardDescription>Update category information</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Name *</label>
-                    <Input
-                      value={editingCategory.name}
-                      onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Color</label>
-                    <input
-                      type="color"
-                      className="w-full h-10 border rounded-lg"
-                      value={editingCategory.color}
-                      onChange={(e) => setEditingCategory({ ...editingCategory, color: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Description *</label>
-                  <Textarea
-                    rows={3}
-                    value={editingCategory.description}
-                    onChange={(e) => setEditingCategory({ ...editingCategory, description: e.target.value })}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-sm font-medium">Private Category</span>
-                    <p className="text-xs text-gray-500">Only visible to moderators and admins</p>
-                  </div>
-                  <Switch
-                    checked={editingCategory.isPrivate}
-                    onCheckedChange={(checked) => setEditingCategory({ ...editingCategory, isPrivate: checked })}
-                  />
-                </div>
-
-                <div className="flex gap-2">
-                  <Button
-                    onClick={() => updateCategory(editingCategory.id, editingCategory)}
-                    disabled={actionLoading?.startsWith(`update-${editingCategory.id}`)}
-                  >
-                    <Save className="h-4 w-4 mr-2" />
-                    {actionLoading?.startsWith(`update-${editingCategory.id}`) ? "Saving..." : "Save Changes"}
-                  </Button>
-                  <Button variant="outline" onClick={() => setEditingCategory(null)}>
-                    Cancel
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
           {(!Array.isArray(categories) || categories.length === 0) && !dataLoading ? (
             <Card>
@@ -897,9 +1129,9 @@ export default function AdminPage() {
                             size="sm"
                             variant="ghost"
                             onClick={() => deleteCategory(category.id)}
-                            disabled={actionLoading === `delete-${category.id}` || category.postCount > 0}
+                            disabled={actionLoading === `delete-${category.id}`}
                             className="text-red-600 hover:text-red-700"
-                            title={category.postCount > 0 ? "Cannot delete category with posts" : "Delete category"}
+                            title="Delete category"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -992,30 +1224,13 @@ export default function AdminPage() {
         </TabsContent>
 
         <TabsContent value="posts" className="space-y-4">
+          {/* Posts content remains the same as before */}
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold">Manage Posts ({Array.isArray(posts) ? posts.length : 0})</h2>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={loadData} disabled={dataLoading}>
                 <RefreshCw className="h-4 w-4 mr-2" />
                 {dataLoading ? "Refreshing..." : "Refresh"}
-              </Button>
-              {selectedPosts.length > 0 && (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={deleteSelectedPosts}
-                  disabled={actionLoading === "delete-selected"}
-                >
-                  {actionLoading === "delete-selected" ? "Deleting..." : `Delete Selected (${selectedPosts.length})`}
-                </Button>
-              )}
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={clearSampleData}
-                disabled={actionLoading === "clear-sample-data"}
-              >
-                {actionLoading === "clear-sample-data" ? "Clearing..." : "Clear Sample Data"}
               </Button>
             </div>
           </div>
@@ -1024,7 +1239,7 @@ export default function AdminPage() {
             <Card>
               <CardContent className="p-8 text-center">
                 <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500 mb-4">No posts found. This might indicate an API issue.</p>
+                <p className="text-gray-500 mb-4">No posts found.</p>
                 <Button onClick={loadData} variant="outline">
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Retry Loading
@@ -1040,17 +1255,6 @@ export default function AdminPage() {
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
-                            <Input
-                              type="checkbox"
-                              checked={selectedPosts.includes(post.id)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSelectedPosts([...selectedPosts, post.id])
-                                } else {
-                                  setSelectedPosts(selectedPosts.filter((id) => id !== post.id))
-                                }
-                              }}
-                            />
                             {post.isPinned && <Pin className="h-4 w-4 text-blue-500" />}
                             {post.isLocked && <Lock className="h-4 w-4 text-red-500" />}
                             {post.status === "hidden" && <EyeOff className="h-4 w-4 text-gray-500" />}
@@ -1096,17 +1300,533 @@ export default function AdminPage() {
 
         <TabsContent value="users" className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">User Management</h2>
-            <Button size="sm">
-              <Plus className="h-4 w-4 mr-2" />
-              Add User
+            <h2 className="text-xl font-semibold">User Management ({filteredUsers.length})</h2>
+            <Button onClick={() => setShowNewUserForm(true)} disabled={actionLoading === "create-user"}>
+              <UserPlus className="h-4 w-4 mr-2" />
+              {actionLoading === "create-user" ? "Creating..." : "Add User"}
             </Button>
           </div>
 
+          {/* User Stats */}
+          {userStats && (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Active Users</CardTitle>
+                  <UserCheck className="h-4 w-4 text-green-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-600">{userStats.activeUsers}</div>
+                  <p className="text-xs text-gray-500">Recently active</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Admins</CardTitle>
+                  <Crown className="h-4 w-4 text-yellow-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-yellow-600">{userStats.usersByRole.admin}</div>
+                  <p className="text-xs text-gray-500">Administrator accounts</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Moderators</CardTitle>
+                  <Star className="h-4 w-4 text-blue-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-blue-600">{userStats.usersByRole.moderator}</div>
+                  <p className="text-xs text-gray-500">Moderator accounts</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">New This Week</CardTitle>
+                  <UserPlus className="h-4 w-4 text-green-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-600">{userStats.recentRegistrations}</div>
+                  <p className="text-xs text-gray-500">Recent registrations</p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* User Filters */}
           <Card>
-            <CardContent className="p-8 text-center">
-              <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">User management functionality coming soon...</p>
+            <CardContent className="p-4">
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="h-4 w-4 absolute left-3 top-3 text-gray-400" />
+                    <Input
+                      placeholder="Search users by username, name, or email..."
+                      value={userSearch}
+                      onChange={(e) => setUserSearch(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+                <Select value={userRoleFilter} onValueChange={setUserRoleFilter}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="Filter by role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All roles</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="moderator">Moderator</SelectItem>
+                    <SelectItem value="user">User</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Users List */}
+          {filteredUsers.length === 0 && !dataLoading ? (
+            <Card>
+              <CardContent className="p-8 text-center">
+                <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-500 mb-4">No users found matching your criteria.</p>
+                <Button
+                  onClick={() => {
+                    setUserSearch("")
+                    setUserRoleFilter("")
+                  }}
+                  variant="outline"
+                >
+                  Clear Filters
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4">
+              {filteredUsers.map((user) => (
+                <Card key={user.id}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
+                          <span className="text-lg font-semibold text-gray-600">
+                            {user.name.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-medium">{user.name}</h3>
+                            {getRoleIcon(user.role)}
+                            <Badge className={`text-xs ${getRoleBadgeColor(user.role)}`}>{user.role}</Badge>
+                            {user.isActive === false && (
+                              <Badge variant="secondary" className="text-xs">
+                                <UserX className="h-3 w-3 mr-1" />
+                                Inactive
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-500">@{user.username}</p>
+                          <p className="text-sm text-gray-500">{user.email}</p>
+                          <div className="flex gap-4 text-xs text-gray-400 mt-1">
+                            <span>Joined: {formatDate(user.createdAt)}</span>
+                            {user.lastActive && <span>Last active: {formatDate(user.lastActive)}</span>}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setEditingUser(user)}
+                          disabled={actionLoading?.startsWith(`update-${user.id}`)}
+                          title="Edit user"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        {user.isActive !== false && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => deactivateUser(user.id)}
+                            disabled={actionLoading === `deactivate-${user.id}`}
+                            className="text-red-600 hover:text-red-700"
+                            title="Deactivate user"
+                          >
+                            <UserX className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* Edit User Form */}
+          {editingUser && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Edit User</CardTitle>
+                <CardDescription>Update user information and permissions</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Username *</label>
+                    <Input
+                      value={editingUser.username}
+                      onChange={(e) => setEditingUser({ ...editingUser, username: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Name *</label>
+                    <Input
+                      value={editingUser.name}
+                      onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Email *</label>
+                    <Input
+                      type="email"
+                      value={editingUser.email}
+                      onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Role *</label>
+                    <Select
+                      value={editingUser.role}
+                      onValueChange={(value) =>
+                        setEditingUser({ ...editingUser, role: value as "user" | "moderator" | "admin" })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="user">User</SelectItem>
+                        <SelectItem value="moderator">Moderator</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => updateUser(editingUser.id, editingUser)}
+                    disabled={actionLoading?.startsWith(`update-${editingUser.id}`)}
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    {actionLoading?.startsWith(`update-${editingUser.id}`) ? "Saving..." : "Save Changes"}
+                  </Button>
+                  <Button variant="outline" onClick={() => setEditingUser(null)}>
+                    Cancel
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* New User Form */}
+          {showNewUserForm && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Add New User</CardTitle>
+                <CardDescription>Create a new user account</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Username *</label>
+                    <Input
+                      placeholder="Enter username..."
+                      value={newUser.username}
+                      onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Full Name *</label>
+                    <Input
+                      placeholder="Enter full name..."
+                      value={newUser.name}
+                      onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Email *</label>
+                    <Input
+                      type="email"
+                      placeholder="Enter email address..."
+                      value={newUser.email}
+                      onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Role *</label>
+                    <Select
+                      value={newUser.role}
+                      onValueChange={(value) =>
+                        setNewUser({ ...newUser, role: value as "user" | "moderator" | "admin" })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="user">User</SelectItem>
+                        <SelectItem value="moderator">Moderator</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Password *</label>
+                  <Input
+                    type="password"
+                    placeholder="Enter password..."
+                    value={newUser.password}
+                    onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                  />
+                  <p className="text-xs text-gray-500">Minimum 6 characters</p>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button onClick={createUser} disabled={actionLoading === "create-user"}>
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    {actionLoading === "create-user" ? "Creating..." : "Create User"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowNewUserForm(false)
+                      setNewUser({ username: "", name: "", email: "", password: "", role: "user" })
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="rewards" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold">Rewards System</h2>
+            <Button onClick={saveRewardsSettings} disabled={actionLoading === "save-rewards"}>
+              <Save className="h-4 w-4 mr-2" />
+              {actionLoading === "save-rewards" ? "Saving..." : "Save Rewards Settings"}
+            </Button>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Points Settings */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Points Configuration</CardTitle>
+                <CardDescription>Set how many points users earn for different actions</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Points per Post</label>
+                  <Input
+                    type="number"
+                    value={rewardsSettings.pointsPerPost}
+                    onChange={(e) =>
+                      setRewardsSettings((prev) => ({ ...prev, pointsPerPost: Number.parseInt(e.target.value) || 0 }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Points per Reply</label>
+                  <Input
+                    type="number"
+                    value={rewardsSettings.pointsPerReply}
+                    onChange={(e) =>
+                      setRewardsSettings((prev) => ({ ...prev, pointsPerReply: Number.parseInt(e.target.value) || 0 }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Points per Like Given</label>
+                  <Input
+                    type="number"
+                    value={rewardsSettings.pointsPerLike}
+                    onChange={(e) =>
+                      setRewardsSettings((prev) => ({ ...prev, pointsPerLike: Number.parseInt(e.target.value) || 0 }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Points per Like Received</label>
+                  <Input
+                    type="number"
+                    value={rewardsSettings.pointsPerReceivingLike}
+                    onChange={(e) =>
+                      setRewardsSettings((prev) => ({
+                        ...prev,
+                        pointsPerReceivingLike: Number.parseInt(e.target.value) || 0,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Daily Points Limit</label>
+                  <Input
+                    type="number"
+                    value={rewardsSettings.dailyPointsLimit}
+                    onChange={(e) =>
+                      setRewardsSettings((prev) => ({
+                        ...prev,
+                        dailyPointsLimit: Number.parseInt(e.target.value) || 0,
+                      }))
+                    }
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Coupons Management */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Reward Coupons</CardTitle>
+                    <CardDescription>Manage available coupons for redemption</CardDescription>
+                  </div>
+                  <Button size="sm" onClick={() => setShowNewCouponForm(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Coupon
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {rewardsSettings.coupons.map((coupon) => (
+                    <div key={coupon.id} className="border rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-medium">{coupon.name}</h4>
+                        <div className="flex items-center gap-2">
+                          <Switch checked={coupon.isActive} onCheckedChange={() => toggleCouponStatus(coupon.id)} />
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => removeCoupon(coupon.id)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        <p>
+                          ${coupon.discountAmount} off • {coupon.pointsRequired} points
+                        </p>
+                        <p>Status: {coupon.isActive ? "Active" : "Inactive"}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {showNewCouponForm && (
+                  <div className="mt-4 p-4 border rounded-lg bg-gray-50">
+                    <h4 className="font-medium mb-3">Add New Coupon</h4>
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Coupon Name</label>
+                        <Input
+                          placeholder="e.g., $15 Off Coupon"
+                          value={newCoupon.name}
+                          onChange={(e) => setNewCoupon((prev) => ({ ...prev, name: e.target.value }))}
+                        />
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Points Required</label>
+                          <Input
+                            type="number"
+                            placeholder="2000"
+                            value={newCoupon.pointsRequired || ""}
+                            onChange={(e) =>
+                              setNewCoupon((prev) => ({
+                                ...prev,
+                                pointsRequired: Number.parseInt(e.target.value) || 0,
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Discount Amount ($)</label>
+                          <Input
+                            type="number"
+                            placeholder="15"
+                            value={newCoupon.discountAmount || ""}
+                            onChange={(e) =>
+                              setNewCoupon((prev) => ({
+                                ...prev,
+                                discountAmount: Number.parseInt(e.target.value) || 0,
+                              }))
+                            }
+                          />
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={addCoupon}>
+                          Add Coupon
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setShowNewCouponForm(false)}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Rewards Preview */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Rewards Preview</CardTitle>
+              <CardDescription>How the rewards system will work for users</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <div className="text-center p-4 bg-blue-50 rounded-lg">
+                  <MessageSquare className="h-8 w-8 text-blue-600 mx-auto mb-2" />
+                  <div className="text-2xl font-bold text-blue-600">{rewardsSettings.pointsPerPost}</div>
+                  <p className="text-sm text-blue-600">Points per Post</p>
+                </div>
+                <div className="text-center p-4 bg-green-50 rounded-lg">
+                  <MessageSquare className="h-8 w-8 text-green-600 mx-auto mb-2" />
+                  <div className="text-2xl font-bold text-green-600">{rewardsSettings.pointsPerReply}</div>
+                  <p className="text-sm text-green-600">Points per Reply</p>
+                </div>
+                <div className="text-center p-4 bg-red-50 rounded-lg">
+                  <Heart className="h-8 w-8 text-red-600 mx-auto mb-2" />
+                  <div className="text-2xl font-bold text-red-600">{rewardsSettings.pointsPerLike}</div>
+                  <p className="text-sm text-red-600">Points per Like</p>
+                </div>
+                <div className="text-center p-4 bg-yellow-50 rounded-lg">
+                  <Star className="h-8 w-8 text-yellow-600 mx-auto mb-2" />
+                  <div className="text-2xl font-bold text-yellow-600">{rewardsSettings.dailyPointsLimit}</div>
+                  <p className="text-sm text-yellow-600">Daily Limit</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

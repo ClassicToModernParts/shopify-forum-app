@@ -26,15 +26,21 @@ export default function LoginPage() {
     setIsLoading(true)
 
     try {
+      console.log("🔐 Login Page: Attempting login for:", username)
       const result = await login({ username, password })
 
+      console.log("🔐 Login Page: Login result:", { success: result.success, message: result.message })
+
       if (result.success) {
+        console.log("✅ Login Page: Login successful, redirecting to forum")
         router.push("/forum")
       } else {
-        setError(result.message)
+        console.log("❌ Login Page: Login failed:", result.message)
+        setError(result.message || "Login failed. Please try again.")
       }
     } catch (error) {
-      setError("Login failed. Please try again.")
+      console.error("❌ Login Page: Login error:", error)
+      setError("Login failed. Please check your connection and try again.")
     } finally {
       setIsLoading(false)
     }
@@ -104,6 +110,90 @@ export default function LoginPage() {
             </Link>
           </div>
         </CardContent>
+        <div className="mt-8 p-4 bg-gray-100 rounded-lg">
+          <h3 className="text-sm font-medium text-gray-700 mb-2">Debug Options</h3>
+          <div className="space-y-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                try {
+                  const response = await fetch("/api/debug/auth")
+                  const data = await response.json()
+                  console.log("Debug info:", data)
+                  alert(`System has ${data.debug?.userCount || 0} users. Check console for details.`)
+                } catch (error) {
+                  console.error("Debug error:", error)
+                  alert("Debug check failed. Check console for details.")
+                }
+              }}
+            >
+              Check System State
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                try {
+                  const response = await fetch("/api/debug/reinitialize", { method: "POST" })
+                  const data = await response.json()
+                  console.log("Reinitialize result:", data)
+                  if (data.success) {
+                    alert("System reinitialized! You can now login with default users.")
+                  } else {
+                    alert("Failed to reinitialize. Check console for details.")
+                  }
+                } catch (error) {
+                  console.error("Reinitialize error:", error)
+                  alert("Reinitialize failed. Check console for details.")
+                }
+              }}
+            >
+              Reinitialize System
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                try {
+                  const response = await fetch("/api/debug/create-test-user", { method: "POST" })
+                  const data = await response.json()
+                  console.log("Test user creation:", data)
+                  if (data.success) {
+                    alert("Test user created! Username: testuser, Password: password123")
+                  } else {
+                    alert("Failed to create test user. Check console for details.")
+                  }
+                } catch (error) {
+                  console.error("Test user creation error:", error)
+                  alert("Test user creation failed. Check console for details.")
+                }
+              }}
+            >
+              Create Test User
+            </Button>
+          </div>
+          <div className="mt-4 p-3 bg-blue-50 rounded">
+            <h4 className="text-xs font-medium text-blue-800 mb-1">Default Login Credentials:</h4>
+            <div className="text-xs text-blue-700 space-y-1">
+              <div>
+                <strong>Admin:</strong> ctm_admin / admin123
+              </div>
+              <div>
+                <strong>Moderator:</strong> tech_expert / tech123
+              </div>
+              <div>
+                <strong>User:</strong> builder_pro / builder123
+              </div>
+              <div>
+                <strong>Test User:</strong> testuser / password123
+              </div>
+            </div>
+          </div>
+        </div>
       </Card>
     </div>
   )

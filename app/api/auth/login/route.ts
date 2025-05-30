@@ -3,12 +3,23 @@ import { authService } from "@/lib/auth-service"
 
 export async function POST(request: NextRequest) {
   try {
+    console.log("🔐 Login API: Request received")
+
     const body = await request.json()
     const { username, password } = body
 
+    console.log(`🔐 Login API: Attempting login for username: ${username}`)
+
     // Validate input
     if (!username || !password) {
-      return NextResponse.json({ success: false, message: "Username and password are required" }, { status: 400 })
+      console.log("❌ Login API: Missing username or password")
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Username and password are required",
+        },
+        { status: 400 },
+      )
     }
 
     // Login user
@@ -17,13 +28,34 @@ export async function POST(request: NextRequest) {
       password,
     })
 
+    console.log(`🔐 Login API: Auth service result:`, {
+      success: result.success,
+      message: result.message,
+      hasUser: !!result.user,
+      hasToken: !!result.token,
+    })
+
     if (!result.success) {
-      return NextResponse.json({ success: false, message: result.message }, { status: 401 })
+      console.log(`❌ Login API: Login failed for ${username}: ${result.message}`)
+      return NextResponse.json(
+        {
+          success: false,
+          message: result.message,
+        },
+        { status: 401 },
+      )
     }
 
+    console.log(`✅ Login API: Login successful for ${username}`)
     return NextResponse.json(result)
   } catch (error) {
-    console.error("Login error:", error)
-    return NextResponse.json({ success: false, message: "Login failed" }, { status: 500 })
+    console.error("❌ Login API: Unexpected error:", error)
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Login failed due to server error",
+      },
+      { status: 500 },
+    )
   }
 }

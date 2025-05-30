@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { MessageSquare, Users, Clock, Plus, LogIn, Trash2 } from "lucide-react"
+import { MessageSquare, Users, Clock, Plus, LogIn, Trash2, Trophy } from "lucide-react"
 import Link from "next/link"
 import useUserAuth from "@/hooks/useUserAuth"
 
@@ -573,6 +573,7 @@ export default function ForumPage() {
           type: "like_post",
           shopId: "demo",
           postId,
+          userEmail: user?.email || "",
         }),
       })
 
@@ -608,6 +609,7 @@ export default function ForumPage() {
           type: "like_reply",
           shopId: "demo",
           replyId,
+          userEmail: user?.email || "",
         }),
       })
 
@@ -721,6 +723,10 @@ export default function ForumPage() {
             <div className="flex items-center space-x-4">
               {isAuthenticated && user ? (
                 <div className="flex items-center space-x-4">
+                  <Link href="/rewards" className="flex items-center space-x-2 text-blue-600 hover:text-blue-800">
+                    <Trophy className="h-4 w-4" />
+                    <span>Rewards</span>
+                  </Link>
                   <span className="text-sm text-gray-600">Welcome, {user.name}!</span>
                   <Button variant="outline" onClick={logout}>
                     Logout

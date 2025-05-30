@@ -246,7 +246,7 @@ export async function POST(request: NextRequest) {
         message: "Reply created successfully",
       })
     } else if (type === "like_post") {
-      const { postId } = body
+      const { postId, userEmail } = body
 
       if (!postId) {
         return NextResponse.json(
@@ -258,7 +258,7 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const result = await persistentForumDataStore.likePost(postId)
+      const result = await persistentForumDataStore.likePost(postId, userEmail)
 
       if (!result) {
         return NextResponse.json(
@@ -276,7 +276,7 @@ export async function POST(request: NextRequest) {
         message: "Post liked successfully",
       })
     } else if (type === "like_reply") {
-      const { replyId } = body
+      const { replyId, userEmail } = body
 
       if (!replyId) {
         return NextResponse.json(
@@ -288,7 +288,7 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const result = await persistentForumDataStore.likeReply(replyId)
+      const result = await persistentForumDataStore.likeReply(replyId, userEmail)
 
       if (!result) {
         return NextResponse.json(
