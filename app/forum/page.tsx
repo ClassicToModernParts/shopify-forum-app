@@ -708,37 +708,42 @@ export default function ForumPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4 flex-col sm:flex-row gap-2 sm:gap-4">
-            <div className="flex items-center space-x-4">
-              <div className="bg-blue-600 p-2 rounded-lg">
-                <MessageSquare className="h-8 w-8 text-white" />
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-3 sm:py-4">
+            <div className="flex items-center space-x-2 sm:space-x-4">
+              <div className="bg-blue-600 p-1.5 sm:p-2 rounded-lg">
+                <MessageSquare className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
               </div>
               <div>
-                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Community Forum</h1>
-                <p className="text-gray-600">Connect • Share • Grow</p>
+                <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">Community Forum</h1>
+                <p className="text-xs sm:text-sm text-gray-600 hidden sm:block">Connect • Share • Grow</p>
               </div>
             </div>
 
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 sm:space-x-4">
               {isAuthenticated && user ? (
-                <div className="flex items-center space-x-4">
-                  <Link href="/rewards" className="flex items-center space-x-2 text-blue-600 hover:text-blue-800">
+                <div className="flex items-center space-x-2 sm:space-x-4">
+                  <Link
+                    href="/rewards"
+                    className="flex items-center space-x-1 sm:space-x-2 text-blue-600 hover:text-blue-800"
+                  >
                     <Trophy className="h-4 w-4" />
-                    <span>Rewards</span>
+                    <span className="hidden sm:inline">Rewards</span>
                   </Link>
-                  <span className="text-sm text-gray-600">Welcome, {user.name}!</span>
-                  <Button variant="outline" onClick={logout}>
+                  <span className="text-xs sm:text-sm text-gray-600 hidden md:block">Welcome, {user.name}!</span>
+                  <Button variant="outline" size="sm" onClick={logout}>
                     Logout
                   </Button>
                 </div>
               ) : (
                 <div className="flex items-center space-x-2">
                   <Link href="/login">
-                    <Button variant="outline">Login</Button>
+                    <Button variant="outline" size="sm">
+                      Login
+                    </Button>
                   </Link>
                   <Link href="/register">
-                    <Button>Sign Up</Button>
+                    <Button size="sm">Sign Up</Button>
                   </Link>
                 </div>
               )}
@@ -747,35 +752,35 @@ export default function ForumPage() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
         {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">{error}</div>}
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow-sm border p-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6 mb-6 sm:mb-8">
+          <div className="bg-white rounded-lg shadow-sm border p-4 sm:p-6">
             <div className="flex items-center">
-              <MessageSquare className="h-8 w-8 text-blue-600" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Posts</p>
+              <MessageSquare className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
+              <div className="ml-3 sm:ml-4">
+                <p className="text-xs sm:text-sm font-medium text-gray-600">Total Posts</p>
                 <p className="text-lg sm:text-2xl font-bold text-gray-900">{forumData.totalPosts}</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm border p-6">
+          <div className="bg-white rounded-lg shadow-sm border p-4 sm:p-6">
             <div className="flex items-center">
-              <Users className="h-8 w-8 text-green-600" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Users</p>
+              <Users className="h-6 w-6 sm:h-8 sm:w-8 text-green-600" />
+              <div className="ml-3 sm:ml-4">
+                <p className="text-xs sm:text-sm font-medium text-gray-600">Total Users</p>
                 <p className="text-lg sm:text-2xl font-bold text-gray-900">{forumData.totalUsers}</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm border p-6">
+          <div className="bg-white rounded-lg shadow-sm border p-4 sm:p-6">
             <div className="flex items-center">
-              <Clock className="h-8 w-8 text-orange-600" />
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Online Now</p>
+              <Clock className="h-6 w-6 sm:h-8 sm:w-8 text-orange-600" />
+              <div className="ml-3 sm:ml-4">
+                <p className="text-xs sm:text-sm font-medium text-gray-600">Online Now</p>
                 <p className="text-lg sm:text-2xl font-bold text-gray-900">{forumData.onlineUsers}</p>
               </div>
             </div>
@@ -785,12 +790,19 @@ export default function ForumPage() {
         {selectedPost ? (
           <div className="bg-white rounded-lg shadow-sm border">
             <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <button onClick={() => setSelectedPost(null)} className="text-blue-600 hover:text-blue-800 font-medium">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 space-y-3 sm:space-y-0">
+                <button
+                  onClick={() => setSelectedPost(null)}
+                  className="text-blue-600 hover:text-blue-800 font-medium text-sm sm:text-base self-start"
+                >
                   ← Back to {showCategoryPosts ? currentCategoryName : "Categories"}
                 </button>
                 <div className="flex items-center space-x-2">
-                  {isAuthenticated && <Button onClick={() => setShowReplyModal(true)}>Reply to Post</Button>}
+                  {isAuthenticated && (
+                    <Button onClick={() => setShowReplyModal(true)} size="sm" className="text-sm">
+                      Reply
+                    </Button>
+                  )}
                   {canDeletePost(selectedPost) && (
                     <Button
                       variant="outline"
@@ -804,42 +816,44 @@ export default function ForumPage() {
                 </div>
               </div>
 
-              <div className="border-b pb-6 mb-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h1 className="text-2xl font-bold text-gray-900">{selectedPost.title}</h1>
-                  <div className="flex items-center space-x-4 text-sm text-gray-500">
+              <div className="border-b pb-4 sm:pb-6 mb-4 sm:mb-6">
+                <div className="mb-4">
+                  <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-3">{selectedPost.title}</h1>
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-500">
                     <span>{selectedPost.views} views</span>
                     <span>{selectedPost.likes} likes</span>
                     <span>{selectedPost.replies} replies</span>
                   </div>
                 </div>
 
-                <div className="flex items-center space-x-4 mb-4">
-                  <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">
-                    <span className="text-sm font-medium text-gray-700">
+                <div className="flex items-center space-x-3 sm:space-x-4 mb-4">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gray-300 rounded-full flex items-center justify-center flex-shrink-0">
+                    <span className="text-xs sm:text-sm font-medium text-gray-700">
                       {selectedPost.author.charAt(0).toUpperCase()}
                     </span>
                   </div>
-                  <div>
-                    <p className="font-medium text-gray-900">{selectedPost.author}</p>
-                    <p className="text-sm text-gray-500">{formatDate(selectedPost.createdAt)}</p>
+                  <div className="min-w-0">
+                    <p className="font-medium text-gray-900 text-sm sm:text-base truncate">{selectedPost.author}</p>
+                    <p className="text-xs sm:text-sm text-gray-500">{formatDate(selectedPost.createdAt)}</p>
                   </div>
                 </div>
 
                 <div className="prose max-w-none mb-4">
-                  <p className="text-gray-700 whitespace-pre-wrap">{selectedPost.content}</p>
+                  <p className="text-gray-700 whitespace-pre-wrap text-sm sm:text-base leading-relaxed">
+                    {selectedPost.content}
+                  </p>
                 </div>
 
-                <div className="flex items-center space-x-4">
+                <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
                   <button
                     onClick={() => likePost(selectedPost.id)}
-                    className="flex items-center space-x-2 text-gray-500 hover:text-blue-600"
+                    className="flex items-center space-x-2 text-gray-500 hover:text-blue-600 self-start"
                   >
                     <span>👍</span>
-                    <span>{selectedPost.likes}</span>
+                    <span className="text-sm">{selectedPost.likes}</span>
                   </button>
                   {selectedPost.tags && selectedPost.tags.length > 0 && (
-                    <div className="flex items-center space-x-2">
+                    <div className="flex flex-wrap gap-1 sm:gap-2">
                       {selectedPost.tags.map((tag, index) => (
                         <span key={index} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full">
                           {tag}
@@ -851,35 +865,37 @@ export default function ForumPage() {
               </div>
 
               <div>
-                <h3 className="text-lg font-semibold mb-4">Replies ({replies.length})</h3>
+                <h3 className="text-base sm:text-lg font-semibold mb-4">Replies ({replies.length})</h3>
 
                 {replies.length > 0 ? (
                   <div className="space-y-4">
                     {replies.map((reply) => (
-                      <div key={reply.id} className="border-l-4 border-gray-200 pl-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center space-x-4">
-                            <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                      <div key={reply.id} className="border-l-4 border-gray-200 pl-3 sm:pl-4">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center space-x-3 sm:space-x-4 flex-1 min-w-0">
+                            <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gray-300 rounded-full flex items-center justify-center flex-shrink-0">
                               <span className="text-xs font-medium text-gray-700">
                                 {reply.author.charAt(0).toUpperCase()}
                               </span>
                             </div>
-                            <div>
-                              <p className="font-medium text-gray-900">{reply.author}</p>
+                            <div className="min-w-0">
+                              <p className="font-medium text-gray-900 text-sm sm:text-base truncate">{reply.author}</p>
                               <p className="text-xs text-gray-500">{formatDate(reply.createdAt)}</p>
                             </div>
                           </div>
                           {canDeleteReply(reply) && (
                             <button
                               onClick={() => deleteReply(reply.id)}
-                              className="text-red-600 hover:text-red-800 p-1"
+                              className="text-red-600 hover:text-red-800 p-1 flex-shrink-0"
                               title="Delete reply"
                             >
                               <Trash2 className="h-4 w-4" />
                             </button>
                           )}
                         </div>
-                        <p className="text-gray-700 mb-2 whitespace-pre-wrap">{reply.content}</p>
+                        <p className="text-gray-700 mb-2 whitespace-pre-wrap text-sm sm:text-base leading-relaxed">
+                          {reply.content}
+                        </p>
                         <button
                           onClick={() => likeReply(reply.id)}
                           className="flex items-center space-x-1 text-gray-500 hover:text-blue-600 text-sm"
@@ -891,7 +907,9 @@ export default function ForumPage() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-500 text-center py-8">No replies yet. Be the first to reply!</p>
+                  <p className="text-gray-500 text-center py-8 text-sm sm:text-base">
+                    No replies yet. Be the first to reply!
+                  </p>
                 )}
               </div>
             </div>
@@ -918,7 +936,7 @@ export default function ForumPage() {
                 )}
               </div>
 
-              <div className="flex items-center space-x-4 mb-6">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-3 sm:space-y-0 sm:space-x-4 mb-6">
                 <input
                   type="text"
                   placeholder="Search posts..."
@@ -927,7 +945,7 @@ export default function ForumPage() {
                     setSearchQuery(e.target.value)
                     loadPosts(selectedCategory || undefined, e.target.value, sortBy)
                   }}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="flex-1 px-4 py-3 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base sm:text-sm"
                 />
                 <select
                   value={sortBy}
@@ -935,7 +953,7 @@ export default function ForumPage() {
                     setSortBy(e.target.value)
                     loadPosts(selectedCategory || undefined, searchQuery, e.target.value)
                   }}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="px-4 py-3 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base sm:text-sm"
                 >
                   <option value="recent">Most Recent</option>
                   <option value="popular">Most Popular</option>
@@ -950,36 +968,22 @@ export default function ForumPage() {
                   <p className="mt-2 text-gray-600">Loading posts...</p>
                 </div>
               ) : categoryPosts.length > 0 ? (
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   {categoryPosts.map((post) => (
                     <div
                       key={post.id}
-                      className="border rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer relative"
+                      className="border rounded-lg p-3 sm:p-4 hover:bg-gray-50 transition-colors cursor-pointer touch-manipulation"
                       onClick={() => handlePostClick(post)}
                     >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-gray-900 mb-2">{post.title}</h3>
-                          <p className="text-gray-600 text-sm mb-3 line-clamp-2">{post.content.substring(0, 150)}...</p>
-                          <div className="flex items-center space-x-4 text-sm text-gray-500">
-                            <span>By {post.author}</span>
-                            <span>{formatDate(post.createdAt)}</span>
-                            {post.tags && post.tags.length > 0 && (
-                              <div className="flex space-x-1">
-                                {post.tags.slice(0, 3).map((tag, index) => (
-                                  <span key={index} className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">
-                                    {tag}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="text-right ml-4">
-                          <div className="flex items-center space-x-4 text-sm text-gray-500 mb-2">
-                            <span>{post.views} views</span>
-                            <span>{post.likes} likes</span>
-                            <span>{post.replies} replies</span>
+                      <div className="flex flex-col space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold text-gray-900 mb-2 text-sm sm:text-base line-clamp-2">
+                              {post.title}
+                            </h3>
+                            <p className="text-gray-600 text-xs sm:text-sm mb-3 line-clamp-3">
+                              {post.content.substring(0, 120)}...
+                            </p>
                           </div>
                           {canDeletePost(post) && (
                             <button
@@ -987,13 +991,36 @@ export default function ForumPage() {
                                 e.stopPropagation()
                                 deletePost(post.id)
                               }}
-                              className="text-red-600 hover:text-red-800 p-1"
+                              className="text-red-600 hover:text-red-800 p-2 ml-2 flex-shrink-0"
                               title="Delete post"
                             >
                               <Trash2 className="h-4 w-4" />
                             </button>
                           )}
                         </div>
+
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
+                          <div className="flex items-center space-x-3 text-xs sm:text-sm text-gray-500">
+                            <span>By {post.author}</span>
+                            <span>{formatDate(post.createdAt)}</span>
+                          </div>
+
+                          <div className="flex items-center space-x-3 sm:space-x-4 text-xs sm:text-sm text-gray-500">
+                            <span>{post.views} views</span>
+                            <span>{post.likes} likes</span>
+                            <span>{post.replies} replies</span>
+                          </div>
+                        </div>
+
+                        {post.tags && post.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {post.tags.slice(0, 3).map((tag, index) => (
+                              <span key={index} className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -1037,28 +1064,30 @@ export default function ForumPage() {
               </div>
 
               {categories && categories.length > 0 ? (
-                <div className="space-y-3 sm:space-y-4">
+                <div className="space-y-2 sm:space-y-4">
                   {categories.map((category) => (
                     <div
                       key={category.id}
-                      className="flex items-center justify-between p-3 sm:p-4 border rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                      className="flex items-center justify-between p-3 sm:p-4 border rounded-lg hover:bg-gray-50 transition-colors cursor-pointer touch-manipulation"
                       onClick={() => handleCategoryClick(category.id)}
                     >
-                      <div className="flex items-center space-x-4">
+                      <div className="flex items-center space-x-3 sm:space-x-4 flex-1 min-w-0">
                         <div
-                          className="w-3 h-3 rounded-full"
+                          className="w-3 h-3 rounded-full flex-shrink-0"
                           style={{ backgroundColor: category.color || "#3B82F6" }}
                         ></div>
-                        <div>
-                          <h3 className="font-semibold text-gray-900">{category.name}</h3>
-                          <p className="text-sm text-gray-600">{category.description}</p>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-semibold text-gray-900 text-sm sm:text-base truncate">{category.name}</h3>
+                          <p className="text-xs sm:text-sm text-gray-600 line-clamp-2">{category.description}</p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      <div className="text-right flex-shrink-0 ml-2">
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                           {category.postCount}
                         </span>
-                        <p className="text-xs text-gray-500 mt-1">{formatDate(category.lastActivity)}</p>
+                        <p className="text-xs text-gray-500 mt-1 hidden sm:block">
+                          {formatDate(category.lastActivity)}
+                        </p>
                       </div>
                     </div>
                   ))}
@@ -1111,8 +1140,8 @@ export default function ForumPage() {
         )}
 
         {showNewPostModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-xs sm:max-w-md w-full max-h-screen overflow-y-auto">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-3 sm:p-4 z-50">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-sm sm:max-w-md max-h-[90vh] overflow-y-auto">
               <div className="p-4 sm:p-6">
                 <h3 className="text-lg font-semibold mb-4">Create New Post</h3>
                 <div className="space-y-4">
@@ -1122,7 +1151,7 @@ export default function ForumPage() {
                       type="text"
                       value={newPost.title}
                       onChange={(e) => setNewPost({ ...newPost, title: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-3 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base sm:text-sm"
                       placeholder="Enter post title..."
                     />
                   </div>
@@ -1131,7 +1160,7 @@ export default function ForumPage() {
                     <select
                       value={newPost.categoryId}
                       onChange={(e) => setNewPost({ ...newPost, categoryId: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-3 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base sm:text-sm"
                     >
                       <option value="">Select a category</option>
                       {categories.map((category) => (
@@ -1147,7 +1176,7 @@ export default function ForumPage() {
                       value={newPost.content}
                       onChange={(e) => setNewPost({ ...newPost, content: e.target.value })}
                       rows={6}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-3 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base sm:text-sm resize-none"
                       placeholder="Write your post content..."
                     />
                   </div>
@@ -1157,16 +1186,16 @@ export default function ForumPage() {
                       type="text"
                       value={newPost.tags}
                       onChange={(e) => setNewPost({ ...newPost, tags: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-3 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base sm:text-sm"
                       placeholder="e.g., help, question, discussion"
                     />
                   </div>
                 </div>
-                <div className="flex justify-end space-x-3 mt-6">
-                  <Button variant="outline" onClick={() => setShowNewPostModal(false)}>
+                <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3 mt-6">
+                  <Button variant="outline" onClick={() => setShowNewPostModal(false)} className="w-full sm:w-auto">
                     Cancel
                   </Button>
-                  <Button onClick={createPost} disabled={loading}>
+                  <Button onClick={createPost} disabled={loading} className="w-full sm:w-auto">
                     {loading ? "Creating..." : "Create Post"}
                   </Button>
                 </div>
@@ -1176,8 +1205,8 @@ export default function ForumPage() {
         )}
 
         {showReplyModal && selectedPost && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-xs sm:max-w-md w-full">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-3 sm:p-4 z-50">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-sm sm:max-w-md max-h-[90vh] overflow-y-auto">
               <div className="p-4 sm:p-6">
                 <h3 className="text-lg font-semibold mb-4">Reply to: {selectedPost.title}</h3>
                 <div className="space-y-4">
@@ -1187,16 +1216,16 @@ export default function ForumPage() {
                       value={newReply.content}
                       onChange={(e) => setNewReply({ ...newReply, content: e.target.value })}
                       rows={6}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-3 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base sm:text-sm resize-none"
                       placeholder="Write your reply..."
                     />
                   </div>
                 </div>
-                <div className="flex justify-end space-x-3 mt-6">
-                  <Button variant="outline" onClick={() => setShowReplyModal(false)}>
+                <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3 mt-6">
+                  <Button variant="outline" onClick={() => setShowReplyModal(false)} className="w-full sm:w-auto">
                     Cancel
                   </Button>
-                  <Button onClick={createReply} disabled={loading}>
+                  <Button onClick={createReply} disabled={loading} className="w-full sm:w-auto">
                     {loading ? "Posting..." : "Post Reply"}
                   </Button>
                 </div>
