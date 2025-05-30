@@ -54,55 +54,54 @@ interface User {
   isActive?: boolean
 }
 
-interface RewardSettings {
-  id: string
+interface RewardsSettings {
   pointsPerPost: number
   pointsPerReply: number
-  pointsPerLikeGiven: number
-  pointsPerLikeReceived: number
-  dailyPointLimit: number
-  createdAt: string
-  updatedAt: string
-}
-
-interface CouponType {
-  id: string
-  name: string
-  description: string
-  pointsRequired: number
-  discountAmount: number
-  discountType: "fixed" | "percentage"
-  isActive: boolean
-  createdAt: string
-  updatedAt: string
+  pointsPerLike: number
+  pointsPerReceivingLike: number
+  dailyPointsLimit: number
+  coupons: {
+    id: string
+    name: string
+    pointsRequired: number
+    discountAmount: number
+    discountType: "fixed" | "percentage"
+    isActive: boolean
+  }[]
+  lastUpdated: string
 }
 
 interface UserRewards {
   userId: string
   totalPoints: number
   dailyPoints: number
-  lastResetDate: string
-  pointHistory: PointTransaction[]
-  redeemedCoupons: RedeemedCoupon[]
+  lastDailyReset: string
+  pointsHistory: {
+    id: string
+    points: number
+    reason: string
+    actionType: string
+    createdAt: string
+  }[]
+  redeemedCoupons: {
+    id: string
+    couponId: string
+    couponName: string
+    pointsSpent: number
+    redeemedAt: string
+    couponCode: string
+  }[]
 }
 
-interface PointTransaction {
-  id: string
-  userId: string
-  points: number
-  action: string
-  description: string
-  createdAt: string
-}
-
-interface RedeemedCoupon {
-  id: string
-  userId: string
-  couponTypeId: string
-  couponCode: string
-  pointsSpent: number
-  redeemedAt: string
-  isUsed: boolean
+// Simple hash function for passwords
+function simpleHash(str: string): string {
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i)
+    hash = (hash << 5) - hash + char
+    hash = hash & hash // Convert to 32bit integer
+  }
+  return hash.toString()
 }
 
 class PersistentForumDataStore {
@@ -111,20 +110,8 @@ class PersistentForumDataStore {
   private readonly REPLIES_KEY = "forum:replies"
   private readonly INITIALIZED_KEY = "forum:initialized"
   private readonly USERS_KEY = "forum:users"
-  private readonly REWARD_SETTINGS_KEY = "forum:reward_settings"
-  private readonly COUPON_TYPES_KEY = "forum:coupon_types"
-  private readonly USER_REWARDS_KEY = "forum:user_rewards"
-
-  // Simple hash function for passwords (in production, use proper hashing)
-  simpleHash(password: string): string {
-    let hash = 0
-    for (let i = 0; i < password.length; i++) {
-      const char = password.charCodeAt(i)
-      hash = (hash << 5) - hash + char
-      hash = hash & hash // Convert to 32bit integer
-    }
-    return hash.toString()
-  }
+  private readonly REWARDS_SETTINGS_KEY = "forum:rewards:settings"
+  private readonly USER_REWARDS_KEY = "forum:user:rewards"
 
   async isInitialized(): Promise<boolean> {
     try {
@@ -146,7 +133,7 @@ class PersistentForumDataStore {
 
       console.log("🔄 Initializing persistent forum data store...")
 
-      // Create CTM Parts specific categories
+      // Create default categories
       const defaultCategories: Category[] = [
         {
           id: "installation-help",
@@ -159,43 +146,43 @@ class PersistentForumDataStore {
         {
           id: "project-showcase",
           name: "Project Showcase",
-          description: "Share your completed projects using CTM parts",
+          description: "Share your CTM parts projects and builds",
           color: "#10B981",
-          icon: "Star",
+          icon: "Camera",
           createdAt: new Date().toISOString(),
         },
         {
           id: "troubleshooting",
           name: "Troubleshooting",
-          description: "Get help solving issues with CTM parts",
+          description: "Get help troubleshooting CTM parts issues",
           color: "#F59E0B",
-          icon: "AlertCircle",
+          icon: "AlertTriangle",
           createdAt: new Date().toISOString(),
         },
         {
           id: "general",
           name: "General Discussion",
-          description: "General topics and community discussions",
+          description: "General topics and discussions about CTM parts",
           color: "#8B5CF6",
           icon: "MessageSquare",
           createdAt: new Date().toISOString(),
         },
       ]
 
-      // Create CTM Parts specific sample posts
+      // Create sample posts
       const defaultPosts: Post[] = [
         {
           id: "post-1",
           title: "Welcome to CTM Parts Community!",
           content:
-            "Welcome to the CTM Parts Community forum! This is your place to get help with installations, share project showcases, troubleshoot issues, and connect with other CTM parts users. Feel free to explore and start discussions!",
+            "Welcome to the CTM Parts Community forum! This is your place to get help with installations, share your projects, troubleshoot issues, and connect with other CTM parts enthusiasts. Feel free to explore the different categories and start discussions!",
           author: "CTM Admin",
           authorEmail: "admin@store.com",
           categoryId: "general",
           createdAt: new Date(Date.now() - 86400000).toISOString(),
           updatedAt: new Date(Date.now() - 86400000).toISOString(),
           replies: 3,
-          views: 45,
+          views: 47,
           likes: 8,
           isPinned: true,
           tags: ["welcome", "introduction", "community"],
@@ -203,36 +190,19 @@ class PersistentForumDataStore {
         },
         {
           id: "post-2",
-          title: "Installation Guide: CTM-X Series Setup",
+          title: "Installation Guide: Getting Started with CTM Parts",
           content:
-            "Here's a comprehensive guide for installing CTM-X series parts. Follow these steps for optimal performance and reliability.",
-          author: "TechExpert",
-          authorEmail: "tech@example.com",
+            "Here's a comprehensive guide to help you get started with your first CTM parts installation. We'll cover the basic tools you need, preparation steps, and common tips for success.",
+          author: "CTM Admin",
+          authorEmail: "admin@store.com",
           categoryId: "installation-help",
           createdAt: new Date(Date.now() - 172800000).toISOString(),
           updatedAt: new Date(Date.now() - 172800000).toISOString(),
-          replies: 5,
-          views: 89,
-          likes: 12,
-          isPinned: false,
-          tags: ["installation", "ctm-x", "guide"],
-          status: "active",
-        },
-        {
-          id: "post-3",
-          title: "My Custom Build with CTM Parts",
-          content:
-            "Just finished my latest project using CTM parts. Here are some photos and details about the build process.",
-          author: "BuilderPro",
-          authorEmail: "builder@example.com",
-          categoryId: "project-showcase",
-          createdAt: new Date(Date.now() - 259200000).toISOString(),
-          updatedAt: new Date(Date.now() - 259200000).toISOString(),
-          replies: 7,
+          replies: 12,
           views: 156,
           likes: 23,
-          isPinned: false,
-          tags: ["showcase", "custom", "build"],
+          isPinned: true,
+          tags: ["guide", "installation", "beginner"],
           status: "active",
         },
       ]
@@ -242,31 +212,33 @@ class PersistentForumDataStore {
         {
           id: "reply-1",
           postId: "post-1",
-          content: "Thank you for the warm welcome! I'm excited to be part of the CTM Parts community.",
-          author: "NewMember",
+          content:
+            "Thank you for the warm welcome! I'm excited to be part of this community and learn from everyone's experiences.",
+          author: "New Member",
           authorEmail: "newmember@example.com",
-          createdAt: new Date(Date.now() - 64800000).toISOString(),
-          updatedAt: new Date(Date.now() - 64800000).toISOString(),
+          createdAt: new Date(Date.now() - 21600000).toISOString(),
+          updatedAt: new Date(Date.now() - 21600000).toISOString(),
           likes: 3,
           status: "active",
         },
         {
           id: "reply-2",
           postId: "post-1",
-          content: "Great to see the community growing! Looking forward to sharing my projects.",
-          author: "ProjectMaker",
-          authorEmail: "maker@example.com",
-          createdAt: new Date(Date.now() - 43200000).toISOString(),
-          updatedAt: new Date(Date.now() - 43200000).toISOString(),
+          content: "Great to have another member! Don't hesitate to ask questions - this community is very helpful.",
+          author: "Experienced User",
+          authorEmail: "experienced@example.com",
+          createdAt: new Date(Date.now() - 18000000).toISOString(),
+          updatedAt: new Date(Date.now() - 18000000).toISOString(),
           likes: 2,
           status: "active",
         },
         {
           id: "reply-3",
           postId: "post-2",
-          content: "This guide was exactly what I needed! Installation went smoothly.",
-          author: "HappyCustomer",
-          authorEmail: "customer@example.com",
+          content:
+            "This guide was exactly what I needed! The step-by-step instructions made my first installation much easier.",
+          author: "DIY Enthusiast",
+          authorEmail: "diy@example.com",
           createdAt: new Date(Date.now() - 86400000).toISOString(),
           updatedAt: new Date(Date.now() - 86400000).toISOString(),
           likes: 5,
@@ -281,98 +253,377 @@ class PersistentForumDataStore {
           username: "ctm_admin",
           name: "CTM Administrator",
           email: "admin@store.com",
-          password: this.simpleHash("admin123"), // Hash the password
+          password: simpleHash("admin123"),
           role: "admin",
           createdAt: new Date().toISOString(),
           isActive: true,
           lastActive: new Date().toISOString(),
         },
         {
-          id: "tech-expert",
-          username: "tech_expert",
-          name: "Technical Expert",
-          email: "tech@example.com",
-          password: this.simpleHash("tech123"), // Hash the password
-          role: "moderator",
+          id: "demo-user-1",
+          username: "new_member",
+          name: "New Member",
+          email: "newmember@example.com",
+          password: simpleHash("demo123"),
+          role: "user",
           createdAt: new Date(Date.now() - 86400000).toISOString(),
           isActive: true,
           lastActive: new Date(Date.now() - 3600000).toISOString(),
         },
         {
-          id: "builder-pro",
-          username: "builder_pro",
-          name: "Builder Pro",
-          email: "builder@example.com",
-          password: this.simpleHash("builder123"), // Hash the password
+          id: "demo-user-2",
+          username: "experienced_user",
+          name: "Experienced User",
+          email: "experienced@example.com",
+          password: simpleHash("demo123"),
           role: "user",
-          createdAt: new Date(Date.now() - 172800000).toISOString(),
+          createdAt: new Date(Date.now() - 2592000000).toISOString(),
           isActive: true,
           lastActive: new Date(Date.now() - 7200000).toISOString(),
         },
         {
-          id: "new-member",
-          username: "new_member",
-          name: "New Member",
-          email: "newmember@example.com",
-          password: this.simpleHash("member123"), // Hash the password
+          id: "demo-user-3",
+          username: "diy_enthusiast",
+          name: "DIY Enthusiast",
+          email: "diy@example.com",
+          password: simpleHash("demo123"),
           role: "user",
-          createdAt: new Date(Date.now() - 259200000).toISOString(),
+          createdAt: new Date(Date.now() - 1296000000).toISOString(),
           isActive: true,
           lastActive: new Date(Date.now() - 1800000).toISOString(),
         },
       ]
 
-      // Create default reward settings
-      const defaultRewardSettings: RewardSettings = {
-        id: "default-rewards",
+      // Create default rewards settings
+      const defaultRewardsSettings: RewardsSettings = {
         pointsPerPost: 10,
         pointsPerReply: 5,
-        pointsPerLikeGiven: 1,
-        pointsPerLikeReceived: 2,
-        dailyPointLimit: 100,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        pointsPerLike: 1,
+        pointsPerReceivingLike: 2,
+        dailyPointsLimit: 100,
+        coupons: [
+          {
+            id: "coupon-5-off",
+            name: "$5 Off Coupon",
+            pointsRequired: 700,
+            discountAmount: 5,
+            discountType: "fixed",
+            isActive: true,
+          },
+          {
+            id: "coupon-10-off",
+            name: "$10 Off Coupon",
+            pointsRequired: 1400,
+            discountAmount: 10,
+            discountType: "fixed",
+            isActive: true,
+          },
+        ],
+        lastUpdated: new Date().toISOString(),
       }
 
-      // Create default coupon types
-      const defaultCouponTypes: CouponType[] = [
-        {
-          id: "coupon-5-off",
-          name: "$5 Off Coupon",
-          description: "Get $5 off your next purchase",
-          pointsRequired: 700,
-          discountAmount: 5,
-          discountType: "fixed",
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-        {
-          id: "coupon-10-off",
-          name: "$10 Off Coupon",
-          description: "Get $10 off your next purchase",
-          pointsRequired: 1400,
-          discountAmount: 10,
-          discountType: "fixed",
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-      ]
+      // Initialize user rewards for default users
+      const defaultUserRewards: UserRewards[] = defaultUsers.map((user) => ({
+        userId: user.id,
+        totalPoints: 0,
+        dailyPoints: 0,
+        lastDailyReset: new Date().toISOString(),
+        pointsHistory: [],
+        redeemedCoupons: [],
+      }))
 
       // Save to KV store
       await kv.set(this.CATEGORIES_KEY, defaultCategories)
       await kv.set(this.POSTS_KEY, defaultPosts)
       await kv.set(this.REPLIES_KEY, defaultReplies)
       await kv.set(this.USERS_KEY, defaultUsers)
-      await kv.set(this.REWARD_SETTINGS_KEY, defaultRewardSettings)
-      await kv.set(this.COUPON_TYPES_KEY, defaultCouponTypes)
+      await kv.set(this.REWARDS_SETTINGS_KEY, defaultRewardsSettings)
+      await kv.set(this.USER_REWARDS_KEY, defaultUserRewards)
       await kv.set(this.INITIALIZED_KEY, true)
 
-      console.log("✅ CTM Parts Community forum initialized successfully")
+      console.log("✅ Persistent forum data store initialized with CTM Parts content and rewards system")
     } catch (error) {
       console.error("❌ Error initializing persistent store:", error)
       throw error
+    }
+  }
+
+  // Rewards System Methods
+  async getRewardsSettings(): Promise<RewardsSettings> {
+    try {
+      console.log("🎁 Getting rewards settings...")
+      await this.initialize()
+      const settings = await kv.get<RewardsSettings>(this.REWARDS_SETTINGS_KEY)
+
+      if (!settings) {
+        console.log("⚠️ No rewards settings found, creating default...")
+        const defaultSettings: RewardsSettings = {
+          pointsPerPost: 10,
+          pointsPerReply: 5,
+          pointsPerLike: 1,
+          pointsPerReceivingLike: 2,
+          dailyPointsLimit: 100,
+          coupons: [
+            {
+              id: "coupon-5-off",
+              name: "$5 Off Coupon",
+              pointsRequired: 700,
+              discountAmount: 5,
+              discountType: "fixed",
+              isActive: true,
+            },
+            {
+              id: "coupon-10-off",
+              name: "$10 Off Coupon",
+              pointsRequired: 1400,
+              discountAmount: 10,
+              discountType: "fixed",
+              isActive: true,
+            },
+          ],
+          lastUpdated: new Date().toISOString(),
+        }
+        await kv.set(this.REWARDS_SETTINGS_KEY, defaultSettings)
+        return defaultSettings
+      }
+
+      console.log("✅ Rewards settings retrieved successfully")
+      return settings
+    } catch (error) {
+      console.error("❌ Error getting rewards settings:", error)
+      throw error
+    }
+  }
+
+  async updateRewardsSettings(settings: Partial<RewardsSettings>): Promise<RewardsSettings> {
+    try {
+      console.log("💾 Updating rewards settings...")
+      const currentSettings = await this.getRewardsSettings()
+      const updatedSettings: RewardsSettings = {
+        ...currentSettings,
+        ...settings,
+        lastUpdated: new Date().toISOString(),
+      }
+
+      await kv.set(this.REWARDS_SETTINGS_KEY, updatedSettings)
+      console.log("✅ Rewards settings updated successfully")
+      return updatedSettings
+    } catch (error) {
+      console.error("❌ Error updating rewards settings:", error)
+      throw error
+    }
+  }
+
+  async getUserRewards(userId: string): Promise<UserRewards | null> {
+    try {
+      console.log("🏆 Getting user rewards for:", userId)
+      const allRewards = (await kv.get<UserRewards[]>(this.USER_REWARDS_KEY)) || []
+      let userRewards = allRewards.find((r) => r.userId === userId)
+
+      if (!userRewards) {
+        console.log("⚠️ No rewards found for user, creating new...")
+        // Create new user rewards if doesn't exist
+        userRewards = {
+          userId,
+          totalPoints: 0,
+          dailyPoints: 0,
+          lastDailyReset: new Date().toISOString(),
+          pointsHistory: [],
+          redeemedCoupons: [],
+        }
+        allRewards.push(userRewards)
+        await kv.set(this.USER_REWARDS_KEY, allRewards)
+      }
+
+      // Check if daily reset is needed
+      const lastReset = new Date(userRewards.lastDailyReset)
+      const now = new Date()
+      const isNewDay = now.toDateString() !== lastReset.toDateString()
+
+      if (isNewDay) {
+        console.log("🔄 Resetting daily points for user:", userId)
+        userRewards.dailyPoints = 0
+        userRewards.lastDailyReset = now.toISOString()
+
+        const updatedRewards = allRewards.map((r) => (r.userId === userId ? userRewards! : r))
+        await kv.set(this.USER_REWARDS_KEY, updatedRewards)
+      }
+
+      console.log("✅ User rewards retrieved successfully")
+      return userRewards
+    } catch (error) {
+      console.error("❌ Error getting user rewards:", error)
+      return null
+    }
+  }
+
+  async getAllUserRewards(): Promise<UserRewards[]> {
+    try {
+      console.log("📊 Getting all user rewards...")
+      await this.initialize()
+      const rewards = await kv.get<UserRewards[]>(this.USER_REWARDS_KEY)
+      const result = rewards || []
+      console.log("✅ All user rewards retrieved:", result.length, "users")
+      return result
+    } catch (error) {
+      console.error("❌ Error getting all user rewards:", error)
+      return []
+    }
+  }
+
+  async awardPoints(userId: string, points: number, reason: string, actionType: string): Promise<UserRewards | null> {
+    try {
+      console.log("🏆 Awarding points:", { userId, points, reason, actionType })
+      const settings = await this.getRewardsSettings()
+      const userRewards = await this.getUserRewards(userId)
+
+      if (!userRewards) {
+        console.error("❌ User rewards not found for user:", userId)
+        return null
+      }
+
+      // Check daily limit
+      if (userRewards.dailyPoints + points > settings.dailyPointsLimit) {
+        const remainingPoints = Math.max(0, settings.dailyPointsLimit - userRewards.dailyPoints)
+        if (remainingPoints === 0) {
+          console.log(`⚠️ User ${userId} has reached daily points limit`)
+          return userRewards
+        }
+        points = remainingPoints
+      }
+
+      // Add points
+      userRewards.totalPoints += points
+      userRewards.dailyPoints += points
+
+      // Add to history
+      const historyEntry = {
+        id: `history-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        points,
+        reason,
+        actionType,
+        createdAt: new Date().toISOString(),
+      }
+      userRewards.pointsHistory.unshift(historyEntry)
+
+      // Keep only last 50 history entries
+      if (userRewards.pointsHistory.length > 50) {
+        userRewards.pointsHistory = userRewards.pointsHistory.slice(0, 50)
+      }
+
+      // Update in storage
+      const allRewards = await this.getAllUserRewards()
+      const updatedRewards = allRewards.map((r) => (r.userId === userId ? userRewards : r))
+      await kv.set(this.USER_REWARDS_KEY, updatedRewards)
+
+      console.log(`✅ Awarded ${points} points to user ${userId} for ${reason}`)
+      return userRewards
+    } catch (error) {
+      console.error("❌ Error awarding points:", error)
+      return null
+    }
+  }
+
+  async redeemCoupon(userId: string, couponId: string): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      console.log("🎫 Redeeming coupon:", { userId, couponId })
+      const settings = await this.getRewardsSettings()
+      const userRewards = await this.getUserRewards(userId)
+
+      if (!userRewards) {
+        return { success: false, error: "User rewards not found" }
+      }
+
+      const coupon = settings.coupons.find((c) => c.id === couponId && c.isActive)
+      if (!coupon) {
+        return { success: false, error: "Coupon not found or inactive" }
+      }
+
+      if (userRewards.totalPoints < coupon.pointsRequired) {
+        return {
+          success: false,
+          error: `Insufficient points. Need ${coupon.pointsRequired}, have ${userRewards.totalPoints}`,
+        }
+      }
+
+      // Deduct points
+      userRewards.totalPoints -= coupon.pointsRequired
+
+      // Generate coupon code
+      const couponCode = `CTM${coupon.discountAmount}OFF${Date.now().toString().slice(-6)}`
+
+      // Add to redeemed coupons
+      const redeemedCoupon = {
+        id: `redeemed-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        couponId: coupon.id,
+        couponName: coupon.name,
+        pointsSpent: coupon.pointsRequired,
+        redeemedAt: new Date().toISOString(),
+        couponCode,
+      }
+      userRewards.redeemedCoupons.unshift(redeemedCoupon)
+
+      // Add to history
+      const historyEntry = {
+        id: `history-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        points: -coupon.pointsRequired,
+        reason: `Redeemed ${coupon.name}`,
+        actionType: "coupon_redemption",
+        createdAt: new Date().toISOString(),
+      }
+      userRewards.pointsHistory.unshift(historyEntry)
+
+      // Update in storage
+      const allRewards = await this.getAllUserRewards()
+      const updatedRewards = allRewards.map((r) => (r.userId === userId ? userRewards : r))
+      await kv.set(this.USER_REWARDS_KEY, updatedRewards)
+
+      console.log(`✅ User ${userId} redeemed ${coupon.name} for ${coupon.pointsRequired} points`)
+      return {
+        success: true,
+        data: {
+          couponCode,
+          couponName: coupon.name,
+          discountAmount: coupon.discountAmount,
+          remainingPoints: userRewards.totalPoints,
+        },
+      }
+    } catch (error) {
+      console.error("❌ Error redeeming coupon:", error)
+      return { success: false, error: "Failed to redeem coupon" }
+    }
+  }
+
+  async getRewardsLeaderboard(limit = 10): Promise<any[]> {
+    try {
+      console.log("🏆 Getting rewards leaderboard...")
+      const allRewards = await this.getAllUserRewards()
+      const users = await this.getUsers()
+
+      const leaderboard = allRewards
+        .sort((a, b) => b.totalPoints - a.totalPoints)
+        .slice(0, limit)
+        .map((reward) => {
+          const user = users.find((u) => u.id === reward.userId)
+          return {
+            userId: reward.userId,
+            username: user?.username || "Unknown",
+            name: user?.name || "Unknown User",
+            totalPoints: reward.totalPoints,
+            rank: 0, // Will be set below
+          }
+        })
+
+      // Set ranks
+      leaderboard.forEach((entry, index) => {
+        entry.rank = index + 1
+      })
+
+      console.log("✅ Rewards leaderboard retrieved:", leaderboard.length, "entries")
+      return leaderboard
+    } catch (error) {
+      console.error("❌ Error getting rewards leaderboard:", error)
+      return []
     }
   }
 
@@ -495,6 +746,15 @@ class PersistentForumDataStore {
       posts.push(post)
       await kv.set(this.POSTS_KEY, posts)
 
+      // Award points for creating a post
+      if (data.authorEmail) {
+        const user = await this.getUserByEmail(data.authorEmail)
+        if (user) {
+          const settings = await this.getRewardsSettings()
+          await this.awardPoints(user.id, settings.pointsPerPost, "Created a post", "post_creation")
+        }
+      }
+
       console.log("✅ Post created and saved:", post)
       return post
     } catch (error) {
@@ -525,7 +785,15 @@ class PersistentForumDataStore {
       posts[postIndex].status = "deleted"
       posts[postIndex].updatedAt = new Date().toISOString()
 
+      // Also delete replies
+      const replies = (await kv.get<Reply[]>(this.REPLIES_KEY)) || []
+      const updatedReplies = replies.map((reply) =>
+        reply.postId === postId ? { ...reply, status: "deleted", updatedAt: new Date().toISOString() } : reply,
+      )
+
       await kv.set(this.POSTS_KEY, posts)
+      await kv.set(this.REPLIES_KEY, updatedReplies)
+
       console.log(`✅ Post ${postId} deleted and saved`)
       return true
     } catch (error) {
@@ -545,6 +813,8 @@ class PersistentForumDataStore {
       posts[postIndex].updatedAt = new Date().toISOString()
 
       await kv.set(this.POSTS_KEY, posts)
+      console.log(`👁️ Post ${postId} views incremented to ${posts[postIndex].views}`)
+
       return posts[postIndex]
     } catch (error) {
       console.error(`Error incrementing views for post ${postId}:`, error)
@@ -552,7 +822,7 @@ class PersistentForumDataStore {
     }
   }
 
-  async likePost(postId: string): Promise<{ likes: number } | null> {
+  async likePost(postId: string, userEmail?: string): Promise<{ likes: number } | null> {
     try {
       const posts = (await kv.get<Post[]>(this.POSTS_KEY)) || []
       const postIndex = posts.findIndex((p) => p.id === postId && p.status === "active")
@@ -563,6 +833,29 @@ class PersistentForumDataStore {
       posts[postIndex].updatedAt = new Date().toISOString()
 
       await kv.set(this.POSTS_KEY, posts)
+
+      // Award points for liking and receiving likes
+      if (userEmail) {
+        const liker = await this.getUserByEmail(userEmail)
+        const postAuthor = await this.getUserByEmail(posts[postIndex].authorEmail || "")
+        const settings = await this.getRewardsSettings()
+
+        if (liker) {
+          await this.awardPoints(liker.id, settings.pointsPerLike, "Liked a post", "like_given")
+        }
+
+        if (postAuthor && postAuthor.email !== userEmail) {
+          await this.awardPoints(
+            postAuthor.id,
+            settings.pointsPerReceivingLike,
+            "Received a like on post",
+            "like_received",
+          )
+        }
+      }
+
+      console.log(`👍 Post ${postId} likes incremented to ${posts[postIndex].likes}`)
+
       return { likes: posts[postIndex].likes }
     } catch (error) {
       console.error(`Error liking post ${postId}:`, error)
@@ -608,6 +901,15 @@ class PersistentForumDataStore {
       await kv.set(this.REPLIES_KEY, replies)
       await kv.set(this.POSTS_KEY, posts)
 
+      // Award points for creating a reply
+      if (data.authorEmail) {
+        const user = await this.getUserByEmail(data.authorEmail)
+        if (user) {
+          const settings = await this.getRewardsSettings()
+          await this.awardPoints(user.id, settings.pointsPerReply, "Created a reply", "reply_creation")
+        }
+      }
+
       console.log("✅ Reply created and saved:", reply)
       return reply
     } catch (error) {
@@ -616,7 +918,7 @@ class PersistentForumDataStore {
     }
   }
 
-  async likeReply(replyId: string): Promise<{ likes: number } | null> {
+  async likeReply(replyId: string, userEmail?: string): Promise<{ likes: number } | null> {
     try {
       const replies = (await kv.get<Reply[]>(this.REPLIES_KEY)) || []
       const replyIndex = replies.findIndex((r) => r.id === replyId && r.status === "active")
@@ -627,6 +929,29 @@ class PersistentForumDataStore {
       replies[replyIndex].updatedAt = new Date().toISOString()
 
       await kv.set(this.REPLIES_KEY, replies)
+
+      // Award points for liking and receiving likes
+      if (userEmail) {
+        const liker = await this.getUserByEmail(userEmail)
+        const replyAuthor = await this.getUserByEmail(replies[replyIndex].authorEmail || "")
+        const settings = await this.getRewardsSettings()
+
+        if (liker) {
+          await this.awardPoints(liker.id, settings.pointsPerLike, "Liked a reply", "like_given")
+        }
+
+        if (replyAuthor && replyAuthor.email !== userEmail) {
+          await this.awardPoints(
+            replyAuthor.id,
+            settings.pointsPerReceivingLike,
+            "Received a like on reply",
+            "like_received",
+          )
+        }
+      }
+
+      console.log(`👍 Reply ${replyId} likes incremented to ${replies[replyIndex].likes}`)
+
       return { likes: replies[replyIndex].likes }
     } catch (error) {
       console.error(`Error liking reply ${replyId}:`, error)
@@ -656,6 +981,16 @@ class PersistentForumDataStore {
       replies[replyIndex].status = "deleted"
       replies[replyIndex].updatedAt = new Date().toISOString()
 
+      // Update post reply count
+      const posts = (await kv.get<Post[]>(this.POSTS_KEY)) || []
+      const postIndex = posts.findIndex((p) => p.id === reply.postId)
+
+      if (postIndex !== -1 && posts[postIndex].replies > 0) {
+        posts[postIndex].replies--
+        posts[postIndex].updatedAt = new Date().toISOString()
+        await kv.set(this.POSTS_KEY, posts)
+      }
+
       await kv.set(this.REPLIES_KEY, replies)
       console.log(`✅ Reply ${replyId} deleted and saved`)
       return true
@@ -674,19 +1009,6 @@ class PersistentForumDataStore {
     } catch (error) {
       console.error("Error getting users:", error)
       return []
-    }
-  }
-
-  // Get all users (for debugging and admin purposes)
-  async getAllUsers(): Promise<User[]> {
-    try {
-      console.log("📊 PersistentStore: Getting all users")
-      const users = await this.getUsers()
-      console.log(`📊 PersistentStore: Found ${users.length} users`)
-      return users
-    } catch (error) {
-      console.error("❌ PersistentStore: Error getting all users:", error)
-      throw new Error(`Failed to get users: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
@@ -733,6 +1055,20 @@ class PersistentForumDataStore {
       users.push(user)
       await kv.set(this.USERS_KEY, users)
 
+      // Initialize user rewards
+      const userRewards: UserRewards = {
+        userId: user.id,
+        totalPoints: 0,
+        dailyPoints: 0,
+        lastDailyReset: new Date().toISOString(),
+        pointsHistory: [],
+        redeemedCoupons: [],
+      }
+
+      const allRewards = await this.getAllUserRewards()
+      allRewards.push(userRewards)
+      await kv.set(this.USER_REWARDS_KEY, allRewards)
+
       console.log("✅ User created and saved:", user.email)
       return user
     } catch (error) {
@@ -759,256 +1095,6 @@ class PersistentForumDataStore {
     } catch (error) {
       console.error(`Error updating user ${userId}:`, error)
       return null
-    }
-  }
-
-  async updateUserPassword(userId: string, hashedPassword: string): Promise<boolean> {
-    try {
-      const users = await this.getUsers()
-      const userIndex = users.findIndex((user) => user.id === userId)
-
-      if (userIndex === -1) {
-        console.warn(`⚠️ User not found for password update: ${userId}`)
-        return false
-      }
-
-      users[userIndex].password = hashedPassword
-      users[userIndex].lastActive = new Date().toISOString()
-
-      await kv.set(this.USERS_KEY, users)
-
-      console.log(`✅ Password updated for user ${userId}`)
-      return true
-    } catch (error) {
-      console.error(`Error updating password for user ${userId}:`, error)
-      return false
-    }
-  }
-
-  async verifySecurityAnswer(userId: string, answer: string): Promise<boolean> {
-    try {
-      // For demo purposes, accept "blue" as the correct answer
-      // In production, you'd store and verify actual security answers per user
-      return answer.toLowerCase().trim() === "blue"
-    } catch (error) {
-      console.error(`Error verifying security answer for user ${userId}:`, error)
-      return false
-    }
-  }
-
-  // Rewards System
-  async getRewardSettings(): Promise<RewardSettings | null> {
-    try {
-      await this.initialize()
-      const settings = await kv.get<RewardSettings>(this.REWARD_SETTINGS_KEY)
-      return settings
-    } catch (error) {
-      console.error("Error getting reward settings:", error)
-      return null
-    }
-  }
-
-  async updateRewardSettings(updates: Partial<RewardSettings>): Promise<RewardSettings | null> {
-    try {
-      const currentSettings = await this.getRewardSettings()
-      if (!currentSettings) return null
-
-      const updatedSettings = {
-        ...currentSettings,
-        ...updates,
-        updatedAt: new Date().toISOString(),
-      }
-
-      await kv.set(this.REWARD_SETTINGS_KEY, updatedSettings)
-      return updatedSettings
-    } catch (error) {
-      console.error("Error updating reward settings:", error)
-      return null
-    }
-  }
-
-  async getCouponTypes(): Promise<CouponType[]> {
-    try {
-      await this.initialize()
-      const coupons = await kv.get<CouponType[]>(this.COUPON_TYPES_KEY)
-      return coupons || []
-    } catch (error) {
-      console.error("Error getting coupon types:", error)
-      return []
-    }
-  }
-
-  async addCouponType(data: Omit<CouponType, "id" | "createdAt" | "updatedAt">): Promise<CouponType> {
-    try {
-      const coupons = await this.getCouponTypes()
-      const coupon: CouponType = {
-        id: `coupon-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        ...data,
-      }
-
-      coupons.push(coupon)
-      await kv.set(this.COUPON_TYPES_KEY, coupons)
-
-      return coupon
-    } catch (error) {
-      console.error("Error adding coupon type:", error)
-      throw error
-    }
-  }
-
-  async updateCouponType(couponId: string, updates: Partial<CouponType>): Promise<CouponType | null> {
-    try {
-      const coupons = await this.getCouponTypes()
-      const couponIndex = coupons.findIndex((c) => c.id === couponId)
-
-      if (couponIndex === -1) return null
-
-      coupons[couponIndex] = {
-        ...coupons[couponIndex],
-        ...updates,
-        updatedAt: new Date().toISOString(),
-      }
-
-      await kv.set(this.COUPON_TYPES_KEY, coupons)
-      return coupons[couponIndex]
-    } catch (error) {
-      console.error("Error updating coupon type:", error)
-      return null
-    }
-  }
-
-  async getUserRewards(userId: string): Promise<UserRewards | null> {
-    try {
-      const userRewards = await kv.get<UserRewards>(`${this.USER_REWARDS_KEY}:${userId}`)
-      return userRewards
-    } catch (error) {
-      console.error("Error getting user rewards:", error)
-      return null
-    }
-  }
-
-  async initializeUserRewards(userId: string): Promise<UserRewards> {
-    try {
-      const userRewards: UserRewards = {
-        userId,
-        totalPoints: 0,
-        dailyPoints: 0,
-        lastResetDate: new Date().toISOString().split("T")[0],
-        pointHistory: [],
-        redeemedCoupons: [],
-      }
-
-      await kv.set(`${this.USER_REWARDS_KEY}:${userId}`, userRewards)
-      return userRewards
-    } catch (error) {
-      console.error("Error initializing user rewards:", error)
-      throw error
-    }
-  }
-
-  async awardPoints(
-    userId: string,
-    points: number,
-    action: string,
-    description: string,
-  ): Promise<{ success: boolean; pointsAwarded: number; dailyPoints: number }> {
-    try {
-      const settings = await this.getRewardSettings()
-      if (!settings) {
-        return { success: false, pointsAwarded: 0, dailyPoints: 0 }
-      }
-
-      let userRewards = await this.getUserRewards(userId)
-      if (!userRewards) {
-        userRewards = await this.initializeUserRewards(userId)
-      }
-
-      // Check if we need to reset daily points
-      const today = new Date().toISOString().split("T")[0]
-      if (userRewards.lastResetDate !== today) {
-        userRewards.dailyPoints = 0
-        userRewards.lastResetDate = today
-      }
-
-      // Check daily limit
-      const potentialDailyPoints = userRewards.dailyPoints + points
-      if (potentialDailyPoints > settings.dailyPointLimit) {
-        const remainingPoints = settings.dailyPointLimit - userRewards.dailyPoints
-        if (remainingPoints <= 0) {
-          return { success: false, pointsAwarded: 0, dailyPoints: userRewards.dailyPoints }
-        }
-        points = remainingPoints
-      }
-
-      // Award points
-      const transaction: PointTransaction = {
-        id: `tx-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        userId,
-        points,
-        action,
-        description,
-        createdAt: new Date().toISOString(),
-      }
-
-      userRewards.totalPoints += points
-      userRewards.dailyPoints += points
-      userRewards.pointHistory.push(transaction)
-
-      await kv.set(`${this.USER_REWARDS_KEY}:${userId}`, userRewards)
-
-      return {
-        success: true,
-        pointsAwarded: points,
-        dailyPoints: userRewards.dailyPoints,
-      }
-    } catch (error) {
-      console.error("Error awarding points:", error)
-      return { success: false, pointsAwarded: 0, dailyPoints: 0 }
-    }
-  }
-
-  async redeemCoupon(userId: string, couponTypeId: string): Promise<{ success: boolean; couponCode?: string }> {
-    try {
-      const couponTypes = await this.getCouponTypes()
-      const couponType = couponTypes.find((c) => c.id === couponTypeId && c.isActive)
-
-      if (!couponType) {
-        return { success: false }
-      }
-
-      let userRewards = await this.getUserRewards(userId)
-      if (!userRewards) {
-        userRewards = await this.initializeUserRewards(userId)
-      }
-
-      if (userRewards.totalPoints < couponType.pointsRequired) {
-        return { success: false }
-      }
-
-      // Generate coupon code
-      const couponCode = `CTM${Date.now().toString().slice(-6)}${Math.random().toString(36).substr(2, 4).toUpperCase()}`
-
-      const redeemedCoupon: RedeemedCoupon = {
-        id: `redeemed-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        userId,
-        couponTypeId,
-        couponCode,
-        pointsSpent: couponType.pointsRequired,
-        redeemedAt: new Date().toISOString(),
-        isUsed: false,
-      }
-
-      userRewards.totalPoints -= couponType.pointsRequired
-      userRewards.redeemedCoupons.push(redeemedCoupon)
-
-      await kv.set(`${this.USER_REWARDS_KEY}:${userId}`, userRewards)
-
-      return { success: true, couponCode }
-    } catch (error) {
-      console.error("Error redeeming coupon:", error)
-      return { success: false }
     }
   }
 
@@ -1049,8 +1135,8 @@ class PersistentForumDataStore {
       await kv.del(this.POSTS_KEY)
       await kv.del(this.REPLIES_KEY)
       await kv.del(this.USERS_KEY)
-      await kv.del(this.REWARD_SETTINGS_KEY)
-      await kv.del(this.COUPON_TYPES_KEY)
+      await kv.del(this.REWARDS_SETTINGS_KEY)
+      await kv.del(this.USER_REWARDS_KEY)
       await kv.del(this.INITIALIZED_KEY)
 
       console.log("✅ All forum data cleared from persistent storage")
@@ -1068,8 +1154,8 @@ class PersistentForumDataStore {
       const posts = (await kv.get<Post[]>(this.POSTS_KEY)) || []
       const replies = (await kv.get<Reply[]>(this.REPLIES_KEY)) || []
       const users = (await kv.get<User[]>(this.USERS_KEY)) || []
-      const rewardSettings = await kv.get<RewardSettings>(this.REWARD_SETTINGS_KEY)
-      const couponTypes = (await kv.get<CouponType[]>(this.COUPON_TYPES_KEY)) || []
+      const rewardsSettings = (await kv.get<RewardsSettings>(this.REWARDS_SETTINGS_KEY)) || null
+      const userRewards = (await kv.get<UserRewards[]>(this.USER_REWARDS_KEY)) || []
       const initialized = await kv.get(this.INITIALIZED_KEY)
 
       return {
@@ -1077,8 +1163,8 @@ class PersistentForumDataStore {
         posts,
         replies,
         users,
-        rewardSettings,
-        couponTypes,
+        rewardsSettings,
+        userRewards,
         initialized,
       }
     } catch (error) {
@@ -1088,8 +1174,8 @@ class PersistentForumDataStore {
         posts: [],
         replies: [],
         users: [],
-        rewardSettings: null,
-        couponTypes: [],
+        rewardsSettings: null,
+        userRewards: [],
         initialized: false,
       }
     }
@@ -1103,31 +1189,6 @@ class PersistentForumDataStore {
       return true
     } catch (error) {
       console.error("Error reinitializing:", error)
-      return false
-    }
-  }
-
-  // Force reinitialization with hashed passwords
-  async forceReinitializeWithHashedPasswords(): Promise<boolean> {
-    try {
-      console.log("🔄 Force reinitializing with hashed passwords...")
-
-      // Clear existing data
-      await kv.del(this.CATEGORIES_KEY)
-      await kv.del(this.POSTS_KEY)
-      await kv.del(this.REPLIES_KEY)
-      await kv.del(this.USERS_KEY)
-      await kv.del(this.REWARD_SETTINGS_KEY)
-      await kv.del(this.COUPON_TYPES_KEY)
-      await kv.del(this.INITIALIZED_KEY)
-
-      // Reinitialize
-      await this.initialize()
-
-      console.log("✅ System reinitialized with hashed passwords")
-      return true
-    } catch (error) {
-      console.error("❌ Error reinitializing with hashed passwords:", error)
       return false
     }
   }

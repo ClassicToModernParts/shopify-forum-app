@@ -149,7 +149,8 @@ export class AuthService {
 
       // First, let's check if any users exist at all
       try {
-        const allUsers = await persistentForumDataStore.getAllUsers()
+        // Changed from getAllUsers to getUsers which is the correct method
+        const allUsers = await persistentForumDataStore.getUsers()
         console.log(`🔐 AuthService: Total users in system: ${allUsers.length}`)
 
         if (allUsers.length === 0) {

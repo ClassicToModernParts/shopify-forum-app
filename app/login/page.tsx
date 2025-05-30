@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -17,8 +17,26 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
   const router = useRouter()
   const { login } = useUserAuth()
+
+  // Check if current user is admin
+  useEffect(() => {
+    const checkAdminStatus = () => {
+      try {
+        const user = localStorage.getItem("user")
+        if (user) {
+          const userData = JSON.parse(user)
+          setIsAdmin(userData.role === "admin")
+        }
+      } catch (error) {
+        console.error("Error checking admin status:", error)
+      }
+    }
+
+    checkAdminStatus()
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -33,6 +51,10 @@ export default function LoginPage() {
 
       if (result.success) {
         console.log("✅ Login Page: Login successful, redirecting to forum")
+        // Update admin status after successful login
+        if (result.user?.role === "admin") {
+          setIsAdmin(true)
+        }
         router.push("/forum")
       } else {
         console.log("❌ Login Page: Login failed:", result.message)
@@ -110,90 +132,94 @@ export default function LoginPage() {
             </Link>
           </div>
         </CardContent>
-        <div className="mt-8 p-4 bg-gray-100 rounded-lg">
-          <h3 className="text-sm font-medium text-gray-700 mb-2">Debug Options</h3>
-          <div className="space-y-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={async () => {
-                try {
-                  const response = await fetch("/api/debug/auth")
-                  const data = await response.json()
-                  console.log("Debug info:", data)
-                  alert(`System has ${data.debug?.userCount || 0} users. Check console for details.`)
-                } catch (error) {
-                  console.error("Debug error:", error)
-                  alert("Debug check failed. Check console for details.")
-                }
-              }}
-            >
-              Check System State
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={async () => {
-                try {
-                  const response = await fetch("/api/debug/reinitialize", { method: "POST" })
-                  const data = await response.json()
-                  console.log("Reinitialize result:", data)
-                  if (data.success) {
-                    alert("System reinitialized! You can now login with default users.")
-                  } else {
-                    alert("Failed to reinitialize. Check console for details.")
+
+        {/* Debug section - only show for admins */}
+        {isAdmin && (
+          <div className="mt-8 p-4 bg-gray-100 rounded-lg">
+            <h3 className="text-sm font-medium text-gray-700 mb-2">Debug Options</h3>
+            <div className="space-y-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    const response = await fetch("/api/debug/auth")
+                    const data = await response.json()
+                    console.log("Debug info:", data)
+                    alert(`System has ${data.debug?.userCount || 0} users. Check console for details.`)
+                  } catch (error) {
+                    console.error("Debug error:", error)
+                    alert("Debug check failed. Check console for details.")
                   }
-                } catch (error) {
-                  console.error("Reinitialize error:", error)
-                  alert("Reinitialize failed. Check console for details.")
-                }
-              }}
-            >
-              Reinitialize System
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={async () => {
-                try {
-                  const response = await fetch("/api/debug/create-test-user", { method: "POST" })
-                  const data = await response.json()
-                  console.log("Test user creation:", data)
-                  if (data.success) {
-                    alert("Test user created! Username: testuser, Password: password123")
-                  } else {
-                    alert("Failed to create test user. Check console for details.")
+                }}
+              >
+                Check System State
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    const response = await fetch("/api/debug/reinitialize", { method: "POST" })
+                    const data = await response.json()
+                    console.log("Reinitialize result:", data)
+                    if (data.success) {
+                      alert("System reinitialized! You can now login with default users.")
+                    } else {
+                      alert("Failed to reinitialize. Check console for details.")
+                    }
+                  } catch (error) {
+                    console.error("Reinitialize error:", error)
+                    alert("Reinitialize failed. Check console for details.")
                   }
-                } catch (error) {
-                  console.error("Test user creation error:", error)
-                  alert("Test user creation failed. Check console for details.")
-                }
-              }}
-            >
-              Create Test User
-            </Button>
-          </div>
-          <div className="mt-4 p-3 bg-blue-50 rounded">
-            <h4 className="text-xs font-medium text-blue-800 mb-1">Default Login Credentials:</h4>
-            <div className="text-xs text-blue-700 space-y-1">
-              <div>
-                <strong>Admin:</strong> ctm_admin / admin123
-              </div>
-              <div>
-                <strong>Moderator:</strong> tech_expert / tech123
-              </div>
-              <div>
-                <strong>User:</strong> builder_pro / builder123
-              </div>
-              <div>
-                <strong>Test User:</strong> testuser / password123
+                }}
+              >
+                Reinitialize System
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    const response = await fetch("/api/debug/create-test-user", { method: "POST" })
+                    const data = await response.json()
+                    console.log("Test user creation:", data)
+                    if (data.success) {
+                      alert("Test user created! Username: testuser, Password: password123")
+                    } else {
+                      alert("Failed to create test user. Check console for details.")
+                    }
+                  } catch (error) {
+                    console.error("Test user creation error:", error)
+                    alert("Test user creation failed. Check console for details.")
+                  }
+                }}
+              >
+                Create Test User
+              </Button>
+            </div>
+            <div className="mt-4 p-3 bg-blue-50 rounded">
+              <h4 className="text-xs font-medium text-blue-800 mb-1">Default Login Credentials:</h4>
+              <div className="text-xs text-blue-700 space-y-1">
+                <div>
+                  <strong>Admin:</strong> ctm_admin / admin123
+                </div>
+                <div>
+                  <strong>Moderator:</strong> tech_expert / tech123
+                </div>
+                <div>
+                  <strong>User:</strong> builder_pro / builder123
+                </div>
+                <div>
+                  <strong>Test User:</strong> testuser / password123
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
       </Card>
     </div>
   )
