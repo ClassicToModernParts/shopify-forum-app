@@ -1,113 +1,98 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { persistentForumDataStore } from "@/app/api/forum/data-store"
+import { persistentForumDataStore } from "@/lib/persistent-data-store"
+
+// Simple hash function for passwords (in production, use proper hashing)
+function simpleHash(password: string): string {
+  let hash = 0
+  for (let i = 0; i < password.length; i++) {
+    const char = password.charCodeAt(i)
+    hash = (hash << 5) - hash + char
+    hash = hash & hash // Convert to 32bit integer
+  }
+  return hash.toString()
+}
+
+// Simple token generation
+function generateToken(userId: string): string {
+  const timestamp = Date.now()
+  const random = Math.random().toString(36).substring(2)
+  return `${userId}_${timestamp}_${random}`
+}
 
 export async function POST(request: NextRequest) {
   try {
-    console.log("📝 Registration API called")
-
-    let body
-    try {
-      body = await request.json()
-      console.log("📝 Request body parsed successfully")
-    } catch (parseError) {
-      console.error("❌ Failed to parse request body:", parseError)
-      return NextResponse.json({ success: false, message: "Invalid request format" }, { status: 400 })
-    }
-
+    const body = await request.json()
     const { username, name, password, securityQuestion, securityAnswer } = body
-    console.log(`📝 Registration attempt for username: ${username}, name: ${name}`)
+
+    console.log(`📝 Registration attempt for username: ${username}`)
 
     // Validate input
     if (!username || !name || !password) {
-      console.log("❌ Registration failed: Missing required fields")
       return NextResponse.json(
         { success: false, message: "Username, name, and password are required" },
         { status: 400 },
       )
     }
 
-    if (!securityQuestion || !securityAnswer) {
-      console.log("❌ Registration failed: Missing security question or answer")
-      return NextResponse.json(
-        { success: false, message: "Security question and answer are required" },
-        { status: 400 },
-      )
-    }
-
-    // Validate username length
-    if (username.length < 3) {
-      console.log("❌ Registration failed: Username too short")
-      return NextResponse.json(
-        { success: false, message: "Username must be at least 3 characters long" },
-        { status: 400 },
-      )
-    }
-
-    // Validate password length
-    if (password.length < 6) {
-      console.log("❌ Registration failed: Password too short")
-      return NextResponse.json(
-        { success: false, message: "Password must be at least 6 characters long" },
-        { status: 400 },
-      )
-    }
-
-    // Replace the auth service call with:
-    console.log("🔐 Checking if username already exists")
-    const existingUser = await persistentForumDataStore.getUserByUsername(username)
-    if (existingUser) {
-      console.log(`❌ Registration failed: Username ${username} already exists`)
-      return NextResponse.json({ success: false, message: "Username already exists" }, { status: 400 })
-    }
-
-    // Create the user directly
-    console.log("🔐 Creating new user")
-    const newUser = await persistentForumDataStore.addUser({
-      username,
-      name,
-      email: `${username}@community.local`, // Generate email if not provided
-      password, // Should be hashed in production
-      role: "user",
-    })
-
-    const result = {
-      success: true,
-      user: {
-        id: newUser.id,
-        username: newUser.username,
-        name: newUser.name,
-        email: newUser.email,
-        role: newUser.role,
-      },
-      token: `token-${newUser.id}-${Date.now()}`,
-    }
-
-    // Add security question after successful registration
-    if (result.user) {
-      try {
-        console.log("🔒 Adding security question")
-        const { forumDataStore } = await import("@/app/api/forum/data-store")
-        await forumDataStore.updateSecurityQuestion(result.user.id, securityQuestion, securityAnswer)
-        console.log("✅ Security question added successfully")
-      } catch (securityError) {
-        console.error("❌ Error adding security question:", securityError)
-        // Don't fail registration if security question fails
-        // Just log the error and continue
+    // Check if username already exists
+    try {
+      const existingUser = await persistentForumDataStore.getUserByUsername(username)
+      if (existingUser) {
+        console.log(`❌ Username ${username} already exists`)
+        return NextResponse.json({ success: false, message: "Username is already taken" }, { status: 409 })
       }
+    } catch (error) {
+      console.error("Error checking existing username:", error)
+      return NextResponse.json({ success: false, message: "Error checking username availability" }, { status: 500 })
     }
 
-    console.log("✅ Registration successful")
-    return NextResponse.json(result)
+    // Check if email already exists (generate email from username)
+    const email = `${username}@example.com`
+    try {
+      const existingEmail = await persistentForumDataStore.getUserByEmail(email)
+      if (existingEmail) {
+        console.log(`❌ Email ${email} already exists`)
+        return NextResponse.json({ success: false, message: "Email is already registered" }, { status: 409 })
+      }
+    } catch (error) {
+      console.error("Error checking existing email:", error)
+      return NextResponse.json({ success: false, message: "Error checking email availability" }, { status: 500 })
+    }
+
+    // Hash the password
+    const hashedPassword = simpleHash(password)
+
+    // Create the user
+    try {
+      const newUser = await persistentForumDataStore.addUser({
+        username,
+        name,
+        email,
+        password: hashedPassword,
+        role: "user",
+      })
+
+      console.log(`✅ User ${username} registered successfully with ID: ${newUser.id}`)
+
+      // Generate token
+      const token = generateToken(newUser.id)
+
+      return NextResponse.json({
+        success: true,
+        message: "User registered successfully",
+        token,
+        user: {
+          id: newUser.id,
+          name: newUser.name,
+          username: newUser.username,
+        },
+      })
+    } catch (error) {
+      console.error("Error creating user:", error)
+      return NextResponse.json({ success: false, message: "Failed to create user account" }, { status: 500 })
+    }
   } catch (error) {
-    console.error("❌ Registration error:", error)
-    return NextResponse.json(
-      {
-        success: false,
-        message: "Registration failed. Please try again.",
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      },
-      { status: 500 },
-    )
+    console.error("Registration error:", error)
+    return NextResponse.json({ success: false, message: "Registration failed" }, { status: 500 })
   }
 }

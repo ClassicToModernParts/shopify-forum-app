@@ -1,4 +1,4 @@
-import { forumDataStore } from "@/app/api/forum/data-store"
+import { persistentForumDataStore } from "@/lib/persistent-data-store"
 
 export interface UserRegistrationData {
   username: string
@@ -46,24 +46,10 @@ export class AuthService {
     try {
       console.log(`🔐 AuthService: Registering user ${userData.username}`)
 
-      // Import the data store
-      let forumDataStore
-      try {
-        const dataStoreModule = await import("@/app/api/forum/data-store")
-        forumDataStore = dataStoreModule.forumDataStore
-        console.log("🔐 AuthService: Data store imported successfully")
-      } catch (importError) {
-        console.error("❌ AuthService: Failed to import data store:", importError)
-        return {
-          success: false,
-          message: `Data store import failed: ${importError instanceof Error ? importError.message : String(importError)}`,
-        }
-      }
-
       // Check if username already exists
       let existingUsername
       try {
-        existingUsername = await forumDataStore.getUserByUsername(userData.username)
+        existingUsername = await persistentForumDataStore.getUserByUsername(userData.username)
         console.log(`🔐 AuthService: Username check completed for ${userData.username}`)
       } catch (checkError) {
         console.error("❌ AuthService: Error checking existing username:", checkError)
@@ -98,9 +84,10 @@ export class AuthService {
       console.log(`🔐 AuthService: Creating new user ${userData.username}`)
       let newUser
       try {
-        newUser = await forumDataStore.addUser({
+        newUser = await persistentForumDataStore.addUser({
           username: userData.username,
           name: userData.name,
+          email: `${userData.username}@example.com`, // Generate email from username
           password: hashedPassword,
           role: "user",
         })
@@ -160,8 +147,8 @@ export class AuthService {
     try {
       console.log(`🔐 AuthService: Login attempt for ${loginData.username}`)
 
-      // Find user by username
-      const user = await forumDataStore.getUserByUsername(loginData.username)
+      // Find user by username using persistent store
+      const user = await persistentForumDataStore.getUserByUsername(loginData.username)
       if (!user) {
         console.log(`❌ AuthService: User ${loginData.username} not found`)
         return {
@@ -181,8 +168,15 @@ export class AuthService {
       }
 
       // Update last active timestamp
-      await forumDataStore.updateUserActivity(user.id)
-      console.log(`✅ AuthService: User ${loginData.username} logged in successfully`)
+      try {
+        await persistentForumDataStore.updateUser(user.id, {
+          lastActive: new Date().toISOString(),
+        })
+        console.log(`✅ AuthService: User ${loginData.username} logged in successfully`)
+      } catch (updateError) {
+        console.warn("⚠️ AuthService: Failed to update user activity:", updateError)
+        // Don't fail login if activity update fails
+      }
 
       // Generate token
       const token = generateToken(user.id)
@@ -215,7 +209,7 @@ export class AuthService {
       }
 
       const userId = parts[0]
-      const user = await forumDataStore.getUserById(userId)
+      const user = await persistentForumDataStore.getUserById(userId)
 
       if (!user) {
         return { valid: false, decoded: null }
