@@ -55,12 +55,12 @@ export default function UserNavigation() {
     <div className="relative" id="user-menu">
       <button
         onClick={() => setIsMenuOpen(!isMenuOpen)}
-        className="flex items-center space-x-2 text-gray-700 hover:text-gray-900 focus:outline-none"
+        className="flex items-center space-x-1 sm:space-x-2 text-gray-700 hover:text-gray-900 focus:outline-none"
       >
-        <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-medium">
+        <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-medium">
           {user.name.charAt(0).toUpperCase()}
         </div>
-        <span className="font-medium">{user.name}</span>
+        <span className="font-medium text-sm sm:text-base">{user.name}</span>
         <svg
           className={`h-5 w-5 text-gray-400 transition-transform ${isMenuOpen ? "transform rotate-180" : ""}`}
           xmlns="http://www.w3.org/2000/svg"
@@ -77,7 +77,7 @@ export default function UserNavigation() {
       </button>
 
       {isMenuOpen && (
-        <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10">
+        <div className="absolute right-0 mt-1 sm:mt-2 w-40 sm:w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10">
           <div className="py-1" role="menu" aria-orientation="vertical" aria-labelledby="user-menu">
             <Link href="/profile" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
               Your Profile

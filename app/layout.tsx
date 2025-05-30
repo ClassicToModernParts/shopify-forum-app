@@ -24,10 +24,10 @@ export default function RootLayout({
         <div className="fixed bottom-4 right-4 z-50">
           <a
             href="/admin/login"
-            className="flex items-center justify-center w-14 h-14 bg-red-600 hover:bg-red-700 text-white rounded-full shadow-lg transition-all duration-200 hover:scale-110"
+            className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 bg-red-600 hover:bg-red-700 text-white rounded-full shadow-lg transition-all duration-200 hover:scale-110"
             title="Admin Login"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"

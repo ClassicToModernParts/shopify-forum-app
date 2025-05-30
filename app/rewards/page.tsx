@@ -229,7 +229,7 @@ export default function RewardsPage() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
+          <div className="flex flex-col sm:flex-row justify-between items-center py-4 gap-3 sm:gap-4">
             <div className="flex items-center space-x-4">
               <Link href="/forum" className="flex items-center space-x-2 text-gray-600 hover:text-gray-900">
                 <ArrowLeft className="h-4 w-4" />
@@ -282,15 +282,15 @@ export default function RewardsPage() {
           <div className="lg:col-span-2 space-y-6">
             {/* Current Points */}
             <Card>
-              <CardHeader>
+              <CardHeader className="p-4 sm:p-6">
                 <CardTitle className="flex items-center gap-2">
                   <Coins className="h-5 w-5 text-yellow-600" />
                   Your Points
                 </CardTitle>
                 <CardDescription>Earn points by participating in the community</CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 md:grid-cols-2">
+              <CardContent className="p-4 sm:p-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                   <div className="text-center p-4 bg-blue-50 rounded-lg">
                     <div className="text-3xl font-bold text-blue-600">{userRewards?.totalPoints || 0}</div>
                     <p className="text-sm text-blue-600">Total Points</p>
@@ -321,14 +321,14 @@ export default function RewardsPage() {
             {/* How to Earn Points */}
             {rewardsSettings && (
               <Card>
-                <CardHeader>
+                <CardHeader className="p-4 sm:p-6">
                   <CardTitle className="flex items-center gap-2">
                     <Star className="h-5 w-5 text-yellow-600" />
                     How to Earn Points
                   </CardTitle>
                   <CardDescription>Ways to earn points in the community</CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-4 sm:p-6">
                   <div className="grid gap-3 md:grid-cols-2">
                     <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                       <MessageSquare className="h-5 w-5 text-blue-600" />
@@ -371,14 +371,14 @@ export default function RewardsPage() {
 
             {/* Recent Activity */}
             <Card>
-              <CardHeader>
+              <CardHeader className="p-4 sm:p-6">
                 <CardTitle className="flex items-center gap-2">
                   <Calendar className="h-5 w-5 text-blue-600" />
                   Recent Activity
                 </CardTitle>
                 <CardDescription>Your latest point-earning activities</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 sm:p-6">
                 {userRewards?.pointsHistory && userRewards.pointsHistory.length > 0 ? (
                   <div className="space-y-3">
                     {userRewards.pointsHistory.slice(0, 10).map((activity) => (
@@ -411,14 +411,14 @@ export default function RewardsPage() {
           <div className="space-y-6">
             {/* Available Rewards */}
             <Card>
-              <CardHeader>
+              <CardHeader className="p-4 sm:p-6">
                 <CardTitle className="flex items-center gap-2">
                   <Gift className="h-5 w-5 text-purple-600" />
                   Available Rewards
                 </CardTitle>
                 <CardDescription>Redeem your points for coupons</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 sm:p-6">
                 {rewardsSettings?.coupons && rewardsSettings.coupons.length > 0 ? (
                   <div className="space-y-4">
                     {rewardsSettings.coupons
@@ -461,14 +461,14 @@ export default function RewardsPage() {
 
             {/* Leaderboard */}
             <Card>
-              <CardHeader>
+              <CardHeader className="p-4 sm:p-6">
                 <CardTitle className="flex items-center gap-2">
                   <Trophy className="h-5 w-5 text-yellow-600" />
                   Leaderboard
                 </CardTitle>
                 <CardDescription>Top community contributors</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 sm:p-6">
                 {leaderboard.length > 0 ? (
                   <div className="space-y-3">
                     {leaderboard.map((entry) => (
@@ -508,14 +508,14 @@ export default function RewardsPage() {
             {/* Redeemed Coupons */}
             {userRewards?.redeemedCoupons && userRewards.redeemedCoupons.length > 0 && (
               <Card>
-                <CardHeader>
+                <CardHeader className="p-4 sm:p-6">
                   <CardTitle className="flex items-center gap-2">
                     <Award className="h-5 w-5 text-green-600" />
                     Your Coupons
                   </CardTitle>
                   <CardDescription>Recently redeemed coupons</CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-4 sm:p-6">
                   <div className="space-y-3">
                     {userRewards.redeemedCoupons.slice(0, 5).map((coupon) => (
                       <div key={coupon.id} className="border rounded-lg p-3 bg-green-50">

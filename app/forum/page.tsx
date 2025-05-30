@@ -709,13 +709,13 @@ export default function ForumPage() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
+          <div className="flex justify-between items-center py-4 flex-col sm:flex-row gap-2 sm:gap-4">
             <div className="flex items-center space-x-4">
               <div className="bg-blue-600 p-2 rounded-lg">
                 <MessageSquare className="h-8 w-8 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Community Forum</h1>
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Community Forum</h1>
                 <p className="text-gray-600">Connect • Share • Grow</p>
               </div>
             </div>
@@ -750,13 +750,13 @@ export default function ForumPage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">{error}</div>}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-8">
           <div className="bg-white rounded-lg shadow-sm border p-6">
             <div className="flex items-center">
               <MessageSquare className="h-8 w-8 text-blue-600" />
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Total Posts</p>
-                <p className="text-2xl font-bold text-gray-900">{forumData.totalPosts}</p>
+                <p className="text-lg sm:text-2xl font-bold text-gray-900">{forumData.totalPosts}</p>
               </div>
             </div>
           </div>
@@ -766,7 +766,7 @@ export default function ForumPage() {
               <Users className="h-8 w-8 text-green-600" />
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Total Users</p>
-                <p className="text-2xl font-bold text-gray-900">{forumData.totalUsers}</p>
+                <p className="text-lg sm:text-2xl font-bold text-gray-900">{forumData.totalUsers}</p>
               </div>
             </div>
           </div>
@@ -776,7 +776,7 @@ export default function ForumPage() {
               <Clock className="h-8 w-8 text-orange-600" />
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Online Now</p>
-                <p className="text-2xl font-bold text-gray-900">{forumData.onlineUsers}</p>
+                <p className="text-lg sm:text-2xl font-bold text-gray-900">{forumData.onlineUsers}</p>
               </div>
             </div>
           </div>
@@ -1037,11 +1037,11 @@ export default function ForumPage() {
               </div>
 
               {categories && categories.length > 0 ? (
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   {categories.map((category) => (
                     <div
                       key={category.id}
-                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                      className="flex items-center justify-between p-3 sm:p-4 border rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
                       onClick={() => handleCategoryClick(category.id)}
                     >
                       <div className="flex items-center space-x-4">
@@ -1112,8 +1112,8 @@ export default function ForumPage() {
 
         {showNewPostModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-screen overflow-y-auto">
-              <div className="p-6">
+            <div className="bg-white rounded-lg shadow-xl max-w-xs sm:max-w-md w-full max-h-screen overflow-y-auto">
+              <div className="p-4 sm:p-6">
                 <h3 className="text-lg font-semibold mb-4">Create New Post</h3>
                 <div className="space-y-4">
                   <div>
@@ -1177,8 +1177,8 @@ export default function ForumPage() {
 
         {showReplyModal && selectedPost && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-              <div className="p-6">
+            <div className="bg-white rounded-lg shadow-xl max-w-xs sm:max-w-md w-full">
+              <div className="p-4 sm:p-6">
                 <h3 className="text-lg font-semibold mb-4">Reply to: {selectedPost.title}</h3>
                 <div className="space-y-4">
                   <div>

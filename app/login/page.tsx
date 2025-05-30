@@ -69,158 +69,188 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">Sign in</CardTitle>
-          <CardDescription className="text-center">
-            Enter your username and password to access your account
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-6 sm:px-6 lg:px-8">
+      <div className="w-full max-w-sm sm:max-w-md space-y-6">
+        <Card className="shadow-lg">
+          <CardHeader className="space-y-2 pb-4">
+            <CardTitle className="text-xl sm:text-2xl font-bold text-center">Sign in</CardTitle>
+            <CardDescription className="text-center text-sm sm:text-base px-2">
+              Enter your username and password to access your account
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="px-4 sm:px-6">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {error && (
+                <Alert variant="destructive" className="text-sm">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
 
-            <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
-                type="text"
-                placeholder="Enter your username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="username" className="text-sm font-medium">
+                  Username
+                </Label>
+                <Input
+                  id="username"
+                  type="text"
+                  placeholder="Enter your username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                  className="h-11 text-base"
+                  autoComplete="username"
+                />
+              </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
-                <Link href="/forgot-password-security" className="text-sm text-blue-600 hover:underline">
-                  Forgot password?
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password" className="text-sm font-medium">
+                    Password
+                  </Label>
+                  <Link href="/forgot-password-security" className="text-xs sm:text-sm text-blue-600 hover:underline">
+                    Forgot password?
+                  </Link>
+                </div>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="h-11 text-base"
+                  autoComplete="current-password"
+                />
+              </div>
+
+              <Button type="submit" className="w-full h-11 text-base font-medium" disabled={isLoading}>
+                {isLoading ? "Signing in..." : "Sign in"}
+              </Button>
+            </form>
+
+            <div className="mt-6 space-y-3">
+              <div className="text-center text-sm">
+                Don't have an account?{" "}
+                <Link href="/register" className="text-blue-600 hover:underline font-medium">
+                  Sign up
                 </Link>
               </div>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
+
+              <div className="text-center">
+                <Link href="/forum" className="text-sm text-gray-600 hover:underline">
+                  Continue as guest
+                </Link>
+              </div>
             </div>
-
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Signing in..." : "Sign in"}
-            </Button>
-          </form>
-
-          <div className="mt-4 text-center text-sm">
-            Don't have an account?{" "}
-            <Link href="/register" className="text-blue-600 hover:underline">
-              Sign up
-            </Link>
-          </div>
-
-          <div className="mt-2 text-center">
-            <Link href="/forum" className="text-sm text-gray-600 hover:underline">
-              Continue as guest
-            </Link>
-          </div>
-        </CardContent>
+          </CardContent>
+        </Card>
 
         {/* Debug section - only show for admins */}
         {isAdmin && (
-          <div className="mt-8 p-4 bg-gray-100 rounded-lg">
-            <h3 className="text-sm font-medium text-gray-700 mb-2">Debug Options</h3>
-            <div className="space-y-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={async () => {
-                  try {
-                    const response = await fetch("/api/debug/auth")
-                    const data = await response.json()
-                    console.log("Debug info:", data)
-                    alert(`System has ${data.debug?.userCount || 0} users. Check console for details.`)
-                  } catch (error) {
-                    console.error("Debug error:", error)
-                    alert("Debug check failed. Check console for details.")
-                  }
-                }}
-              >
-                Check System State
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={async () => {
-                  try {
-                    const response = await fetch("/api/debug/reinitialize", { method: "POST" })
-                    const data = await response.json()
-                    console.log("Reinitialize result:", data)
-                    if (data.success) {
-                      alert("System reinitialized! You can now login with default users.")
-                    } else {
-                      alert("Failed to reinitialize. Check console for details.")
+          <Card className="shadow-lg">
+            <CardContent className="p-4">
+              <h3 className="text-sm font-medium text-gray-700 mb-3">Debug Options</h3>
+              <div className="grid grid-cols-1 gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-10 text-sm"
+                  onClick={async () => {
+                    try {
+                      const response = await fetch("/api/debug/auth")
+                      const data = await response.json()
+                      console.log("Debug info:", data)
+                      alert(`System has ${data.debug?.userCount || 0} users. Check console for details.`)
+                    } catch (error) {
+                      console.error("Debug error:", error)
+                      alert("Debug check failed. Check console for details.")
                     }
-                  } catch (error) {
-                    console.error("Reinitialize error:", error)
-                    alert("Reinitialize failed. Check console for details.")
-                  }
-                }}
-              >
-                Reinitialize System
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={async () => {
-                  try {
-                    const response = await fetch("/api/debug/create-test-user", { method: "POST" })
-                    const data = await response.json()
-                    console.log("Test user creation:", data)
-                    if (data.success) {
-                      alert("Test user created! Username: testuser, Password: password123")
-                    } else {
-                      alert("Failed to create test user. Check console for details.")
+                  }}
+                >
+                  Check System State
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-10 text-sm"
+                  onClick={async () => {
+                    try {
+                      const response = await fetch("/api/debug/reinitialize", { method: "POST" })
+                      const data = await response.json()
+                      console.log("Reinitialize result:", data)
+                      if (data.success) {
+                        alert("System reinitialized! You can now login with default users.")
+                      } else {
+                        alert("Failed to reinitialize. Check console for details.")
+                      }
+                    } catch (error) {
+                      console.error("Reinitialize error:", error)
+                      alert("Reinitialize failed. Check console for details.")
                     }
-                  } catch (error) {
-                    console.error("Test user creation error:", error)
-                    alert("Test user creation failed. Check console for details.")
-                  }
-                }}
-              >
-                Create Test User
-              </Button>
-            </div>
-            <div className="mt-4 p-3 bg-blue-50 rounded">
-              <h4 className="text-xs font-medium text-blue-800 mb-1">Default Login Credentials:</h4>
-              <div className="text-xs text-blue-700 space-y-1">
-                <div>
-                  <strong>Admin:</strong> ctm_admin / admin123
-                </div>
-                <div>
-                  <strong>Moderator:</strong> tech_expert / tech123
-                </div>
-                <div>
-                  <strong>User:</strong> builder_pro / builder123
-                </div>
-                <div>
-                  <strong>Test User:</strong> testuser / password123
+                  }}
+                >
+                  Reinitialize System
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-10 text-sm"
+                  onClick={async () => {
+                    try {
+                      const response = await fetch("/api/debug/create-test-user", { method: "POST" })
+                      const data = await response.json()
+                      console.log("Test user creation:", data)
+                      if (data.success) {
+                        alert("Test user created! Username: testuser, Password: password123")
+                      } else {
+                        alert("Failed to create test user. Check console for details.")
+                      }
+                    } catch (error) {
+                      console.error("Test user creation error:", error)
+                      alert("Test user creation failed. Check console for details.")
+                    }
+                  }}
+                >
+                  Create Test User
+                </Button>
+              </div>
+
+              <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                <h4 className="text-xs font-medium text-blue-800 mb-2">Default Login Credentials:</h4>
+                <div className="text-xs text-blue-700 space-y-1">
+                  <div className="flex justify-between">
+                    <span>
+                      <strong>Admin:</strong>
+                    </span>
+                    <span>ctm_admin / admin123</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>
+                      <strong>Moderator:</strong>
+                    </span>
+                    <span>tech_expert / tech123</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>
+                      <strong>User:</strong>
+                    </span>
+                    <span>builder_pro / builder123</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>
+                      <strong>Test User:</strong>
+                    </span>
+                    <span>testuser / password123</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         )}
-      </Card>
+      </div>
     </div>
   )
 }
