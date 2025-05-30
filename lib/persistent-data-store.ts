@@ -644,6 +644,40 @@ class PersistentForumDataStore {
     }
   }
 
+  async updateUserPassword(userId: string, hashedPassword: string): Promise<boolean> {
+    try {
+      const users = await this.getUsers()
+      const userIndex = users.findIndex((user) => user.id === userId)
+
+      if (userIndex === -1) {
+        console.warn(`⚠️ User not found for password update: ${userId}`)
+        return false
+      }
+
+      users[userIndex].password = hashedPassword
+      users[userIndex].lastActive = new Date().toISOString()
+
+      await kv.set(this.USERS_KEY, users)
+
+      console.log(`✅ Password updated for user ${userId}`)
+      return true
+    } catch (error) {
+      console.error(`Error updating password for user ${userId}:`, error)
+      return false
+    }
+  }
+
+  async verifySecurityAnswer(userId: string, answer: string): Promise<boolean> {
+    try {
+      // For demo purposes, accept "blue" as the correct answer
+      // In production, you'd store and verify actual security answers per user
+      return answer.toLowerCase().trim() === "blue"
+    } catch (error) {
+      console.error(`Error verifying security answer for user ${userId}:`, error)
+      return false
+    }
+  }
+
   // Stats
   async getStats() {
     try {

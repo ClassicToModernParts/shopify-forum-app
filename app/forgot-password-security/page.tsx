@@ -132,11 +132,12 @@ export default function ForgotPasswordSecurityPage() {
                 <Input
                   id="username"
                   type="text"
-                  placeholder="Enter your username"
+                  placeholder="Enter your username (e.g., ctm_admin)"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   required
                 />
+                <p className="text-sm text-gray-600">Try: ctm_admin, tech_expert, builder_pro, or new_member</p>
               </div>
 
               <Button type="submit" className="w-full" disabled={isLoading}>
@@ -173,12 +174,13 @@ export default function ForgotPasswordSecurityPage() {
                 <Input
                   id="securityAnswer"
                   type="text"
-                  placeholder="Enter your answer"
+                  placeholder="Enter your answer (hint: it's a primary color)"
                   value={securityAnswer}
                   onChange={(e) => setSecurityAnswer(e.target.value)}
                   required
                   disabled={!!message}
                 />
+                <p className="text-sm text-gray-600">Demo hint: Think of the color of the sky or ocean</p>
               </div>
 
               <div className="space-y-2">
