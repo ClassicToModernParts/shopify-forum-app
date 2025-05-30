@@ -1,13 +1,13 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Inter } from 'next/font/google'
+import { Inter } from "next/font/google"
 import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Community Hub - Forum",
-  description: "Community forum integration for Shopify stores",
+  title: "CTM Parts Community - Forum",
+  description: "Connect with CTM Parts customers, get technical support, and share your projects",
     generator: 'v0.dev'
 }
 

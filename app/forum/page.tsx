@@ -115,12 +115,15 @@ export default function ForumPage() {
         const data = await response.json()
         console.log("📊 System status:", data)
 
-        if (!data.isInitialized) {
-          console.log("⚠️ System not initialized - consider visiting /admin/init-system")
+        if (data.success && !data.data.isReady) {
+          console.log("⚠️ System not fully initialized - consider visiting /admin/init-system")
         }
+      } else {
+        console.warn("⚠️ Could not check system initialization status")
       }
     } catch (error) {
       console.error("❌ Error checking system initialization:", error)
+      // Don't let initialization check failure break the forum
     }
   }
 

@@ -81,7 +81,7 @@ class PersistentForumDataStore {
 
       console.log("🔄 Initializing persistent forum data store...")
 
-      // Create CTM Parts specific categories
+      // Create default categories
       const defaultCategories: Category[] = [
         {
           id: "installation-help",
@@ -94,43 +94,43 @@ class PersistentForumDataStore {
         {
           id: "project-showcase",
           name: "Project Showcase",
-          description: "Share your completed projects using CTM parts",
+          description: "Share your CTM parts projects and builds",
           color: "#10B981",
-          icon: "Star",
+          icon: "Camera",
           createdAt: new Date().toISOString(),
         },
         {
           id: "troubleshooting",
           name: "Troubleshooting",
-          description: "Get help solving issues with CTM parts",
+          description: "Get help troubleshooting CTM parts issues",
           color: "#F59E0B",
-          icon: "AlertCircle",
+          icon: "AlertTriangle",
           createdAt: new Date().toISOString(),
         },
         {
           id: "general",
           name: "General Discussion",
-          description: "General topics and community discussions",
+          description: "General topics and discussions about CTM parts",
           color: "#8B5CF6",
           icon: "MessageSquare",
           createdAt: new Date().toISOString(),
         },
       ]
 
-      // Create CTM Parts specific sample posts
+      // Create sample posts
       const defaultPosts: Post[] = [
         {
           id: "post-1",
           title: "Welcome to CTM Parts Community!",
           content:
-            "Welcome to the CTM Parts Community forum! This is your place to get help with installations, share project showcases, troubleshoot issues, and connect with other CTM parts users. Feel free to explore and start discussions!",
+            "Welcome to the CTM Parts Community forum! This is your place to get help with installations, share your projects, troubleshoot issues, and connect with other CTM parts enthusiasts. Feel free to explore the different categories and start discussions!",
           author: "CTM Admin",
           authorEmail: "admin@store.com",
           categoryId: "general",
           createdAt: new Date(Date.now() - 86400000).toISOString(),
           updatedAt: new Date(Date.now() - 86400000).toISOString(),
           replies: 3,
-          views: 45,
+          views: 47,
           likes: 8,
           isPinned: true,
           tags: ["welcome", "introduction", "community"],
@@ -138,36 +138,19 @@ class PersistentForumDataStore {
         },
         {
           id: "post-2",
-          title: "Installation Guide: CTM-X Series Setup",
+          title: "Installation Guide: Getting Started with CTM Parts",
           content:
-            "Here's a comprehensive guide for installing CTM-X series parts. Follow these steps for optimal performance and reliability.",
-          author: "TechExpert",
-          authorEmail: "tech@example.com",
+            "Here's a comprehensive guide to help you get started with your first CTM parts installation. We'll cover the basic tools you need, preparation steps, and common tips for success.",
+          author: "CTM Admin",
+          authorEmail: "admin@store.com",
           categoryId: "installation-help",
           createdAt: new Date(Date.now() - 172800000).toISOString(),
           updatedAt: new Date(Date.now() - 172800000).toISOString(),
-          replies: 5,
-          views: 89,
-          likes: 12,
-          isPinned: false,
-          tags: ["installation", "ctm-x", "guide"],
-          status: "active",
-        },
-        {
-          id: "post-3",
-          title: "My Custom Build with CTM Parts",
-          content:
-            "Just finished my latest project using CTM parts. Here are some photos and details about the build process.",
-          author: "BuilderPro",
-          authorEmail: "builder@example.com",
-          categoryId: "project-showcase",
-          createdAt: new Date(Date.now() - 259200000).toISOString(),
-          updatedAt: new Date(Date.now() - 259200000).toISOString(),
-          replies: 7,
+          replies: 12,
           views: 156,
           likes: 23,
-          isPinned: false,
-          tags: ["showcase", "custom", "build"],
+          isPinned: true,
+          tags: ["guide", "installation", "beginner"],
           status: "active",
         },
       ]
@@ -177,31 +160,33 @@ class PersistentForumDataStore {
         {
           id: "reply-1",
           postId: "post-1",
-          content: "Thank you for the warm welcome! I'm excited to be part of the CTM Parts community.",
-          author: "NewMember",
+          content:
+            "Thank you for the warm welcome! I'm excited to be part of this community and learn from everyone's experiences.",
+          author: "New Member",
           authorEmail: "newmember@example.com",
-          createdAt: new Date(Date.now() - 64800000).toISOString(),
-          updatedAt: new Date(Date.now() - 64800000).toISOString(),
+          createdAt: new Date(Date.now() - 21600000).toISOString(),
+          updatedAt: new Date(Date.now() - 21600000).toISOString(),
           likes: 3,
           status: "active",
         },
         {
           id: "reply-2",
           postId: "post-1",
-          content: "Great to see the community growing! Looking forward to sharing my projects.",
-          author: "ProjectMaker",
-          authorEmail: "maker@example.com",
-          createdAt: new Date(Date.now() - 43200000).toISOString(),
-          updatedAt: new Date(Date.now() - 43200000).toISOString(),
+          content: "Great to have another member! Don't hesitate to ask questions - this community is very helpful.",
+          author: "Experienced User",
+          authorEmail: "experienced@example.com",
+          createdAt: new Date(Date.now() - 18000000).toISOString(),
+          updatedAt: new Date(Date.now() - 18000000).toISOString(),
           likes: 2,
           status: "active",
         },
         {
           id: "reply-3",
           postId: "post-2",
-          content: "This guide was exactly what I needed! Installation went smoothly.",
-          author: "HappyCustomer",
-          authorEmail: "customer@example.com",
+          content:
+            "This guide was exactly what I needed! The step-by-step instructions made my first installation much easier.",
+          author: "DIY Enthusiast",
+          authorEmail: "diy@example.com",
           createdAt: new Date(Date.now() - 86400000).toISOString(),
           updatedAt: new Date(Date.now() - 86400000).toISOString(),
           likes: 5,
@@ -223,35 +208,35 @@ class PersistentForumDataStore {
           lastActive: new Date().toISOString(),
         },
         {
-          id: "tech-expert",
-          username: "tech_expert",
-          name: "Technical Expert",
-          email: "tech@example.com",
-          password: "tech123",
-          role: "moderator",
+          id: "demo-user-1",
+          username: "new_member",
+          name: "New Member",
+          email: "newmember@example.com",
+          password: "demo123",
+          role: "user",
           createdAt: new Date(Date.now() - 86400000).toISOString(),
           isActive: true,
           lastActive: new Date(Date.now() - 3600000).toISOString(),
         },
         {
-          id: "builder-pro",
-          username: "builder_pro",
-          name: "Builder Pro",
-          email: "builder@example.com",
-          password: "builder123",
+          id: "demo-user-2",
+          username: "experienced_user",
+          name: "Experienced User",
+          email: "experienced@example.com",
+          password: "demo123",
           role: "user",
-          createdAt: new Date(Date.now() - 172800000).toISOString(),
+          createdAt: new Date(Date.now() - 2592000000).toISOString(),
           isActive: true,
           lastActive: new Date(Date.now() - 7200000).toISOString(),
         },
         {
-          id: "new-member",
-          username: "new_member",
-          name: "New Member",
-          email: "newmember@example.com",
-          password: "member123",
+          id: "demo-user-3",
+          username: "diy_enthusiast",
+          name: "DIY Enthusiast",
+          email: "diy@example.com",
+          password: "demo123",
           role: "user",
-          createdAt: new Date(Date.now() - 259200000).toISOString(),
+          createdAt: new Date(Date.now() - 1296000000).toISOString(),
           isActive: true,
           lastActive: new Date(Date.now() - 1800000).toISOString(),
         },
@@ -264,7 +249,7 @@ class PersistentForumDataStore {
       await kv.set(this.USERS_KEY, defaultUsers)
       await kv.set(this.INITIALIZED_KEY, true)
 
-      console.log("✅ CTM Parts Community forum initialized successfully")
+      console.log("✅ Persistent forum data store initialized with CTM Parts content")
     } catch (error) {
       console.error("❌ Error initializing persistent store:", error)
       throw error
@@ -420,7 +405,15 @@ class PersistentForumDataStore {
       posts[postIndex].status = "deleted"
       posts[postIndex].updatedAt = new Date().toISOString()
 
+      // Also delete replies
+      const replies = (await kv.get<Reply[]>(this.REPLIES_KEY)) || []
+      const updatedReplies = replies.map((reply) =>
+        reply.postId === postId ? { ...reply, status: "deleted", updatedAt: new Date().toISOString() } : reply,
+      )
+
       await kv.set(this.POSTS_KEY, posts)
+      await kv.set(this.REPLIES_KEY, updatedReplies)
+
       console.log(`✅ Post ${postId} deleted and saved`)
       return true
     } catch (error) {
@@ -440,6 +433,8 @@ class PersistentForumDataStore {
       posts[postIndex].updatedAt = new Date().toISOString()
 
       await kv.set(this.POSTS_KEY, posts)
+      console.log(`👁️ Post ${postId} views incremented to ${posts[postIndex].views}`)
+
       return posts[postIndex]
     } catch (error) {
       console.error(`Error incrementing views for post ${postId}:`, error)
@@ -458,6 +453,8 @@ class PersistentForumDataStore {
       posts[postIndex].updatedAt = new Date().toISOString()
 
       await kv.set(this.POSTS_KEY, posts)
+      console.log(`👍 Post ${postId} likes incremented to ${posts[postIndex].likes}`)
+
       return { likes: posts[postIndex].likes }
     } catch (error) {
       console.error(`Error liking post ${postId}:`, error)
@@ -522,6 +519,8 @@ class PersistentForumDataStore {
       replies[replyIndex].updatedAt = new Date().toISOString()
 
       await kv.set(this.REPLIES_KEY, replies)
+      console.log(`👍 Reply ${replyId} likes incremented to ${replies[replyIndex].likes}`)
+
       return { likes: replies[replyIndex].likes }
     } catch (error) {
       console.error(`Error liking reply ${replyId}:`, error)
@@ -550,6 +549,16 @@ class PersistentForumDataStore {
       // Soft delete
       replies[replyIndex].status = "deleted"
       replies[replyIndex].updatedAt = new Date().toISOString()
+
+      // Update post reply count
+      const posts = (await kv.get<Post[]>(this.POSTS_KEY)) || []
+      const postIndex = posts.findIndex((p) => p.id === reply.postId)
+
+      if (postIndex !== -1 && posts[postIndex].replies > 0) {
+        posts[postIndex].replies--
+        posts[postIndex].updatedAt = new Date().toISOString()
+        await kv.set(this.POSTS_KEY, posts)
+      }
 
       await kv.set(this.REPLIES_KEY, replies)
       console.log(`✅ Reply ${replyId} deleted and saved`)

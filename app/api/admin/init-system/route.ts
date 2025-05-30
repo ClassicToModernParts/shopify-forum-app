@@ -1,11 +1,11 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { forumDataStore } from "../../forum/data-store"
+import { persistentForumDataStore } from "../../../lib/persistent-data-store"
 
 export async function GET() {
   try {
     // Check if system is initialized
-    const categories = forumDataStore.getCategories(true)
-    const users = await forumDataStore.getUsers()
+    const categories = await persistentForumDataStore.getCategories()
+    const users = await persistentForumDataStore.getUsers()
 
     const isInitialized = {
       hasCategories: Array.isArray(categories) && categories.length > 0,
@@ -38,13 +38,14 @@ export async function POST(request: NextRequest) {
     console.log("🔄 Initializing system...")
 
     // Create admin user if it doesn't exist
-    const users = await forumDataStore.getUsers()
+    const users = await persistentForumDataStore.getUsers()
     let adminUser = users.find((user) => user.role === "admin")
 
     if (!adminUser) {
-      adminUser = await forumDataStore.addUser({
+      adminUser = await persistentForumDataStore.addUser({
         username: "admin",
         name: "System Administrator",
+        email: "admin@store.com",
         password: "admin123", // This should be hashed in production
         role: "admin",
       })
@@ -52,41 +53,51 @@ export async function POST(request: NextRequest) {
     }
 
     // Create default categories if they don't exist
-    const categories = forumDataStore.getCategories(true)
+    const categories = await persistentForumDataStore.getCategories()
     if (!Array.isArray(categories) || categories.length === 0) {
-      const generalCategory = forumDataStore.createCategory({
+      const generalCategory = await persistentForumDataStore.createCategory({
         name: "General Discussion",
-        description: "General topics related to our products",
+        description: "General topics related to CTM parts and products",
         color: "#3B82F6",
         icon: "MessageSquare",
         isPrivate: false,
       })
 
-      const supportCategory = forumDataStore.createCategory({
-        name: "Product Support",
-        description: "Get help with our products",
+      const supportCategory = await persistentForumDataStore.createCategory({
+        name: "Installation Help",
+        description: "Get help with installing CTM parts",
         color: "#10B981",
         icon: "HelpCircle",
         isPrivate: false,
       })
 
-      const announcementsCategory = forumDataStore.createCategory({
-        name: "Announcements",
-        description: "Official announcements from our team",
+      const showcaseCategory = await persistentForumDataStore.createCategory({
+        name: "Project Showcase",
+        description: "Show off your builds and projects using CTM parts",
         color: "#F59E0B",
-        icon: "Megaphone",
+        icon: "Star",
+        isPrivate: false,
+      })
+
+      const troubleshootingCategory = await persistentForumDataStore.createCategory({
+        name: "Troubleshooting",
+        description: "Technical support and problem solving",
+        color: "#EF4444",
+        icon: "AlertTriangle",
         isPrivate: false,
       })
 
       console.log("✅ Created default categories")
 
       // Create welcome post
-      forumDataStore.createPost({
-        title: "Welcome to our community forum!",
-        content: "This is the first post in our community forum. Feel free to introduce yourself!",
+      await persistentForumDataStore.createPost({
+        title: "Welcome to CTM Parts Community!",
+        content:
+          "Welcome to the CTM Parts Community forum! This is where you can get help, share your projects, and connect with other CTM parts enthusiasts. Feel free to introduce yourself and let us know what you're working on!",
         author: "Admin",
+        authorEmail: "admin@store.com",
         categoryId: generalCategory.id,
-        tags: ["welcome", "introduction"],
+        tags: ["welcome", "introduction", "community"],
       })
 
       console.log("✅ Created welcome post")
