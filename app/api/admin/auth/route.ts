@@ -15,11 +15,14 @@ export async function POST(request: NextRequest) {
     const trimmedPassword = password?.trim()
 
     if (trimmedUsername === ADMIN_CREDENTIALS.username && trimmedPassword === ADMIN_CREDENTIALS.password) {
-      const token = crypto.randomBytes(32).toString("hex")
+      // Create a secure token with high entropy
+      const token = crypto.randomBytes(48).toString("hex")
+
       return NextResponse.json({
         success: true,
         token,
         message: "Login successful",
+        expiresIn: 24 * 60 * 60, // 24 hours in seconds
       })
     } else {
       return NextResponse.json(
@@ -30,7 +33,8 @@ export async function POST(request: NextRequest) {
         { status: 401 },
       )
     }
-  } catch {
+  } catch (error) {
+    console.error("Authentication error:", error)
     return NextResponse.json(
       {
         success: false,

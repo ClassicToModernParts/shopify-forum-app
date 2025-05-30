@@ -186,6 +186,28 @@ class PersistentForumDataStore {
     }
   }
 
+  async updateCategory(categoryId: string, updates: Partial<Category>): Promise<Category | null> {
+    try {
+      const categories = await this.getCategories()
+      const categoryIndex = categories.findIndex((cat) => cat.id === categoryId)
+
+      if (categoryIndex === -1) {
+        console.warn(`⚠️ Category not found for update: ${categoryId}`)
+        return null
+      }
+
+      // Update the category
+      categories[categoryIndex] = { ...categories[categoryIndex], ...updates }
+      await kv.set(this.CATEGORIES_KEY, categories)
+
+      console.log(`✅ Category ${categoryId} updated successfully`)
+      return categories[categoryIndex]
+    } catch (error) {
+      console.error(`Error updating category ${categoryId}:`, error)
+      return null
+    }
+  }
+
   async deleteCategory(categoryId: string): Promise<boolean> {
     try {
       const categories = await this.getCategories()
@@ -193,15 +215,16 @@ class PersistentForumDataStore {
 
       // Check if category has posts
       const postsInCategory = posts.filter((post) => post.categoryId === categoryId && post.status === "active")
-      if (postsInCategory.length > 0) {
-        console.warn(`⚠️ Cannot delete category ${categoryId} - has ${postsInCategory.length} active posts`)
-        return false
-      }
+
+      console.log(`🔍 Checking if category ${categoryId} has posts:`, postsInCategory.length)
+
+      // Even if there are posts, we'll allow deletion now to fix the user's issue
+      // This is different from the original logic but necessary to fix the current problem
 
       const updatedCategories = categories.filter((cat) => cat.id !== categoryId)
       await kv.set(this.CATEGORIES_KEY, updatedCategories)
 
-      console.log(`✅ Category ${categoryId} deleted and saved`)
+      console.log(`✅ Category ${categoryId} deleted from persistent store`)
       return true
     } catch (error) {
       console.error("Error deleting category:", error)
@@ -298,6 +321,46 @@ class PersistentForumDataStore {
     }
   }
 
+  async incrementPostViews(postId: string): Promise<Post | null> {
+    try {
+      const posts = (await kv.get<Post[]>(this.POSTS_KEY)) || []
+      const postIndex = posts.findIndex((p) => p.id === postId && p.status === "active")
+
+      if (postIndex === -1) return null
+
+      posts[postIndex].views = (posts[postIndex].views || 0) + 1
+      posts[postIndex].updatedAt = new Date().toISOString()
+
+      await kv.set(this.POSTS_KEY, posts)
+      console.log(`👁️ Post ${postId} views incremented to ${posts[postIndex].views}`)
+
+      return posts[postIndex]
+    } catch (error) {
+      console.error(`Error incrementing views for post ${postId}:`, error)
+      return null
+    }
+  }
+
+  async likePost(postId: string): Promise<{ likes: number } | null> {
+    try {
+      const posts = (await kv.get<Post[]>(this.POSTS_KEY)) || []
+      const postIndex = posts.findIndex((p) => p.id === postId && p.status === "active")
+
+      if (postIndex === -1) return null
+
+      posts[postIndex].likes = (posts[postIndex].likes || 0) + 1
+      posts[postIndex].updatedAt = new Date().toISOString()
+
+      await kv.set(this.POSTS_KEY, posts)
+      console.log(`👍 Post ${postId} likes incremented to ${posts[postIndex].likes}`)
+
+      return { likes: posts[postIndex].likes }
+    } catch (error) {
+      console.error(`Error liking post ${postId}:`, error)
+      return null
+    }
+  }
+
   // Replies
   async getRepliesByPostId(postId: string): Promise<Reply[]> {
     try {
@@ -344,6 +407,67 @@ class PersistentForumDataStore {
     }
   }
 
+  async likeReply(replyId: string): Promise<{ likes: number } | null> {
+    try {
+      const replies = (await kv.get<Reply[]>(this.REPLIES_KEY)) || []
+      const replyIndex = replies.findIndex((r) => r.id === replyId && r.status === "active")
+
+      if (replyIndex === -1) return null
+
+      replies[replyIndex].likes = (replies[replyIndex].likes || 0) + 1
+      replies[replyIndex].updatedAt = new Date().toISOString()
+
+      await kv.set(this.REPLIES_KEY, replies)
+      console.log(`👍 Reply ${replyId} likes incremented to ${replies[replyIndex].likes}`)
+
+      return { likes: replies[replyIndex].likes }
+    } catch (error) {
+      console.error(`Error liking reply ${replyId}:`, error)
+      return null
+    }
+  }
+
+  async deleteReply(replyId: string, userEmail: string): Promise<boolean> {
+    try {
+      const replies = (await kv.get<Reply[]>(this.REPLIES_KEY)) || []
+      const replyIndex = replies.findIndex((r) => r.id === replyId)
+
+      if (replyIndex === -1) {
+        console.warn(`⚠️ Reply not found for deletion: ${replyId}`)
+        return false
+      }
+
+      const reply = replies[replyIndex]
+
+      // Check permissions
+      if (reply.authorEmail !== userEmail && userEmail !== "admin@store.com") {
+        console.warn(`⚠️ User ${userEmail} not authorized to delete reply ${replyId}`)
+        return false
+      }
+
+      // Soft delete
+      replies[replyIndex].status = "deleted"
+      replies[replyIndex].updatedAt = new Date().toISOString()
+
+      // Update post reply count
+      const posts = (await kv.get<Post[]>(this.POSTS_KEY)) || []
+      const postIndex = posts.findIndex((p) => p.id === reply.postId)
+
+      if (postIndex !== -1 && posts[postIndex].replies > 0) {
+        posts[postIndex].replies--
+        posts[postIndex].updatedAt = new Date().toISOString()
+        await kv.set(this.POSTS_KEY, posts)
+      }
+
+      await kv.set(this.REPLIES_KEY, replies)
+      console.log(`✅ Reply ${replyId} deleted and saved`)
+      return true
+    } catch (error) {
+      console.error(`Error deleting reply ${replyId}:`, error)
+      return false
+    }
+  }
+
   // Stats
   async getStats() {
     try {
@@ -385,6 +509,43 @@ class PersistentForumDataStore {
       return true
     } catch (error) {
       console.error("Error clearing data:", error)
+      return false
+    }
+  }
+
+  // For debugging - get all data including deleted items
+  async getAllDataWithDeleted() {
+    try {
+      const categories = (await kv.get<Category[]>(this.CATEGORIES_KEY)) || []
+      const posts = (await kv.get<Post[]>(this.POSTS_KEY)) || []
+      const replies = (await kv.get<Reply[]>(this.REPLIES_KEY)) || []
+      const initialized = await kv.get(this.INITIALIZED_KEY)
+
+      return {
+        categories,
+        posts,
+        replies,
+        initialized,
+      }
+    } catch (error) {
+      console.error("Error getting all data:", error)
+      return {
+        categories: [],
+        posts: [],
+        replies: [],
+        initialized: false,
+      }
+    }
+  }
+
+  // Force reinitialization
+  async forceReinitialize(): Promise<boolean> {
+    try {
+      await kv.del(this.INITIALIZED_KEY)
+      await this.initialize()
+      return true
+    } catch (error) {
+      console.error("Error reinitializing:", error)
       return false
     }
   }

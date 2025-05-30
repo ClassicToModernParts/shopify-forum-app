@@ -15,14 +15,24 @@ export function useAuth() {
       }
 
       const storedToken = localStorage.getItem("admin_token")
+      const tokenExpiry = localStorage.getItem("admin_token_expiry")
+      const now = Date.now()
+
       console.log("🔍 Checking auth status:")
       console.log("  - Token exists:", !!storedToken)
-      console.log("  - Token value:", storedToken ? `${storedToken.substring(0, 8)}...` : "null")
+      console.log("  - Token expiry exists:", !!tokenExpiry)
 
-      if (storedToken) {
+      if (storedToken && tokenExpiry && Number.parseInt(tokenExpiry) > now) {
         setToken(storedToken)
         setIsAdmin(true)
-        console.log("  ✅ User is authenticated")
+        console.log("  ✅ User is authenticated (token valid)")
+      } else if (storedToken && (!tokenExpiry || Number.parseInt(tokenExpiry) <= now)) {
+        // Token expired, clean up
+        console.log("  ⚠️ Token expired, logging out")
+        localStorage.removeItem("admin_token")
+        localStorage.removeItem("admin_token_expiry")
+        setToken(null)
+        setIsAdmin(false)
       } else {
         setToken(null)
         setIsAdmin(false)
@@ -46,15 +56,22 @@ export function useAuth() {
       console.log("🔐 Logging in:")
       console.log("  - Token:", newToken ? `${newToken.substring(0, 8)}...` : "empty")
 
+      // Set token with 24-hour expiry
+      const expiryTime = Date.now() + 24 * 60 * 60 * 1000 // 24 hours from now
       localStorage.setItem("admin_token", newToken)
+      localStorage.setItem("admin_token_expiry", expiryTime.toString())
+
       setToken(newToken)
       setIsAdmin(true)
 
       console.log("  ✅ Login successful")
+      console.log("  - Token expiry set to:", new Date(expiryTime).toLocaleString())
 
       // Verify the token was saved
       const savedToken = localStorage.getItem("admin_token")
+      const savedExpiry = localStorage.getItem("admin_token_expiry")
       console.log("  - Verification - token saved:", !!savedToken)
+      console.log("  - Verification - expiry saved:", !!savedExpiry)
     } catch (error) {
       console.error("❌ Error during login:", error)
     }
@@ -64,6 +81,7 @@ export function useAuth() {
     try {
       console.log("🚪 Logging out")
       localStorage.removeItem("admin_token")
+      localStorage.removeItem("admin_token_expiry")
       setToken(null)
       setIsAdmin(false)
       console.log("  ✅ Logout successful")

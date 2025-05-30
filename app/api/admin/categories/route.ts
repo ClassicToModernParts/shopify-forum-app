@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { forumDataStore } from "../../forum/data-store"
+import { persistentForumDataStore } from "../../forum/persistent-store"
 
 export async function GET(request: NextRequest) {
   try {
@@ -7,10 +7,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const includePrivate = searchParams.get("include_private") === "true"
 
-    // Wait for data store to be initialized
-    await new Promise((resolve) => setTimeout(resolve, 100))
-
-    const categories = forumDataStore.getCategories()
+    const categories = await persistentForumDataStore.getCategories()
     console.log("📊 Raw categories from store:", categories)
 
     // Ensure we return an array
@@ -54,8 +51,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Fix: Use createCategory instead of addCategory
-    const newCategory = forumDataStore.createCategory({
+    const newCategory = await persistentForumDataStore.createCategory({
       name,
       description: description || "",
       color: color || "#3B82F6",
@@ -102,7 +98,7 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    const updatedCategory = forumDataStore.updateCategory(categoryId, updates)
+    const updatedCategory = await persistentForumDataStore.updateCategory(categoryId, updates)
 
     if (!updatedCategory) {
       return NextResponse.json(
@@ -154,7 +150,7 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    const deleted = forumDataStore.deleteCategory(categoryId)
+    const deleted = await persistentForumDataStore.deleteCategory(categoryId)
 
     if (!deleted) {
       return NextResponse.json(
