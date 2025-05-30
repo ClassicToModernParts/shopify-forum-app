@@ -1,4 +1,6 @@
 // Simple in-memory data store for forum data
+import { persistentForumDataStore } from "@/lib/persistent-data-store"
+
 interface Category {
   id: string
   name: string
@@ -513,3 +515,6 @@ class ForumDataStore {
 
 // Export singleton instance
 export const forumDataStore = new ForumDataStore()
+
+// Re-export the persistent forum data store
+export { persistentForumDataStore }

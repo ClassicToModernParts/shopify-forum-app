@@ -592,6 +592,16 @@ class PersistentForumDataStore {
     }
   }
 
+  async getUserByUsername(username: string): Promise<User | null> {
+    try {
+      const users = await this.getUsers()
+      return users.find((user) => user.username === username) || null
+    } catch (error) {
+      console.error("Error getting user by username:", error)
+      return null
+    }
+  }
+
   async addUser(data: Omit<User, "id" | "createdAt">): Promise<User> {
     try {
       const users = await this.getUsers()

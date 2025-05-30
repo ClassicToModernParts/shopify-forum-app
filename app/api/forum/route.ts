@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { persistentForumDataStore } from "./persistent-store"
+import { persistentForumDataStore } from "@/lib/persistent-data-store"
 
 export async function GET(request: NextRequest) {
   try {

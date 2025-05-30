@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { authService } from "@/lib/auth-service"
+import { persistentForumDataStore } from "@/app/api/forum/data-store"
 
 export async function POST(request: NextRequest) {
   try {
@@ -52,30 +52,34 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Register user
-    console.log("🔐 Calling auth service to register user")
-    let result
-    try {
-      result = await authService.registerUser({
-        username,
-        name,
-        password,
-      })
-      console.log("🔐 Auth service response:", result)
-    } catch (authError) {
-      console.error("❌ Auth service error:", authError)
-      return NextResponse.json(
-        {
-          success: false,
-          message: `Auth service failed: ${authError instanceof Error ? authError.message : String(authError)}`,
-        },
-        { status: 500 },
-      )
+    // Replace the auth service call with:
+    console.log("🔐 Checking if username already exists")
+    const existingUser = await persistentForumDataStore.getUserByUsername(username)
+    if (existingUser) {
+      console.log(`❌ Registration failed: Username ${username} already exists`)
+      return NextResponse.json({ success: false, message: "Username already exists" }, { status: 400 })
     }
 
-    if (!result.success) {
-      console.log(`❌ Registration failed: ${result.message}`)
-      return NextResponse.json({ success: false, message: result.message }, { status: 400 })
+    // Create the user directly
+    console.log("🔐 Creating new user")
+    const newUser = await persistentForumDataStore.addUser({
+      username,
+      name,
+      email: `${username}@community.local`, // Generate email if not provided
+      password, // Should be hashed in production
+      role: "user",
+    })
+
+    const result = {
+      success: true,
+      user: {
+        id: newUser.id,
+        username: newUser.username,
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role,
+      },
+      token: `token-${newUser.id}-${Date.now()}`,
     }
 
     // Add security question after successful registration

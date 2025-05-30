@@ -1,3 +1,3 @@
-import { persistentForumDataStore } from "../../../lib/persistent-data-store"
+import { persistentForumDataStore } from "@/lib/persistent-data-store"
 
 export { persistentForumDataStore }
