@@ -54,11 +54,40 @@ interface User {
   isActive?: boolean
 }
 
+interface Meet {
+  id: string
+  title: string
+  description: string
+  organizer: string
+  organizerEmail: string
+  date: string
+  time: string
+  location: string
+  address?: string
+  vehicleTypes: string[]
+  maxAttendees?: number
+  contactInfo?: string
+  requirements?: string
+  createdAt: string
+  updatedAt: string
+  status: "upcoming" | "ongoing" | "completed" | "cancelled"
+  attendees: {
+    userId: string
+    userName: string
+    userEmail: string
+    rsvpDate: string
+    vehicleInfo?: string
+  }[]
+  tags?: string[]
+}
+
 interface RewardsSettings {
   pointsPerPost: number
   pointsPerReply: number
   pointsPerLike: number
   pointsPerReceivingLike: number
+  pointsPerMeetCreation: number
+  pointsPerMeetAttendance: number
   dailyPointsLimit: number
   coupons: {
     id: string
@@ -133,6 +162,7 @@ class PersistentForumDataStore {
   private readonly USERS_KEY = "forum:users"
   private readonly REWARDS_SETTINGS_KEY = "forum:rewards:settings"
   private readonly USER_REWARDS_KEY = "forum:user:rewards"
+  private readonly MEETS_KEY = "forum:meets"
 
   private memoryStore = new MemoryStore()
   private useMemoryFallback = false
@@ -346,12 +376,68 @@ class PersistentForumDataStore {
         },
       ]
 
+      // Create sample meets
+      const defaultMeets: Meet[] = [
+        {
+          id: "meet-1",
+          title: "Monthly Truck Meet - Downtown",
+          description:
+            "Join us for our monthly truck meet! Show off your rides, meet fellow enthusiasts, and enjoy some great food trucks. All truck types welcome!",
+          organizer: "CTM Admin",
+          organizerEmail: "admin@store.com",
+          date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0], // Next week
+          time: "18:00",
+          location: "Downtown Parking Lot",
+          address: "123 Main St, Downtown",
+          vehicleTypes: ["Trucks", "Pickups", "SUVs"],
+          maxAttendees: 50,
+          contactInfo: "admin@store.com",
+          requirements: "Valid driver's license and insurance required",
+          createdAt: new Date(Date.now() - 86400000).toISOString(),
+          updatedAt: new Date(Date.now() - 86400000).toISOString(),
+          status: "upcoming",
+          attendees: [
+            {
+              userId: "demo-user-1",
+              userName: "New Member",
+              userEmail: "newmember@example.com",
+              rsvpDate: new Date().toISOString(),
+              vehicleInfo: "2022 Ford F-150",
+            },
+          ],
+          tags: ["trucks", "monthly", "downtown"],
+        },
+        {
+          id: "meet-2",
+          title: "Classic Car Show & Shine",
+          description:
+            "Bring your classic cars for a show and shine event! Prizes for best in show, people's choice, and more categories.",
+          organizer: "Experienced User",
+          organizerEmail: "experienced@example.com",
+          date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0], // Two weeks
+          time: "10:00",
+          location: "City Park",
+          address: "456 Park Ave, City Center",
+          vehicleTypes: ["Classic Cars", "Vintage", "Muscle Cars"],
+          maxAttendees: 30,
+          contactInfo: "experienced@example.com",
+          requirements: "Vehicles must be 25+ years old",
+          createdAt: new Date(Date.now() - 172800000).toISOString(),
+          updatedAt: new Date(Date.now() - 172800000).toISOString(),
+          status: "upcoming",
+          attendees: [],
+          tags: ["classic", "cars", "show"],
+        },
+      ]
+
       // Create default rewards settings
       const defaultRewardsSettings: RewardsSettings = {
         pointsPerPost: 10,
         pointsPerReply: 5,
         pointsPerLike: 1,
         pointsPerReceivingLike: 2,
+        pointsPerMeetCreation: 25,
+        pointsPerMeetAttendance: 15,
         dailyPointsLimit: 100,
         coupons: [
           {
@@ -389,17 +475,223 @@ class PersistentForumDataStore {
       await store.set(this.POSTS_KEY, defaultPosts)
       await store.set(this.REPLIES_KEY, defaultReplies)
       await store.set(this.USERS_KEY, defaultUsers)
+      await store.set(this.MEETS_KEY, defaultMeets)
       await store.set(this.REWARDS_SETTINGS_KEY, defaultRewardsSettings)
       await store.set(this.USER_REWARDS_KEY, defaultUserRewards)
       await store.set(this.INITIALIZED_KEY, true)
 
-      console.log("✅ Persistent forum data store initialized with CTM Parts content and rewards system")
+      console.log("✅ Persistent forum data store initialized with CTM Parts content, meets, and rewards system")
       if (this.useMemoryFallback) {
         console.log("⚠️ Note: Using memory storage - data will be lost on restart")
       }
     } catch (error) {
       console.error("❌ Error initializing persistent store:", error)
       throw error
+    }
+  }
+
+  // Meets Methods
+  async getMeets(): Promise<Meet[]> {
+    try {
+      await this.initialize()
+      const store = await this.getStore()
+      const meets = await store.get<Meet[]>(this.MEETS_KEY)
+      return (meets || []).filter((meet) => meet.status !== "cancelled")
+    } catch (error) {
+      console.error("Error getting meets:", error)
+      return []
+    }
+  }
+
+  async getMeetById(id: string): Promise<Meet | null> {
+    try {
+      const meets = await this.getMeets()
+      return meets.find((meet) => meet.id === id) || null
+    } catch (error) {
+      console.error("Error getting meet by ID:", error)
+      return null
+    }
+  }
+
+  async createMeet(data: Omit<Meet, "id" | "createdAt" | "updatedAt" | "attendees">): Promise<Meet> {
+    try {
+      const store = await this.getStore()
+      const meets = await this.getMeets()
+      const meet: Meet = {
+        id: `meet-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        attendees: [],
+        ...data,
+      }
+
+      meets.push(meet)
+      await store.set(this.MEETS_KEY, meets)
+
+      // Award points for creating a meet
+      if (data.organizerEmail) {
+        const user = await this.getUserByEmail(data.organizerEmail)
+        if (user) {
+          const settings = await this.getRewardsSettings()
+          await this.awardPoints(user.id, settings.pointsPerMeetCreation, "Created a meet", "meet_creation")
+        }
+      }
+
+      console.log("✅ Meet created and saved:", meet)
+      return meet
+    } catch (error) {
+      console.error("Error creating meet:", error)
+      throw error
+    }
+  }
+
+  async updateMeet(meetId: string, updates: Partial<Meet>): Promise<Meet | null> {
+    try {
+      const store = await this.getStore()
+      const meets = await this.getMeets()
+      const meetIndex = meets.findIndex((meet) => meet.id === meetId)
+
+      if (meetIndex === -1) {
+        console.warn(`⚠️ Meet not found for update: ${meetId}`)
+        return null
+      }
+
+      meets[meetIndex] = {
+        ...meets[meetIndex],
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      }
+      await store.set(this.MEETS_KEY, meets)
+
+      console.log(`✅ Meet ${meetId} updated successfully`)
+      return meets[meetIndex]
+    } catch (error) {
+      console.error(`Error updating meet ${meetId}:`, error)
+      return null
+    }
+  }
+
+  async deleteMeet(meetId: string, userEmail: string): Promise<boolean> {
+    try {
+      const store = await this.getStore()
+      const meets = await this.getMeets()
+      const meetIndex = meets.findIndex((m) => m.id === meetId)
+
+      if (meetIndex === -1) {
+        console.warn(`⚠️ Meet not found for deletion: ${meetId}`)
+        return false
+      }
+
+      const meet = meets[meetIndex]
+
+      // Check permissions
+      if (meet.organizerEmail !== userEmail && userEmail !== "admin@store.com") {
+        console.warn(`⚠️ User ${userEmail} not authorized to delete meet ${meetId}`)
+        return false
+      }
+
+      // Mark as cancelled instead of deleting
+      meets[meetIndex].status = "cancelled"
+      meets[meetIndex].updatedAt = new Date().toISOString()
+
+      await store.set(this.MEETS_KEY, meets)
+      console.log(`✅ Meet ${meetId} cancelled and saved`)
+      return true
+    } catch (error) {
+      console.error("Error deleting meet:", error)
+      return false
+    }
+  }
+
+  async rsvpToMeet(
+    meetId: string,
+    userId: string,
+    userName: string,
+    userEmail: string,
+    vehicleInfo?: string,
+  ): Promise<Meet | null> {
+    try {
+      const store = await this.getStore()
+      const meets = await this.getMeets()
+      const meetIndex = meets.findIndex((m) => m.id === meetId)
+
+      if (meetIndex === -1) {
+        console.warn(`⚠️ Meet not found for RSVP: ${meetId}`)
+        return null
+      }
+
+      const meet = meets[meetIndex]
+
+      // Check if user already RSVP'd
+      const existingRsvp = meet.attendees.find((a) => a.userId === userId)
+      if (existingRsvp) {
+        console.warn(`⚠️ User ${userId} already RSVP'd to meet ${meetId}`)
+        return meet
+      }
+
+      // Check capacity
+      if (meet.maxAttendees && meet.attendees.length >= meet.maxAttendees) {
+        console.warn(`⚠️ Meet ${meetId} is at capacity`)
+        return null
+      }
+
+      // Add RSVP
+      meet.attendees.push({
+        userId,
+        userName,
+        userEmail,
+        rsvpDate: new Date().toISOString(),
+        vehicleInfo,
+      })
+
+      meet.updatedAt = new Date().toISOString()
+      meets[meetIndex] = meet
+
+      await store.set(this.MEETS_KEY, meets)
+
+      // Award points for attending a meet
+      const settings = await this.getRewardsSettings()
+      await this.awardPoints(userId, settings.pointsPerMeetAttendance, "RSVP'd to a meet", "meet_attendance")
+
+      console.log(`✅ User ${userId} RSVP'd to meet ${meetId}`)
+      return meet
+    } catch (error) {
+      console.error("Error RSVP'ing to meet:", error)
+      return null
+    }
+  }
+
+  async cancelRsvp(meetId: string, userId: string): Promise<Meet | null> {
+    try {
+      const store = await this.getStore()
+      const meets = await this.getMeets()
+      const meetIndex = meets.findIndex((m) => m.id === meetId)
+
+      if (meetIndex === -1) {
+        console.warn(`⚠️ Meet not found for RSVP cancellation: ${meetId}`)
+        return null
+      }
+
+      const meet = meets[meetIndex]
+      const attendeeIndex = meet.attendees.findIndex((a) => a.userId === userId)
+
+      if (attendeeIndex === -1) {
+        console.warn(`⚠️ User ${userId} has not RSVP'd to meet ${meetId}`)
+        return meet
+      }
+
+      // Remove RSVP
+      meet.attendees.splice(attendeeIndex, 1)
+      meet.updatedAt = new Date().toISOString()
+      meets[meetIndex] = meet
+
+      await store.set(this.MEETS_KEY, meets)
+
+      console.log(`✅ User ${userId} cancelled RSVP to meet ${meetId}`)
+      return meet
+    } catch (error) {
+      console.error("Error cancelling RSVP:", error)
+      return null
     }
   }
 
@@ -418,6 +710,8 @@ class PersistentForumDataStore {
           pointsPerReply: 5,
           pointsPerLike: 1,
           pointsPerReceivingLike: 2,
+          pointsPerMeetCreation: 25,
+          pointsPerMeetAttendance: 15,
           dailyPointsLimit: 100,
           coupons: [
             {
@@ -1181,16 +1475,20 @@ class PersistentForumDataStore {
     try {
       const categories = await this.getCategories()
       const posts = await this.getPosts()
+      const meets = await this.getMeets()
       const store = await this.getStore()
       const replies = (await store.get<Reply[]>(this.REPLIES_KEY)) || []
       const users = await this.getUsers()
       const activeReplies = replies.filter((r) => r.status === "active")
+      const upcomingMeets = meets.filter((m) => m.status === "upcoming")
 
       return {
         totalCategories: categories.length,
         totalPosts: posts.length,
         totalReplies: activeReplies.length,
         totalUsers: users.length,
+        totalMeets: meets.length,
+        upcomingMeets: upcomingMeets.length,
         activeToday: Math.ceil(users.length * 0.3), // 30% of users active today
         onlineUsers: Math.ceil(users.length * 0.1), // 10% of users online now
       }
@@ -1201,6 +1499,8 @@ class PersistentForumDataStore {
         totalPosts: 0,
         totalReplies: 0,
         totalUsers: 0,
+        totalMeets: 0,
+        upcomingMeets: 0,
         activeToday: 0,
         onlineUsers: 0,
       }
@@ -1215,6 +1515,7 @@ class PersistentForumDataStore {
       await store.del(this.POSTS_KEY)
       await store.del(this.REPLIES_KEY)
       await store.del(this.USERS_KEY)
+      await store.del(this.MEETS_KEY)
       await store.del(this.REWARDS_SETTINGS_KEY)
       await store.del(this.USER_REWARDS_KEY)
       await store.del(this.INITIALIZED_KEY)
@@ -1239,6 +1540,7 @@ class PersistentForumDataStore {
       const posts = (await store.get<Post[]>(this.POSTS_KEY)) || []
       const replies = (await store.get<Reply[]>(this.REPLIES_KEY)) || []
       const users = (await store.get<User[]>(this.USERS_KEY)) || []
+      const meets = (await store.get<Meet[]>(this.MEETS_KEY)) || []
       const rewardsSettings = (await store.get<RewardsSettings>(this.REWARDS_SETTINGS_KEY)) || null
       const userRewards = (await store.get<UserRewards[]>(this.USER_REWARDS_KEY)) || []
       const initialized = await store.get(this.INITIALIZED_KEY)
@@ -1248,6 +1550,7 @@ class PersistentForumDataStore {
         posts,
         replies,
         users,
+        meets,
         rewardsSettings,
         userRewards,
         initialized,
@@ -1260,6 +1563,7 @@ class PersistentForumDataStore {
         posts: [],
         replies: [],
         users: [],
+        meets: [],
         rewardsSettings: null,
         userRewards: [],
         initialized: false,

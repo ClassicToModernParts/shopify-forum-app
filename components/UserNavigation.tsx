@@ -1,111 +1,166 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { MessageSquare, Trophy, Car, User, LogOut, Menu, X } from "lucide-react"
 import useUserAuth from "@/hooks/useUserAuth"
 
 export default function UserNavigation() {
-  const { user, isAuthenticated, isLoading, logout } = useUserAuth()
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const { user, isAuthenticated, logout } = useUserAuth()
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
-  // Close the menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement
-      if (!target.closest("#user-menu") && isMenuOpen) {
-        setIsMenuOpen(false)
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside)
-    }
-  }, [isMenuOpen])
-
-  if (isLoading) {
-    return (
-      <div className="animate-pulse flex space-x-2">
-        <div className="rounded-full bg-gray-200 h-8 w-8"></div>
-        <div className="h-8 bg-gray-200 rounded w-24"></div>
-      </div>
-    )
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen(!isMobileMenuOpen)
   }
 
-  if (!isAuthenticated) {
-    return (
-      <div className="flex items-center space-x-3">
-        <Link
-          href="/login"
-          className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
-        >
-          Sign In
-        </Link>
-        <Link
-          href="/register"
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-        >
-          Register
-        </Link>
-      </div>
-    )
+  const closeMobileMenu = () => {
+    setIsMobileMenuOpen(false)
   }
 
   return (
-    <div className="relative" id="user-menu">
-      <button
-        onClick={() => setIsMenuOpen(!isMenuOpen)}
-        className="flex items-center space-x-1 sm:space-x-2 text-gray-700 hover:text-gray-900 focus:outline-none"
-      >
-        <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-medium">
-          {user.name.charAt(0).toUpperCase()}
-        </div>
-        <span className="font-medium text-sm sm:text-base">{user.name}</span>
-        <svg
-          className={`h-5 w-5 text-gray-400 transition-transform ${isMenuOpen ? "transform rotate-180" : ""}`}
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 20 20"
-          fill="currentColor"
-          aria-hidden="true"
-        >
-          <path
-            fillRule="evenodd"
-            d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-            clipRule="evenodd"
-          />
-        </svg>
-      </button>
+    <nav className="bg-white shadow-sm border-b">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center py-3 sm:py-4">
+          {/* Logo */}
+          <Link href="/" className="flex items-center space-x-2 sm:space-x-3">
+            <div className="bg-blue-600 p-1.5 sm:p-2 rounded-lg">
+              <MessageSquare className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+            </div>
+            <span className="text-lg sm:text-xl font-bold text-gray-900">CTM Community</span>
+          </Link>
 
-      {isMenuOpen && (
-        <div className="absolute right-0 mt-1 sm:mt-2 w-40 sm:w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10">
-          <div className="py-1" role="menu" aria-orientation="vertical" aria-labelledby="user-menu">
-            <Link href="/profile" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">
-              Your Profile
+          {/* Desktop Navigation */}
+          <div className="hidden md:flex items-center space-x-6">
+            <Link
+              href="/forum"
+              className="flex items-center space-x-2 text-gray-600 hover:text-blue-600 transition-colors"
+            >
+              <MessageSquare className="h-4 w-4" />
+              <span>Forum</span>
             </Link>
             <Link
-              href="/forum?filter=my-posts"
-              className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-              role="menuitem"
+              href="/meets"
+              className="flex items-center space-x-2 text-gray-600 hover:text-green-600 transition-colors"
             >
-              My Posts
+              <Car className="h-4 w-4" />
+              <span>Meets</span>
             </Link>
             <Link
-              href="/profile?tab=settings"
-              className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-              role="menuitem"
+              href="/rewards"
+              className="flex items-center space-x-2 text-gray-600 hover:text-yellow-600 transition-colors"
             >
-              Settings
+              <Trophy className="h-4 w-4" />
+              <span>Rewards</span>
             </Link>
-            <button
-              onClick={logout}
-              className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-              role="menuitem"
-            >
-              Sign out
-            </button>
+          </div>
+
+          {/* Desktop User Menu */}
+          <div className="hidden md:flex items-center space-x-4">
+            {isAuthenticated && user ? (
+              <div className="flex items-center space-x-4">
+                <Link
+                  href="/profile"
+                  className="flex items-center space-x-2 text-gray-600 hover:text-blue-600 transition-colors"
+                >
+                  <User className="h-4 w-4" />
+                  <span>{user.name || user.email}</span>
+                </Link>
+                <Button variant="outline" size="sm" onClick={logout}>
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Logout
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-2">
+                <Link href="/login">
+                  <Button variant="outline" size="sm">
+                    Login
+                  </Button>
+                </Link>
+                <Link href="/register">
+                  <Button size="sm">Sign Up</Button>
+                </Link>
+              </div>
+            )}
+          </div>
+
+          {/* Mobile Menu Button */}
+          <div className="md:hidden">
+            <Button variant="ghost" size="sm" onClick={toggleMobileMenu}>
+              {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </Button>
           </div>
         </div>
-      )}
-    </div>
+
+        {/* Mobile Menu */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden border-t bg-white">
+            <div className="px-2 pt-2 pb-3 space-y-1">
+              <Link
+                href="/forum"
+                className="flex items-center space-x-3 px-3 py-2 rounded-md text-gray-600 hover:text-blue-600 hover:bg-gray-50"
+                onClick={closeMobileMenu}
+              >
+                <MessageSquare className="h-5 w-5" />
+                <span>Forum</span>
+              </Link>
+              <Link
+                href="/meets"
+                className="flex items-center space-x-3 px-3 py-2 rounded-md text-gray-600 hover:text-green-600 hover:bg-gray-50"
+                onClick={closeMobileMenu}
+              >
+                <Car className="h-5 w-5" />
+                <span>Meets</span>
+              </Link>
+              <Link
+                href="/rewards"
+                className="flex items-center space-x-3 px-3 py-2 rounded-md text-gray-600 hover:text-yellow-600 hover:bg-gray-50"
+                onClick={closeMobileMenu}
+              >
+                <Trophy className="h-5 w-5" />
+                <span>Rewards</span>
+              </Link>
+
+              {isAuthenticated && user ? (
+                <>
+                  <Link
+                    href="/profile"
+                    className="flex items-center space-x-3 px-3 py-2 rounded-md text-gray-600 hover:text-blue-600 hover:bg-gray-50"
+                    onClick={closeMobileMenu}
+                  >
+                    <User className="h-5 w-5" />
+                    <span>{user.name || user.email}</span>
+                  </Link>
+                  <button
+                    onClick={() => {
+                      logout()
+                      closeMobileMenu()
+                    }}
+                    className="flex items-center space-x-3 px-3 py-2 rounded-md text-gray-600 hover:text-red-600 hover:bg-gray-50 w-full text-left"
+                  >
+                    <LogOut className="h-5 w-5" />
+                    <span>Logout</span>
+                  </button>
+                </>
+              ) : (
+                <div className="px-3 py-2 space-y-2">
+                  <Link href="/login" onClick={closeMobileMenu}>
+                    <Button variant="outline" size="sm" className="w-full">
+                      Login
+                    </Button>
+                  </Link>
+                  <Link href="/register" onClick={closeMobileMenu}>
+                    <Button size="sm" className="w-full">
+                      Sign Up
+                    </Button>
+                  </Link>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </nav>
   )
 }
