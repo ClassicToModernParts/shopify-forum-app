@@ -104,6 +104,27 @@ function simpleHash(str: string): string {
   return hash.toString()
 }
 
+// In-memory fallback storage for when KV is not available
+class MemoryStore {
+  private data: Map<string, any> = new Map()
+
+  async get<T>(key: string): Promise<T | null> {
+    return this.data.get(key) || null
+  }
+
+  async set(key: string, value: any): Promise<void> {
+    this.data.set(key, value)
+  }
+
+  async del(key: string): Promise<void> {
+    this.data.delete(key)
+  }
+
+  clear(): void {
+    this.data.clear()
+  }
+}
+
 class PersistentForumDataStore {
   private readonly CATEGORIES_KEY = "forum:categories"
   private readonly POSTS_KEY = "forum:posts"
@@ -113,9 +134,35 @@ class PersistentForumDataStore {
   private readonly REWARDS_SETTINGS_KEY = "forum:rewards:settings"
   private readonly USER_REWARDS_KEY = "forum:user:rewards"
 
+  private memoryStore = new MemoryStore()
+  private useMemoryFallback = false
+
+  private async getStore() {
+    // Check if KV environment variables are available
+    const hasKvUrl = process.env.KV_REST_API_URL || process.env.KV_URL
+    const hasKvToken = process.env.KV_REST_API_TOKEN
+
+    if (!hasKvUrl || !hasKvToken) {
+      console.warn("⚠️ KV environment variables not found, using memory fallback")
+      this.useMemoryFallback = true
+      return this.memoryStore
+    }
+
+    try {
+      // Test KV connection
+      await kv.get("test-connection")
+      return kv
+    } catch (error) {
+      console.warn("⚠️ KV connection failed, using memory fallback:", error)
+      this.useMemoryFallback = true
+      return this.memoryStore
+    }
+  }
+
   async isInitialized(): Promise<boolean> {
     try {
-      const initialized = await kv.get(this.INITIALIZED_KEY)
+      const store = await this.getStore()
+      const initialized = await store.get(this.INITIALIZED_KEY)
       return initialized === true
     } catch (error) {
       console.error("Error checking initialization:", error)
@@ -132,6 +179,11 @@ class PersistentForumDataStore {
       }
 
       console.log("🔄 Initializing persistent forum data store...")
+      if (this.useMemoryFallback) {
+        console.log("📝 Using memory storage (data will not persist between restarts)")
+      }
+
+      const store = await this.getStore()
 
       // Create default categories
       const defaultCategories: Category[] = [
@@ -332,16 +384,19 @@ class PersistentForumDataStore {
         redeemedCoupons: [],
       }))
 
-      // Save to KV store
-      await kv.set(this.CATEGORIES_KEY, defaultCategories)
-      await kv.set(this.POSTS_KEY, defaultPosts)
-      await kv.set(this.REPLIES_KEY, defaultReplies)
-      await kv.set(this.USERS_KEY, defaultUsers)
-      await kv.set(this.REWARDS_SETTINGS_KEY, defaultRewardsSettings)
-      await kv.set(this.USER_REWARDS_KEY, defaultUserRewards)
-      await kv.set(this.INITIALIZED_KEY, true)
+      // Save to store
+      await store.set(this.CATEGORIES_KEY, defaultCategories)
+      await store.set(this.POSTS_KEY, defaultPosts)
+      await store.set(this.REPLIES_KEY, defaultReplies)
+      await store.set(this.USERS_KEY, defaultUsers)
+      await store.set(this.REWARDS_SETTINGS_KEY, defaultRewardsSettings)
+      await store.set(this.USER_REWARDS_KEY, defaultUserRewards)
+      await store.set(this.INITIALIZED_KEY, true)
 
       console.log("✅ Persistent forum data store initialized with CTM Parts content and rewards system")
+      if (this.useMemoryFallback) {
+        console.log("⚠️ Note: Using memory storage - data will be lost on restart")
+      }
     } catch (error) {
       console.error("❌ Error initializing persistent store:", error)
       throw error
@@ -353,7 +408,8 @@ class PersistentForumDataStore {
     try {
       console.log("🎁 Getting rewards settings...")
       await this.initialize()
-      const settings = await kv.get<RewardsSettings>(this.REWARDS_SETTINGS_KEY)
+      const store = await this.getStore()
+      const settings = await store.get<RewardsSettings>(this.REWARDS_SETTINGS_KEY)
 
       if (!settings) {
         console.log("⚠️ No rewards settings found, creating default...")
@@ -383,7 +439,7 @@ class PersistentForumDataStore {
           ],
           lastUpdated: new Date().toISOString(),
         }
-        await kv.set(this.REWARDS_SETTINGS_KEY, defaultSettings)
+        await store.set(this.REWARDS_SETTINGS_KEY, defaultSettings)
         return defaultSettings
       }
 
@@ -398,6 +454,7 @@ class PersistentForumDataStore {
   async updateRewardsSettings(settings: Partial<RewardsSettings>): Promise<RewardsSettings> {
     try {
       console.log("💾 Updating rewards settings...")
+      const store = await this.getStore()
       const currentSettings = await this.getRewardsSettings()
       const updatedSettings: RewardsSettings = {
         ...currentSettings,
@@ -405,7 +462,7 @@ class PersistentForumDataStore {
         lastUpdated: new Date().toISOString(),
       }
 
-      await kv.set(this.REWARDS_SETTINGS_KEY, updatedSettings)
+      await store.set(this.REWARDS_SETTINGS_KEY, updatedSettings)
       console.log("✅ Rewards settings updated successfully")
       return updatedSettings
     } catch (error) {
@@ -417,7 +474,8 @@ class PersistentForumDataStore {
   async getUserRewards(userId: string): Promise<UserRewards | null> {
     try {
       console.log("🏆 Getting user rewards for:", userId)
-      const allRewards = (await kv.get<UserRewards[]>(this.USER_REWARDS_KEY)) || []
+      const store = await this.getStore()
+      const allRewards = (await store.get<UserRewards[]>(this.USER_REWARDS_KEY)) || []
       let userRewards = allRewards.find((r) => r.userId === userId)
 
       if (!userRewards) {
@@ -432,7 +490,7 @@ class PersistentForumDataStore {
           redeemedCoupons: [],
         }
         allRewards.push(userRewards)
-        await kv.set(this.USER_REWARDS_KEY, allRewards)
+        await store.set(this.USER_REWARDS_KEY, allRewards)
       }
 
       // Check if daily reset is needed
@@ -446,7 +504,7 @@ class PersistentForumDataStore {
         userRewards.lastDailyReset = now.toISOString()
 
         const updatedRewards = allRewards.map((r) => (r.userId === userId ? userRewards! : r))
-        await kv.set(this.USER_REWARDS_KEY, updatedRewards)
+        await store.set(this.USER_REWARDS_KEY, updatedRewards)
       }
 
       console.log("✅ User rewards retrieved successfully")
@@ -461,7 +519,8 @@ class PersistentForumDataStore {
     try {
       console.log("📊 Getting all user rewards...")
       await this.initialize()
-      const rewards = await kv.get<UserRewards[]>(this.USER_REWARDS_KEY)
+      const store = await this.getStore()
+      const rewards = await store.get<UserRewards[]>(this.USER_REWARDS_KEY)
       const result = rewards || []
       console.log("✅ All user rewards retrieved:", result.length, "users")
       return result
@@ -512,9 +571,10 @@ class PersistentForumDataStore {
       }
 
       // Update in storage
+      const store = await this.getStore()
       const allRewards = await this.getAllUserRewards()
       const updatedRewards = allRewards.map((r) => (r.userId === userId ? userRewards : r))
-      await kv.set(this.USER_REWARDS_KEY, updatedRewards)
+      await store.set(this.USER_REWARDS_KEY, updatedRewards)
 
       console.log(`✅ Awarded ${points} points to user ${userId} for ${reason}`)
       return userRewards
@@ -574,9 +634,10 @@ class PersistentForumDataStore {
       userRewards.pointsHistory.unshift(historyEntry)
 
       // Update in storage
+      const store = await this.getStore()
       const allRewards = await this.getAllUserRewards()
       const updatedRewards = allRewards.map((r) => (r.userId === userId ? userRewards : r))
-      await kv.set(this.USER_REWARDS_KEY, updatedRewards)
+      await store.set(this.USER_REWARDS_KEY, updatedRewards)
 
       console.log(`✅ User ${userId} redeemed ${coupon.name} for ${coupon.pointsRequired} points`)
       return {
@@ -631,7 +692,8 @@ class PersistentForumDataStore {
   async getCategories(): Promise<Category[]> {
     try {
       await this.initialize()
-      const categories = await kv.get<Category[]>(this.CATEGORIES_KEY)
+      const store = await this.getStore()
+      const categories = await store.get<Category[]>(this.CATEGORIES_KEY)
       return categories || []
     } catch (error) {
       console.error("Error getting categories:", error)
@@ -651,6 +713,7 @@ class PersistentForumDataStore {
 
   async createCategory(data: Omit<Category, "id" | "createdAt">): Promise<Category> {
     try {
+      const store = await this.getStore()
       const categories = await this.getCategories()
       const category: Category = {
         id: `cat-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -659,7 +722,7 @@ class PersistentForumDataStore {
       }
 
       categories.push(category)
-      await kv.set(this.CATEGORIES_KEY, categories)
+      await store.set(this.CATEGORIES_KEY, categories)
 
       console.log("✅ Category created and saved:", category)
       return category
@@ -671,6 +734,7 @@ class PersistentForumDataStore {
 
   async updateCategory(categoryId: string, updates: Partial<Category>): Promise<Category | null> {
     try {
+      const store = await this.getStore()
       const categories = await this.getCategories()
       const categoryIndex = categories.findIndex((cat) => cat.id === categoryId)
 
@@ -680,7 +744,7 @@ class PersistentForumDataStore {
       }
 
       categories[categoryIndex] = { ...categories[categoryIndex], ...updates }
-      await kv.set(this.CATEGORIES_KEY, categories)
+      await store.set(this.CATEGORIES_KEY, categories)
 
       console.log(`✅ Category ${categoryId} updated successfully`)
       return categories[categoryIndex]
@@ -692,9 +756,10 @@ class PersistentForumDataStore {
 
   async deleteCategory(categoryId: string): Promise<boolean> {
     try {
+      const store = await this.getStore()
       const categories = await this.getCategories()
       const updatedCategories = categories.filter((cat) => cat.id !== categoryId)
-      await kv.set(this.CATEGORIES_KEY, updatedCategories)
+      await store.set(this.CATEGORIES_KEY, updatedCategories)
 
       console.log(`✅ Category ${categoryId} deleted from persistent store`)
       return true
@@ -708,7 +773,8 @@ class PersistentForumDataStore {
   async getPosts(): Promise<Post[]> {
     try {
       await this.initialize()
-      const posts = await kv.get<Post[]>(this.POSTS_KEY)
+      const store = await this.getStore()
+      const posts = await store.get<Post[]>(this.POSTS_KEY)
       return (posts || []).filter((post) => post.status === "active")
     } catch (error) {
       console.error("Error getting posts:", error)
@@ -718,7 +784,8 @@ class PersistentForumDataStore {
 
   async getPostById(id: string): Promise<Post | null> {
     try {
-      const posts = await kv.get<Post[]>(this.POSTS_KEY)
+      const store = await this.getStore()
+      const posts = await store.get<Post[]>(this.POSTS_KEY)
       return (posts || []).find((post) => post.id === id && post.status === "active") || null
     } catch (error) {
       console.error("Error getting post by ID:", error)
@@ -728,7 +795,8 @@ class PersistentForumDataStore {
 
   async createPost(data: Omit<Post, "id" | "createdAt" | "updatedAt" | "replies" | "views" | "likes">): Promise<Post> {
     try {
-      const posts = (await kv.get<Post[]>(this.POSTS_KEY)) || []
+      const store = await this.getStore()
+      const posts = (await store.get<Post[]>(this.POSTS_KEY)) || []
       const post: Post = {
         id: `post-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         createdAt: new Date().toISOString(),
@@ -744,7 +812,7 @@ class PersistentForumDataStore {
       }
 
       posts.push(post)
-      await kv.set(this.POSTS_KEY, posts)
+      await store.set(this.POSTS_KEY, posts)
 
       // Award points for creating a post
       if (data.authorEmail) {
@@ -765,7 +833,8 @@ class PersistentForumDataStore {
 
   async deletePost(postId: string, userEmail: string): Promise<boolean> {
     try {
-      const posts = (await kv.get<Post[]>(this.POSTS_KEY)) || []
+      const store = await this.getStore()
+      const posts = (await store.get<Post[]>(this.POSTS_KEY)) || []
       const postIndex = posts.findIndex((p) => p.id === postId)
 
       if (postIndex === -1) {
@@ -786,13 +855,13 @@ class PersistentForumDataStore {
       posts[postIndex].updatedAt = new Date().toISOString()
 
       // Also delete replies
-      const replies = (await kv.get<Reply[]>(this.REPLIES_KEY)) || []
+      const replies = (await store.get<Reply[]>(this.REPLIES_KEY)) || []
       const updatedReplies = replies.map((reply) =>
         reply.postId === postId ? { ...reply, status: "deleted", updatedAt: new Date().toISOString() } : reply,
       )
 
-      await kv.set(this.POSTS_KEY, posts)
-      await kv.set(this.REPLIES_KEY, updatedReplies)
+      await store.set(this.POSTS_KEY, posts)
+      await store.set(this.REPLIES_KEY, updatedReplies)
 
       console.log(`✅ Post ${postId} deleted and saved`)
       return true
@@ -804,7 +873,8 @@ class PersistentForumDataStore {
 
   async incrementPostViews(postId: string): Promise<Post | null> {
     try {
-      const posts = (await kv.get<Post[]>(this.POSTS_KEY)) || []
+      const store = await this.getStore()
+      const posts = (await store.get<Post[]>(this.POSTS_KEY)) || []
       const postIndex = posts.findIndex((p) => p.id === postId && p.status === "active")
 
       if (postIndex === -1) return null
@@ -812,7 +882,7 @@ class PersistentForumDataStore {
       posts[postIndex].views = (posts[postIndex].views || 0) + 1
       posts[postIndex].updatedAt = new Date().toISOString()
 
-      await kv.set(this.POSTS_KEY, posts)
+      await store.set(this.POSTS_KEY, posts)
       console.log(`👁️ Post ${postId} views incremented to ${posts[postIndex].views}`)
 
       return posts[postIndex]
@@ -824,7 +894,8 @@ class PersistentForumDataStore {
 
   async likePost(postId: string, userEmail?: string): Promise<{ likes: number } | null> {
     try {
-      const posts = (await kv.get<Post[]>(this.POSTS_KEY)) || []
+      const store = await this.getStore()
+      const posts = (await store.get<Post[]>(this.POSTS_KEY)) || []
       const postIndex = posts.findIndex((p) => p.id === postId && p.status === "active")
 
       if (postIndex === -1) return null
@@ -832,7 +903,7 @@ class PersistentForumDataStore {
       posts[postIndex].likes = (posts[postIndex].likes || 0) + 1
       posts[postIndex].updatedAt = new Date().toISOString()
 
-      await kv.set(this.POSTS_KEY, posts)
+      await store.set(this.POSTS_KEY, posts)
 
       // Award points for liking and receiving likes
       if (userEmail) {
@@ -867,7 +938,8 @@ class PersistentForumDataStore {
   async getRepliesByPostId(postId: string): Promise<Reply[]> {
     try {
       await this.initialize()
-      const replies = await kv.get<Reply[]>(this.REPLIES_KEY)
+      const store = await this.getStore()
+      const replies = await store.get<Reply[]>(this.REPLIES_KEY)
       return (replies || []).filter((reply) => reply.postId === postId && reply.status === "active")
     } catch (error) {
       console.error("Error getting replies:", error)
@@ -877,8 +949,9 @@ class PersistentForumDataStore {
 
   async addReply(data: Omit<Reply, "id" | "createdAt" | "updatedAt" | "likes">): Promise<Reply> {
     try {
-      const replies = (await kv.get<Reply[]>(this.REPLIES_KEY)) || []
-      const posts = (await kv.get<Post[]>(this.POSTS_KEY)) || []
+      const store = await this.getStore()
+      const replies = (await store.get<Reply[]>(this.REPLIES_KEY)) || []
+      const posts = (await store.get<Post[]>(this.POSTS_KEY)) || []
 
       const reply: Reply = {
         id: `reply-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -898,8 +971,8 @@ class PersistentForumDataStore {
         posts[postIndex].updatedAt = new Date().toISOString()
       }
 
-      await kv.set(this.REPLIES_KEY, replies)
-      await kv.set(this.POSTS_KEY, posts)
+      await store.set(this.REPLIES_KEY, replies)
+      await store.set(this.POSTS_KEY, posts)
 
       // Award points for creating a reply
       if (data.authorEmail) {
@@ -920,7 +993,8 @@ class PersistentForumDataStore {
 
   async likeReply(replyId: string, userEmail?: string): Promise<{ likes: number } | null> {
     try {
-      const replies = (await kv.get<Reply[]>(this.REPLIES_KEY)) || []
+      const store = await this.getStore()
+      const replies = (await store.get<Reply[]>(this.REPLIES_KEY)) || []
       const replyIndex = replies.findIndex((r) => r.id === replyId && r.status === "active")
 
       if (replyIndex === -1) return null
@@ -928,7 +1002,7 @@ class PersistentForumDataStore {
       replies[replyIndex].likes = (replies[replyIndex].likes || 0) + 1
       replies[replyIndex].updatedAt = new Date().toISOString()
 
-      await kv.set(this.REPLIES_KEY, replies)
+      await store.set(this.REPLIES_KEY, replies)
 
       // Award points for liking and receiving likes
       if (userEmail) {
@@ -961,7 +1035,8 @@ class PersistentForumDataStore {
 
   async deleteReply(replyId: string, userEmail: string): Promise<boolean> {
     try {
-      const replies = (await kv.get<Reply[]>(this.REPLIES_KEY)) || []
+      const store = await this.getStore()
+      const replies = (await store.get<Reply[]>(this.REPLIES_KEY)) || []
       const replyIndex = replies.findIndex((r) => r.id === replyId)
 
       if (replyIndex === -1) {
@@ -982,16 +1057,16 @@ class PersistentForumDataStore {
       replies[replyIndex].updatedAt = new Date().toISOString()
 
       // Update post reply count
-      const posts = (await kv.get<Post[]>(this.POSTS_KEY)) || []
+      const posts = (await store.get<Post[]>(this.POSTS_KEY)) || []
       const postIndex = posts.findIndex((p) => p.id === reply.postId)
 
       if (postIndex !== -1 && posts[postIndex].replies > 0) {
         posts[postIndex].replies--
         posts[postIndex].updatedAt = new Date().toISOString()
-        await kv.set(this.POSTS_KEY, posts)
+        await store.set(this.POSTS_KEY, posts)
       }
 
-      await kv.set(this.REPLIES_KEY, replies)
+      await store.set(this.REPLIES_KEY, replies)
       console.log(`✅ Reply ${replyId} deleted and saved`)
       return true
     } catch (error) {
@@ -1004,7 +1079,8 @@ class PersistentForumDataStore {
   async getUsers(): Promise<User[]> {
     try {
       await this.initialize()
-      const users = await kv.get<User[]>(this.USERS_KEY)
+      const store = await this.getStore()
+      const users = await store.get<User[]>(this.USERS_KEY)
       return users || []
     } catch (error) {
       console.error("Error getting users:", error)
@@ -1044,6 +1120,7 @@ class PersistentForumDataStore {
 
   async addUser(data: Omit<User, "id" | "createdAt">): Promise<User> {
     try {
+      const store = await this.getStore()
       const users = await this.getUsers()
       const user: User = {
         id: `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -1053,7 +1130,7 @@ class PersistentForumDataStore {
       }
 
       users.push(user)
-      await kv.set(this.USERS_KEY, users)
+      await store.set(this.USERS_KEY, users)
 
       // Initialize user rewards
       const userRewards: UserRewards = {
@@ -1067,7 +1144,7 @@ class PersistentForumDataStore {
 
       const allRewards = await this.getAllUserRewards()
       allRewards.push(userRewards)
-      await kv.set(this.USER_REWARDS_KEY, allRewards)
+      await store.set(this.USER_REWARDS_KEY, allRewards)
 
       console.log("✅ User created and saved:", user.email)
       return user
@@ -1079,6 +1156,7 @@ class PersistentForumDataStore {
 
   async updateUser(userId: string, updates: Partial<User>): Promise<User | null> {
     try {
+      const store = await this.getStore()
       const users = await this.getUsers()
       const userIndex = users.findIndex((user) => user.id === userId)
 
@@ -1088,7 +1166,7 @@ class PersistentForumDataStore {
       }
 
       users[userIndex] = { ...users[userIndex], ...updates }
-      await kv.set(this.USERS_KEY, users)
+      await store.set(this.USERS_KEY, users)
 
       console.log(`✅ User ${userId} updated successfully`)
       return users[userIndex]
@@ -1103,7 +1181,8 @@ class PersistentForumDataStore {
     try {
       const categories = await this.getCategories()
       const posts = await this.getPosts()
-      const replies = (await kv.get<Reply[]>(this.REPLIES_KEY)) || []
+      const store = await this.getStore()
+      const replies = (await store.get<Reply[]>(this.REPLIES_KEY)) || []
       const users = await this.getUsers()
       const activeReplies = replies.filter((r) => r.status === "active")
 
@@ -1131,13 +1210,18 @@ class PersistentForumDataStore {
   // Clear all data
   async clearAllData(): Promise<boolean> {
     try {
-      await kv.del(this.CATEGORIES_KEY)
-      await kv.del(this.POSTS_KEY)
-      await kv.del(this.REPLIES_KEY)
-      await kv.del(this.USERS_KEY)
-      await kv.del(this.REWARDS_SETTINGS_KEY)
-      await kv.del(this.USER_REWARDS_KEY)
-      await kv.del(this.INITIALIZED_KEY)
+      const store = await this.getStore()
+      await store.del(this.CATEGORIES_KEY)
+      await store.del(this.POSTS_KEY)
+      await store.del(this.REPLIES_KEY)
+      await store.del(this.USERS_KEY)
+      await store.del(this.REWARDS_SETTINGS_KEY)
+      await store.del(this.USER_REWARDS_KEY)
+      await store.del(this.INITIALIZED_KEY)
+
+      if (this.useMemoryFallback) {
+        this.memoryStore.clear()
+      }
 
       console.log("✅ All forum data cleared from persistent storage")
       return true
@@ -1150,13 +1234,14 @@ class PersistentForumDataStore {
   // For debugging - get all data including deleted items
   async getAllDataWithDeleted() {
     try {
-      const categories = (await kv.get<Category[]>(this.CATEGORIES_KEY)) || []
-      const posts = (await kv.get<Post[]>(this.POSTS_KEY)) || []
-      const replies = (await kv.get<Reply[]>(this.REPLIES_KEY)) || []
-      const users = (await kv.get<User[]>(this.USERS_KEY)) || []
-      const rewardsSettings = (await kv.get<RewardsSettings>(this.REWARDS_SETTINGS_KEY)) || null
-      const userRewards = (await kv.get<UserRewards[]>(this.USER_REWARDS_KEY)) || []
-      const initialized = await kv.get(this.INITIALIZED_KEY)
+      const store = await this.getStore()
+      const categories = (await store.get<Category[]>(this.CATEGORIES_KEY)) || []
+      const posts = (await store.get<Post[]>(this.POSTS_KEY)) || []
+      const replies = (await store.get<Reply[]>(this.REPLIES_KEY)) || []
+      const users = (await store.get<User[]>(this.USERS_KEY)) || []
+      const rewardsSettings = (await store.get<RewardsSettings>(this.REWARDS_SETTINGS_KEY)) || null
+      const userRewards = (await store.get<UserRewards[]>(this.USER_REWARDS_KEY)) || []
+      const initialized = await store.get(this.INITIALIZED_KEY)
 
       return {
         categories,
@@ -1166,6 +1251,7 @@ class PersistentForumDataStore {
         rewardsSettings,
         userRewards,
         initialized,
+        usingMemoryFallback: this.useMemoryFallback,
       }
     } catch (error) {
       console.error("Error getting all data:", error)
@@ -1177,6 +1263,7 @@ class PersistentForumDataStore {
         rewardsSettings: null,
         userRewards: [],
         initialized: false,
+        usingMemoryFallback: this.useMemoryFallback,
       }
     }
   }
@@ -1184,7 +1271,8 @@ class PersistentForumDataStore {
   // Force reinitialization
   async forceReinitialize(): Promise<boolean> {
     try {
-      await kv.del(this.INITIALIZED_KEY)
+      const store = await this.getStore()
+      await store.del(this.INITIALIZED_KEY)
       await this.initialize()
       return true
     } catch (error) {
