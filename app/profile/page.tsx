@@ -194,7 +194,14 @@ export default function ProfilePage() {
                 <div>
                   <div className="bg-gray-50 rounded-lg p-6">
                     <h3 className="text-lg font-medium text-gray-900 mb-4">Account Settings</h3>
-                    <form className="space-y-6">
+                    <form
+                      className="space-y-6"
+                      onSubmit={(e) => {
+                        e.preventDefault()
+                        // Handle form submission
+                        alert("Profile updated successfully!")
+                      }}
+                    >
                       <div>
                         <label htmlFor="name" className="block text-sm font-medium text-gray-700">
                           Full Name
@@ -205,7 +212,7 @@ export default function ProfilePage() {
                             name="name"
                             id="name"
                             defaultValue={user.name}
-                            className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                            className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
                           />
                         </div>
                       </div>
@@ -220,21 +227,66 @@ export default function ProfilePage() {
                             name="email"
                             id="email"
                             defaultValue={user.email}
-                            className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                            className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label htmlFor="bio" className="block text-sm font-medium text-gray-700">
+                          Bio
+                        </label>
+                        <div className="mt-1">
+                          <textarea
+                            name="bio"
+                            id="bio"
+                            rows={3}
+                            placeholder="Tell us about yourself..."
+                            className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label htmlFor="location" className="block text-sm font-medium text-gray-700">
+                          Location
+                        </label>
+                        <div className="mt-1">
+                          <input
+                            type="text"
+                            name="location"
+                            id="location"
+                            placeholder="City, State"
+                            className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label htmlFor="vehicle" className="block text-sm font-medium text-gray-700">
+                          Primary Vehicle
+                        </label>
+                        <div className="mt-1">
+                          <input
+                            type="text"
+                            name="vehicle"
+                            id="vehicle"
+                            placeholder="e.g., 2020 Ford F-150"
+                            className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
                           />
                         </div>
                       </div>
 
                       <div>
                         <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                          New Password
+                          New Password (leave blank to keep current)
                         </label>
                         <div className="mt-1">
                           <input
                             type="password"
                             name="password"
                             id="password"
-                            className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                            className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
                           />
                         </div>
                       </div>
@@ -248,7 +300,7 @@ export default function ProfilePage() {
                             type="password"
                             name="confirmPassword"
                             id="confirmPassword"
-                            className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                            className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
                           />
                         </div>
                       </div>

@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { MessageSquare, Trophy, Car, User, LogOut, Menu, X } from "lucide-react"
+import { MessageSquare, Trophy, Car, User, LogOut, Menu, X, Users } from "lucide-react"
 import useUserAuth from "@/hooks/useUserAuth"
 
 export default function UserNavigation() {
@@ -45,6 +45,13 @@ export default function UserNavigation() {
             >
               <Car className="h-4 w-4" />
               <span>Meets</span>
+            </Link>
+            <Link
+              href="/groups"
+              className="flex items-center space-x-2 text-gray-600 hover:text-purple-600 transition-colors"
+            >
+              <Users className="h-4 w-4" />
+              <span>Groups</span>
             </Link>
             <Link
               href="/rewards"
@@ -112,6 +119,14 @@ export default function UserNavigation() {
               >
                 <Car className="h-5 w-5" />
                 <span>Meets</span>
+              </Link>
+              <Link
+                href="/groups"
+                className="flex items-center space-x-3 px-3 py-2 rounded-md text-gray-600 hover:text-purple-600 hover:bg-gray-50"
+                onClick={closeMobileMenu}
+              >
+                <Users className="h-5 w-5" />
+                <span>Groups</span>
               </Link>
               <Link
                 href="/rewards"
