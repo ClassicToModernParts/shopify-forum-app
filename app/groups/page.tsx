@@ -6,15 +6,18 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import UserNavigation from "@/components/UserNavigation"
 import { useRouter } from "next/navigation"
+import useAuth from "@/hooks/useAuth"
 
 export default function GroupsPage() {
   const router = useRouter()
+  const { isAdmin, loading: authLoading, token } = useAuth()
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [groups, setGroups] = useState([])
   const [userGroups, setUserGroups] = useState([])
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [userInfo, setUserInfo] = useState({ email: "", name: "" })
   const [newGroup, setNewGroup] = useState({
     name: "",
     description: "",
@@ -33,10 +36,36 @@ export default function GroupsPage() {
     { id: "offroad", name: "Off-Road" },
   ]
 
+  // Get user info
+  useEffect(() => {
+    const fetchUserInfo = async () => {
+      try {
+        const response = await fetch("/api/auth/user-info")
+        const data = await response.json()
+
+        if (data.success && data.user) {
+          setUserInfo({
+            email: data.user.email || "",
+            name: data.user.name || data.user.username || "User",
+          })
+          console.log("✅ User info loaded:", data.user.email)
+        } else {
+          console.log("⚠️ No user info found")
+        }
+      } catch (error) {
+        console.error("Error fetching user info:", error)
+      }
+    }
+
+    if (!authLoading && token) {
+      fetchUserInfo()
+    }
+  }, [authLoading, token])
+
   // Load groups from API
   useEffect(() => {
     loadGroups()
-  }, [])
+  }, [userInfo.email])
 
   const loadGroups = async () => {
     try {
@@ -47,10 +76,9 @@ export default function GroupsPage() {
       if (data.success) {
         setGroups(data.data || [])
         // Filter user's groups
-        const currentUserEmail = localStorage.getItem("userEmail")
-        if (currentUserEmail) {
+        if (userInfo.email) {
           const userJoinedGroups = (data.data || []).filter((group) =>
-            group.members?.some((member) => member.email === currentUserEmail),
+            group.members?.some((member) => member.email === userInfo.email),
           )
           setUserGroups(userJoinedGroups)
         }
@@ -71,10 +99,13 @@ export default function GroupsPage() {
     }
 
     try {
-      const currentUserEmail = localStorage.getItem("userEmail")
-      const currentUserName = localStorage.getItem("userName") || "Anonymous"
+      if (!userInfo.email) {
+        // Check if we have a token but no user info yet
+        if (token) {
+          alert("Your user information is still loading. Please try again in a moment.")
+          return
+        }
 
-      if (!currentUserEmail) {
         alert("Please log in to create a group")
         router.push("/login")
         return
@@ -84,6 +115,7 @@ export default function GroupsPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           type: "create_group",
@@ -93,8 +125,8 @@ export default function GroupsPage() {
           location: newGroup.location || "Not specified",
           maxMembers: newGroup.maxMembers ? Number.parseInt(newGroup.maxMembers) : null,
           requirements: newGroup.requirements,
-          creatorEmail: currentUserEmail,
-          creatorName: currentUserName,
+          creatorEmail: userInfo.email,
+          creatorName: userInfo.name,
         }),
       })
 
@@ -127,10 +159,7 @@ export default function GroupsPage() {
 
   const handleJoinGroup = async (groupId) => {
     try {
-      const currentUserEmail = localStorage.getItem("userEmail")
-      const currentUserName = localStorage.getItem("userName") || "Anonymous"
-
-      if (!currentUserEmail) {
+      if (!userInfo.email) {
         alert("Please log in to join a group")
         router.push("/login")
         return
@@ -140,12 +169,13 @@ export default function GroupsPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           type: "join_group",
           groupId,
-          userEmail: currentUserEmail,
-          userName: currentUserName,
+          userEmail: userInfo.email,
+          userName: userInfo.name,
         }),
       })
 
@@ -165,9 +195,7 @@ export default function GroupsPage() {
 
   const handleLeaveGroup = async (groupId) => {
     try {
-      const currentUserEmail = localStorage.getItem("userEmail")
-
-      if (!currentUserEmail) {
+      if (!userInfo.email) {
         alert("Please log in to leave a group")
         return
       }
@@ -176,11 +204,12 @@ export default function GroupsPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           type: "leave_group",
           groupId,
-          userEmail: currentUserEmail,
+          userEmail: userInfo.email,
         }),
       })
 
@@ -203,13 +232,11 @@ export default function GroupsPage() {
   }
 
   const isUserInGroup = (group) => {
-    const currentUserEmail = localStorage.getItem("userEmail")
-    return group.members?.some((member) => member.email === currentUserEmail)
+    return group.members?.some((member) => member.email === userInfo.email)
   }
 
   const isUserCreator = (group) => {
-    const currentUserEmail = localStorage.getItem("userEmail")
-    return group.creatorEmail === currentUserEmail
+    return group.creatorEmail === userInfo.email
   }
 
   const filteredGroups = groups.filter((group) => {
@@ -220,7 +247,7 @@ export default function GroupsPage() {
     return matchesSearch && matchesCategory
   })
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
         <UserNavigation />
@@ -236,7 +263,7 @@ export default function GroupsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <UserNavigation />
+      <UserNavigation currentPage="groups" showBreadcrumb={true} />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
@@ -248,6 +275,11 @@ export default function GroupsPage() {
                 Groups
               </h1>
               <p className="text-gray-600 mt-2">Join communities of like-minded automotive enthusiasts</p>
+              {userInfo.email && (
+                <p className="text-sm text-blue-600 mt-1">
+                  Logged in as: {userInfo.name} ({userInfo.email})
+                </p>
+              )}
             </div>
             <Button onClick={() => setShowCreateForm(!showCreateForm)} className="bg-blue-600 hover:bg-blue-700">
               <Plus className="h-4 w-4 mr-2" />

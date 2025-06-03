@@ -3,10 +3,15 @@
 import { useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { MessageSquare, Trophy, Car, User, LogOut, Menu, X, Users } from "lucide-react"
+import { MessageSquare, Trophy, Car, User, LogOut, Menu, X, Users, Home, ChevronRight } from "lucide-react"
 import useUserAuth from "@/hooks/useUserAuth"
 
-export default function UserNavigation() {
+interface UserNavigationProps {
+  currentPage?: string
+  showBreadcrumb?: boolean
+}
+
+export default function UserNavigation({ currentPage, showBreadcrumb = false }: UserNavigationProps) {
   const { user, isAuthenticated, logout } = useUserAuth()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
@@ -18,8 +23,16 @@ export default function UserNavigation() {
     setIsMobileMenuOpen(false)
   }
 
+  const navigationItems = [
+    { href: "/", label: "Home", icon: Home, color: "text-gray-600 hover:text-blue-600" },
+    { href: "/forum", label: "Forum", icon: MessageSquare, color: "text-gray-600 hover:text-blue-600" },
+    { href: "/meets", label: "Meets", icon: Car, color: "text-gray-600 hover:text-green-600" },
+    { href: "/groups", label: "Groups", icon: Users, color: "text-gray-600 hover:text-purple-600" },
+    { href: "/rewards", label: "Rewards", icon: Trophy, color: "text-gray-600 hover:text-yellow-600" },
+  ]
+
   return (
-    <nav className="bg-white shadow-sm border-b">
+    <nav className="bg-white shadow-sm border-b sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center py-3 sm:py-4">
           {/* Logo */}
@@ -31,35 +44,23 @@ export default function UserNavigation() {
           </Link>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-6">
-            <Link
-              href="/forum"
-              className="flex items-center space-x-2 text-gray-600 hover:text-blue-600 transition-colors"
-            >
-              <MessageSquare className="h-4 w-4" />
-              <span>Forum</span>
-            </Link>
-            <Link
-              href="/meets"
-              className="flex items-center space-x-2 text-gray-600 hover:text-green-600 transition-colors"
-            >
-              <Car className="h-4 w-4" />
-              <span>Meets</span>
-            </Link>
-            <Link
-              href="/groups"
-              className="flex items-center space-x-2 text-gray-600 hover:text-purple-600 transition-colors"
-            >
-              <Users className="h-4 w-4" />
-              <span>Groups</span>
-            </Link>
-            <Link
-              href="/rewards"
-              className="flex items-center space-x-2 text-gray-600 hover:text-yellow-600 transition-colors"
-            >
-              <Trophy className="h-4 w-4" />
-              <span>Rewards</span>
-            </Link>
+          <div className="hidden md:flex items-center space-x-1">
+            {navigationItems.map((item) => {
+              const Icon = item.icon
+              const isActive = currentPage === item.label.toLowerCase()
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
+                    isActive ? "bg-blue-100 text-blue-700 font-medium" : item.color
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span className="font-medium">{item.label}</span>
+                </Link>
+              )
+            })}
           </div>
 
           {/* Desktop User Menu */}
@@ -68,7 +69,7 @@ export default function UserNavigation() {
               <div className="flex items-center space-x-4">
                 <Link
                   href="/profile"
-                  className="flex items-center space-x-2 text-gray-600 hover:text-blue-600 transition-colors"
+                  className="flex items-center space-x-2 text-gray-600 hover:text-blue-600 transition-colors px-3 py-2 rounded-lg hover:bg-gray-50"
                 >
                   <User className="h-4 w-4" />
                   <span>{user.name || user.email}</span>
@@ -100,62 +101,60 @@ export default function UserNavigation() {
           </div>
         </div>
 
+        {/* Breadcrumb */}
+        {showBreadcrumb && currentPage && (
+          <div className="pb-3 border-t border-gray-100 pt-3">
+            <div className="flex items-center space-x-2 text-sm text-gray-500">
+              <Link href="/" className="hover:text-blue-600 transition-colors">
+                Home
+              </Link>
+              <ChevronRight className="h-4 w-4" />
+              <span className="text-gray-900 font-medium capitalize">{currentPage}</span>
+            </div>
+          </div>
+        )}
+
         {/* Mobile Menu */}
         {isMobileMenuOpen && (
           <div className="md:hidden border-t bg-white">
             <div className="px-2 pt-2 pb-3 space-y-1">
-              <Link
-                href="/forum"
-                className="flex items-center space-x-3 px-3 py-2 rounded-md text-gray-600 hover:text-blue-600 hover:bg-gray-50"
-                onClick={closeMobileMenu}
-              >
-                <MessageSquare className="h-5 w-5" />
-                <span>Forum</span>
-              </Link>
-              <Link
-                href="/meets"
-                className="flex items-center space-x-3 px-3 py-2 rounded-md text-gray-600 hover:text-green-600 hover:bg-gray-50"
-                onClick={closeMobileMenu}
-              >
-                <Car className="h-5 w-5" />
-                <span>Meets</span>
-              </Link>
-              <Link
-                href="/groups"
-                className="flex items-center space-x-3 px-3 py-2 rounded-md text-gray-600 hover:text-purple-600 hover:bg-gray-50"
-                onClick={closeMobileMenu}
-              >
-                <Users className="h-5 w-5" />
-                <span>Groups</span>
-              </Link>
-              <Link
-                href="/rewards"
-                className="flex items-center space-x-3 px-3 py-2 rounded-md text-gray-600 hover:text-yellow-600 hover:bg-gray-50"
-                onClick={closeMobileMenu}
-              >
-                <Trophy className="h-5 w-5" />
-                <span>Rewards</span>
-              </Link>
+              {navigationItems.map((item) => {
+                const Icon = item.icon
+                const isActive = currentPage === item.label.toLowerCase()
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center space-x-3 px-3 py-3 rounded-md transition-colors ${
+                      isActive ? "bg-blue-100 text-blue-700 font-medium" : "text-gray-600 hover:bg-gray-50"
+                    }`}
+                    onClick={closeMobileMenu}
+                  >
+                    <Icon className="h-5 w-5" />
+                    <span className="font-medium">{item.label}</span>
+                  </Link>
+                )
+              })}
 
               {isAuthenticated && user ? (
                 <>
                   <Link
                     href="/profile"
-                    className="flex items-center space-x-3 px-3 py-2 rounded-md text-gray-600 hover:text-blue-600 hover:bg-gray-50"
+                    className="flex items-center space-x-3 px-3 py-3 rounded-md text-gray-600 hover:text-blue-600 hover:bg-gray-50"
                     onClick={closeMobileMenu}
                   >
                     <User className="h-5 w-5" />
-                    <span>{user.name || user.email}</span>
+                    <span className="font-medium">{user.name || user.email}</span>
                   </Link>
                   <button
                     onClick={() => {
                       logout()
                       closeMobileMenu()
                     }}
-                    className="flex items-center space-x-3 px-3 py-2 rounded-md text-gray-600 hover:text-red-600 hover:bg-gray-50 w-full text-left"
+                    className="flex items-center space-x-3 px-3 py-3 rounded-md text-gray-600 hover:text-red-600 hover:bg-gray-50 w-full text-left"
                   >
                     <LogOut className="h-5 w-5" />
-                    <span>Logout</span>
+                    <span className="font-medium">Logout</span>
                   </button>
                 </>
               ) : (

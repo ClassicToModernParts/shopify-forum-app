@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Calendar, Clock, MapPin, Users, Car, Plus, Trash2, UserCheck, UserX } from "lucide-react"
 import Link from "next/link"
 import useUserAuth from "@/hooks/useUserAuth"
+import UserNavigation from "@/components/UserNavigation"
 
 interface Meet {
   id: string
@@ -342,10 +343,13 @@ export default function MeetsPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading meets...</p>
+      <div className="min-h-screen bg-gray-50">
+        <UserNavigation currentPage="meets" showBreadcrumb={true} />
+        <div className="flex items-center justify-center pt-20">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading meets...</p>
+          </div>
         </div>
       </div>
     )
@@ -353,6 +357,8 @@ export default function MeetsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <UserNavigation currentPage="meets" showBreadcrumb={true} />
+
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-3 sm:py-4">
