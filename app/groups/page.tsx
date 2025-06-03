@@ -1,12 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Users, Plus, Search, MapPin, Car } from "lucide-react"
+import { Users, Plus, Search, MapPin, Car, Home } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import UserNavigation from "@/components/UserNavigation"
 import { useRouter } from "next/navigation"
 import useAuth from "@/hooks/useAuth"
+import Link from "next/link"
 
 export default function GroupsPage() {
   const router = useRouter()
@@ -26,6 +27,7 @@ export default function GroupsPage() {
     maxMembers: "",
     requirements: "",
   })
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const categories = [
     { id: "all", name: "All Groups" },
@@ -40,7 +42,17 @@ export default function GroupsPage() {
   useEffect(() => {
     const fetchUserInfo = async () => {
       try {
-        const response = await fetch("/api/auth/user-info")
+        // Check if we have a token
+        if (!token) {
+          console.log("⚠️ No auth token available")
+          return
+        }
+
+        const response = await fetch("/api/auth/user-info", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
         const data = await response.json()
 
         if (data.success && data.user) {
@@ -50,14 +62,14 @@ export default function GroupsPage() {
           })
           console.log("✅ User info loaded:", data.user.email)
         } else {
-          console.log("⚠️ No user info found")
+          console.log("⚠️ No user info found:", data.error || "Unknown error")
         }
       } catch (error) {
         console.error("Error fetching user info:", error)
       }
     }
 
-    if (!authLoading && token) {
+    if (!authLoading) {
       fetchUserInfo()
     }
   }, [authLoading, token])
@@ -93,22 +105,59 @@ export default function GroupsPage() {
   const handleCreateGroup = async (e) => {
     e.preventDefault()
 
+    // Prevent double submission
+    if (isSubmitting) return
+
+    setIsSubmitting(true)
+
     if (!newGroup.name || !newGroup.description) {
       alert("Please fill in all required fields")
+      setIsSubmitting(false)
       return
     }
 
     try {
+      // Debug auth state
+      console.log("🔐 Auth state when creating group:")
+      console.log("  - Token exists:", !!token)
+      console.log("  - User email:", userInfo.email)
+      console.log("  - Auth loading:", authLoading)
+
+      if (!token) {
+        alert("You need to be logged in to create a group. Please log in and try again.")
+        router.push("/login")
+        setIsSubmitting(false)
+        return
+      }
+
       if (!userInfo.email) {
-        // Check if we have a token but no user info yet
-        if (token) {
-          alert("Your user information is still loading. Please try again in a moment.")
+        // If we have a token but no user info, try to fetch it again
+        try {
+          const response = await fetch("/api/auth/user-info", {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          })
+          const data = await response.json()
+
+          if (data.success && data.user) {
+            setUserInfo({
+              email: data.user.email || "",
+              name: data.user.name || data.user.username || "User",
+            })
+            console.log("✅ User info loaded on retry:", data.user.email)
+          } else {
+            alert("Could not retrieve your user information. Please log in again.")
+            router.push("/login")
+            setIsSubmitting(false)
+            return
+          }
+        } catch (error) {
+          console.error("Error fetching user info on retry:", error)
+          alert("An error occurred while retrieving your user information. Please try again.")
+          setIsSubmitting(false)
           return
         }
-
-        alert("Please log in to create a group")
-        router.push("/login")
-        return
       }
 
       const response = await fetch("/api/groups", {
@@ -133,9 +182,6 @@ export default function GroupsPage() {
       const data = await response.json()
 
       if (data.success) {
-        // Reload groups to get the updated list
-        await loadGroups()
-
         // Reset form
         setNewGroup({
           name: "",
@@ -147,20 +193,34 @@ export default function GroupsPage() {
         })
         setShowCreateForm(false)
 
+        // Reload groups to get the updated list
+        await loadGroups()
+
         alert("Group created successfully!")
+
+        // Stay on the groups page
+        // No need to navigate, we're already on the groups page
       } else {
         alert(data.error || "Failed to create group")
       }
     } catch (error) {
       console.error("Error creating group:", error)
-      alert("Failed to create group")
+      alert("Failed to create group: " + (error.message || "Unknown error"))
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
   const handleJoinGroup = async (groupId) => {
     try {
+      if (!token) {
+        alert("You need to be logged in to join a group")
+        router.push("/login")
+        return
+      }
+
       if (!userInfo.email) {
-        alert("Please log in to join a group")
+        alert("Your user information is not available. Please log in again.")
         router.push("/login")
         return
       }
@@ -195,8 +255,15 @@ export default function GroupsPage() {
 
   const handleLeaveGroup = async (groupId) => {
     try {
+      if (!token) {
+        alert("You need to be logged in to leave a group")
+        router.push("/login")
+        return
+      }
+
       if (!userInfo.email) {
-        alert("Please log in to leave a group")
+        alert("Your user information is not available. Please log in again.")
+        router.push("/login")
         return
       }
 
@@ -263,9 +330,19 @@ export default function GroupsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <UserNavigation currentPage="groups" showBreadcrumb={true} />
+      <UserNavigation />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Breadcrumb */}
+        <div className="flex items-center text-sm text-gray-500 mb-4">
+          <Link href="/" className="hover:text-blue-600 flex items-center">
+            <Home className="h-4 w-4 mr-1" />
+            Home
+          </Link>
+          <span className="mx-2">/</span>
+          <span className="text-gray-900">Groups</span>
+        </div>
+
         {/* Header */}
         <div className="mb-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -275,13 +352,37 @@ export default function GroupsPage() {
                 Groups
               </h1>
               <p className="text-gray-600 mt-2">Join communities of like-minded automotive enthusiasts</p>
-              {userInfo.email && (
+              {token && (
                 <p className="text-sm text-blue-600 mt-1">
-                  Logged in as: {userInfo.name} ({userInfo.email})
+                  {userInfo.email ? (
+                    <>
+                      Logged in as: {userInfo.name} ({userInfo.email})
+                    </>
+                  ) : (
+                    <>Logged in</>
+                  )}
+                </p>
+              )}
+              {!token && (
+                <p className="text-sm text-red-600 mt-1">
+                  <Link href="/login" className="underline">
+                    Log in
+                  </Link>{" "}
+                  to create or join groups
                 </p>
               )}
             </div>
-            <Button onClick={() => setShowCreateForm(!showCreateForm)} className="bg-blue-600 hover:bg-blue-700">
+            <Button
+              onClick={() => {
+                if (!token) {
+                  alert("You need to be logged in to create a group")
+                  router.push("/login")
+                  return
+                }
+                setShowCreateForm(!showCreateForm)
+              }}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
               <Plus className="h-4 w-4 mr-2" />
               Create Group
             </Button>
@@ -371,8 +472,8 @@ export default function GroupsPage() {
                 </div>
 
                 <div className="flex gap-3">
-                  <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-                    Create Group
+                  <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={isSubmitting}>
+                    {isSubmitting ? "Creating..." : "Create Group"}
                   </Button>
                   <Button type="button" variant="outline" onClick={() => setShowCreateForm(false)}>
                     Cancel

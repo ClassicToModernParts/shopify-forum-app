@@ -86,6 +86,84 @@ export async function POST(request: NextRequest) {
 
     console.log(`📝 Groups API POST request: ${type} for shop ${shopId}`)
 
+    // Get auth token
+    const authHeader = request.headers.get("authorization")
+    const token = authHeader?.split(" ")[1]
+
+    // Check authentication for all operations
+    if (!token) {
+      console.log("⚠️ No auth token provided for groups API POST")
+
+      // Try to get user from session cookie as fallback
+      const sessionCookie = request.cookies.get("session")
+      const userEmail = sessionCookie?.value
+
+      if (!userEmail) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Authentication required",
+          },
+          { status: 401 },
+        )
+      }
+
+      // Verify user exists
+      const user = await persistentForumDataStore.getUserByEmail(userEmail)
+      if (!user) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "User not found",
+          },
+          { status: 401 },
+        )
+      }
+
+      // Continue with the user from cookie
+      console.log("✅ User authenticated via session cookie:", userEmail)
+    } else {
+      // Verify token
+      try {
+        // Get user from token
+        const tokenData = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString())
+        const userEmail = tokenData.email
+
+        if (!userEmail) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Invalid token format - no email found",
+            },
+            { status: 401 },
+          )
+        }
+
+        // Verify user exists
+        const user = await persistentForumDataStore.getUserByEmail(userEmail)
+        if (!user) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "User not found with token email",
+            },
+            { status: 401 },
+          )
+        }
+
+        console.log("✅ User authenticated via token:", userEmail)
+      } catch (error) {
+        console.error("Error verifying token:", error)
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Invalid authentication token",
+          },
+          { status: 401 },
+        )
+      }
+    }
+
     if (type === "create_group") {
       const { name, description, category, location, maxMembers, requirements, creatorEmail, creatorName } = body
 
