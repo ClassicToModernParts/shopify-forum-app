@@ -1,24 +1,24 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Users, Plus, Search, MapPin, Car, Home } from "lucide-react"
+import { Users, Plus, Search, MapPin, Car } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import UserNavigation from "@/components/UserNavigation"
 import { useRouter } from "next/navigation"
-import useAuth from "@/hooks/useAuth"
 import Link from "next/link"
 
 export default function GroupsPage() {
   const router = useRouter()
-  const { isAdmin, loading: authLoading, token } = useAuth()
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [groups, setGroups] = useState([])
   const [userGroups, setUserGroups] = useState([])
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [authLoading, setAuthLoading] = useState(true)
   const [userInfo, setUserInfo] = useState({ email: "", name: "" })
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [newGroup, setNewGroup] = useState({
     name: "",
     description: "",
@@ -38,46 +38,82 @@ export default function GroupsPage() {
     { id: "offroad", name: "Off-Road" },
   ]
 
-  // Get user info
+  // Check authentication and get user info
   useEffect(() => {
-    const fetchUserInfo = async () => {
+    const checkAuthAndLoadUser = async () => {
       try {
-        // Check if we have a token
-        if (!token) {
-          console.log("⚠️ No auth token available")
+        setAuthLoading(true)
+
+        // Check for session cookie first
+        const sessionCookie = document.cookie
+          .split("; ")
+          .find((row) => row.startsWith("session="))
+          ?.split("=")[1]
+
+        // Check for auth token in localStorage
+        const authToken = localStorage.getItem("authToken")
+
+        console.log("🔐 Groups page auth check:", {
+          sessionCookie: !!sessionCookie,
+          authToken: !!authToken,
+        })
+
+        if (!sessionCookie && !authToken) {
+          console.log("❌ No authentication found")
+          setIsAuthenticated(false)
+          setUserInfo({ email: "", name: "" })
+          setAuthLoading(false)
           return
         }
 
+        // Try to get user info
+        const headers = {}
+        if (authToken) {
+          headers["Authorization"] = `Bearer ${authToken}`
+        }
+
         const response = await fetch("/api/auth/user-info", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers,
+          credentials: "include",
         })
+
         const data = await response.json()
 
         if (data.success && data.user) {
+          console.log("✅ User authenticated on groups page:", data.user.email)
+          setIsAuthenticated(true)
           setUserInfo({
             email: data.user.email || "",
             name: data.user.name || data.user.username || "User",
           })
-          console.log("✅ User info loaded:", data.user.email)
         } else {
-          console.log("⚠️ No user info found:", data.error || "Unknown error")
+          console.log("❌ Auth failed on groups page:", data.error)
+          setIsAuthenticated(false)
+          setUserInfo({ email: "", name: "" })
+
+          // Clear invalid tokens
+          if (authToken) {
+            localStorage.removeItem("authToken")
+          }
         }
       } catch (error) {
-        console.error("Error fetching user info:", error)
+        console.error("Auth check error on groups page:", error)
+        setIsAuthenticated(false)
+        setUserInfo({ email: "", name: "" })
+      } finally {
+        setAuthLoading(false)
       }
     }
 
-    if (!authLoading) {
-      fetchUserInfo()
-    }
-  }, [authLoading, token])
+    checkAuthAndLoadUser()
+  }, [])
 
   // Load groups from API
   useEffect(() => {
-    loadGroups()
-  }, [userInfo.email])
+    if (!authLoading) {
+      loadGroups()
+    }
+  }, [authLoading, userInfo.email])
 
   const loadGroups = async () => {
     try {
@@ -117,55 +153,33 @@ export default function GroupsPage() {
     }
 
     try {
-      // Debug auth state
-      console.log("🔐 Auth state when creating group:")
-      console.log("  - Token exists:", !!token)
-      console.log("  - User email:", userInfo.email)
-      console.log("  - Auth loading:", authLoading)
-
-      if (!token) {
-        alert("You need to be logged in to create a group. Please log in and try again.")
+      if (!isAuthenticated) {
+        alert("You need to be logged in to create a group")
         router.push("/login")
         setIsSubmitting(false)
         return
       }
 
       if (!userInfo.email) {
-        // If we have a token but no user info, try to fetch it again
-        try {
-          const response = await fetch("/api/auth/user-info", {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          })
-          const data = await response.json()
+        alert("Your user information is not available. Please log in again.")
+        router.push("/login")
+        setIsSubmitting(false)
+        return
+      }
 
-          if (data.success && data.user) {
-            setUserInfo({
-              email: data.user.email || "",
-              name: data.user.name || data.user.username || "User",
-            })
-            console.log("✅ User info loaded on retry:", data.user.email)
-          } else {
-            alert("Could not retrieve your user information. Please log in again.")
-            router.push("/login")
-            setIsSubmitting(false)
-            return
-          }
-        } catch (error) {
-          console.error("Error fetching user info on retry:", error)
-          alert("An error occurred while retrieving your user information. Please try again.")
-          setIsSubmitting(false)
-          return
-        }
+      const authToken = localStorage.getItem("authToken")
+      const headers = {
+        "Content-Type": "application/json",
+      }
+
+      if (authToken) {
+        headers["Authorization"] = `Bearer ${authToken}`
       }
 
       const response = await fetch("/api/groups", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers,
+        credentials: "include",
         body: JSON.stringify({
           type: "create_group",
           name: newGroup.name,
@@ -197,9 +211,6 @@ export default function GroupsPage() {
         await loadGroups()
 
         alert("Group created successfully!")
-
-        // Stay on the groups page
-        // No need to navigate, we're already on the groups page
       } else {
         alert(data.error || "Failed to create group")
       }
@@ -213,7 +224,7 @@ export default function GroupsPage() {
 
   const handleJoinGroup = async (groupId) => {
     try {
-      if (!token) {
+      if (!isAuthenticated) {
         alert("You need to be logged in to join a group")
         router.push("/login")
         return
@@ -225,12 +236,19 @@ export default function GroupsPage() {
         return
       }
 
+      const authToken = localStorage.getItem("authToken")
+      const headers = {
+        "Content-Type": "application/json",
+      }
+
+      if (authToken) {
+        headers["Authorization"] = `Bearer ${authToken}`
+      }
+
       const response = await fetch("/api/groups", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers,
+        credentials: "include",
         body: JSON.stringify({
           type: "join_group",
           groupId,
@@ -255,7 +273,7 @@ export default function GroupsPage() {
 
   const handleLeaveGroup = async (groupId) => {
     try {
-      if (!token) {
+      if (!isAuthenticated) {
         alert("You need to be logged in to leave a group")
         router.push("/login")
         return
@@ -267,12 +285,19 @@ export default function GroupsPage() {
         return
       }
 
+      const authToken = localStorage.getItem("authToken")
+      const headers = {
+        "Content-Type": "application/json",
+      }
+
+      if (authToken) {
+        headers["Authorization"] = `Bearer ${authToken}`
+      }
+
       const response = await fetch("/api/groups", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers,
+        credentials: "include",
         body: JSON.stringify({
           type: "leave_group",
           groupId,
@@ -321,7 +346,7 @@ export default function GroupsPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading groups...</p>
+            <p className="mt-4 text-gray-600">{authLoading ? "Checking authentication..." : "Loading groups..."}</p>
           </div>
         </div>
       </div>
@@ -330,19 +355,9 @@ export default function GroupsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <UserNavigation />
+      <UserNavigation currentPage="groups" showBreadcrumb={true} />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Breadcrumb */}
-        <div className="flex items-center text-sm text-gray-500 mb-4">
-          <Link href="/" className="hover:text-blue-600 flex items-center">
-            <Home className="h-4 w-4 mr-1" />
-            Home
-          </Link>
-          <span className="mx-2">/</span>
-          <span className="text-gray-900">Groups</span>
-        </div>
-
         {/* Header */}
         <div className="mb-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -352,18 +367,11 @@ export default function GroupsPage() {
                 Groups
               </h1>
               <p className="text-gray-600 mt-2">Join communities of like-minded automotive enthusiasts</p>
-              {token && (
-                <p className="text-sm text-blue-600 mt-1">
-                  {userInfo.email ? (
-                    <>
-                      Logged in as: {userInfo.name} ({userInfo.email})
-                    </>
-                  ) : (
-                    <>Logged in</>
-                  )}
+              {isAuthenticated && userInfo.email ? (
+                <p className="text-sm text-green-600 mt-1">
+                  ✅ Logged in as: {userInfo.name} ({userInfo.email})
                 </p>
-              )}
-              {!token && (
+              ) : (
                 <p className="text-sm text-red-600 mt-1">
                   <Link href="/login" className="underline">
                     Log in
@@ -374,7 +382,7 @@ export default function GroupsPage() {
             </div>
             <Button
               onClick={() => {
-                if (!token) {
+                if (!isAuthenticated) {
                   alert("You need to be logged in to create a group")
                   router.push("/login")
                   return
