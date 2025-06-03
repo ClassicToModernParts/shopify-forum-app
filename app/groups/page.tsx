@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Users, Plus, Search, MapPin, Car } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -14,6 +14,7 @@ export default function GroupsPage() {
   const [groups, setGroups] = useState([])
   const [userGroups, setUserGroups] = useState([])
   const [showCreateForm, setShowCreateForm] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [newGroup, setNewGroup] = useState({
     name: "",
     description: "",
@@ -32,6 +33,35 @@ export default function GroupsPage() {
     { id: "offroad", name: "Off-Road" },
   ]
 
+  // Load groups from API
+  useEffect(() => {
+    loadGroups()
+  }, [])
+
+  const loadGroups = async () => {
+    try {
+      setLoading(true)
+      const response = await fetch("/api/groups")
+      const data = await response.json()
+
+      if (data.success) {
+        setGroups(data.data || [])
+        // Filter user's groups
+        const currentUserEmail = localStorage.getItem("userEmail")
+        if (currentUserEmail) {
+          const userJoinedGroups = (data.data || []).filter((group) =>
+            group.members?.some((member) => member.email === currentUserEmail),
+          )
+          setUserGroups(userJoinedGroups)
+        }
+      }
+    } catch (error) {
+      console.error("Error loading groups:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleCreateGroup = async (e) => {
     e.preventDefault()
 
@@ -40,59 +70,146 @@ export default function GroupsPage() {
       return
     }
 
-    const group = {
-      id: Date.now(),
-      name: newGroup.name,
-      description: newGroup.description,
-      members: 1, // Creator is first member
-      category: newGroup.category,
-      location: newGroup.location || "Not specified",
-      maxMembers: newGroup.maxMembers ? Number.parseInt(newGroup.maxMembers) : null,
-      requirements: newGroup.requirements,
-      createdAt: new Date().toISOString(),
-      isJoined: true, // Creator automatically joins
-      creator: true,
+    try {
+      const currentUserEmail = localStorage.getItem("userEmail")
+      const currentUserName = localStorage.getItem("userName") || "Anonymous"
+
+      if (!currentUserEmail) {
+        alert("Please log in to create a group")
+        router.push("/login")
+        return
+      }
+
+      const response = await fetch("/api/groups", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type: "create_group",
+          name: newGroup.name,
+          description: newGroup.description,
+          category: newGroup.category,
+          location: newGroup.location || "Not specified",
+          maxMembers: newGroup.maxMembers ? Number.parseInt(newGroup.maxMembers) : null,
+          requirements: newGroup.requirements,
+          creatorEmail: currentUserEmail,
+          creatorName: currentUserName,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        // Reload groups to get the updated list
+        await loadGroups()
+
+        // Reset form
+        setNewGroup({
+          name: "",
+          description: "",
+          category: "trucks",
+          location: "",
+          maxMembers: "",
+          requirements: "",
+        })
+        setShowCreateForm(false)
+
+        alert("Group created successfully!")
+      } else {
+        alert(data.error || "Failed to create group")
+      }
+    } catch (error) {
+      console.error("Error creating group:", error)
+      alert("Failed to create group")
     }
-
-    // Add new group to the TOP of the list
-    setGroups((prev) => [group, ...prev])
-    setUserGroups((prev) => [group, ...prev])
-
-    // Reset form
-    setNewGroup({
-      name: "",
-      description: "",
-      category: "trucks",
-      location: "",
-      maxMembers: "",
-      requirements: "",
-    })
-    setShowCreateForm(false)
   }
 
-  const handleJoinGroup = (groupId) => {
-    setGroups((prev) =>
-      prev.map((group) => (group.id === groupId ? { ...group, members: group.members + 1, isJoined: true } : group)),
-    )
+  const handleJoinGroup = async (groupId) => {
+    try {
+      const currentUserEmail = localStorage.getItem("userEmail")
+      const currentUserName = localStorage.getItem("userName") || "Anonymous"
 
-    const groupToJoin = groups.find((g) => g.id === groupId)
-    if (groupToJoin) {
-      setUserGroups((prev) => [{ ...groupToJoin, isJoined: true }, ...prev])
+      if (!currentUserEmail) {
+        alert("Please log in to join a group")
+        router.push("/login")
+        return
+      }
+
+      const response = await fetch("/api/groups", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type: "join_group",
+          groupId,
+          userEmail: currentUserEmail,
+          userName: currentUserName,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        await loadGroups()
+        alert("Successfully joined the group!")
+      } else {
+        alert(data.error || "Failed to join group")
+      }
+    } catch (error) {
+      console.error("Error joining group:", error)
+      alert("Failed to join group")
     }
   }
 
-  const handleLeaveGroup = (groupId) => {
-    setGroups((prev) =>
-      prev.map((group) =>
-        group.id === groupId ? { ...group, members: Math.max(1, group.members - 1), isJoined: false } : group,
-      ),
-    )
+  const handleLeaveGroup = async (groupId) => {
+    try {
+      const currentUserEmail = localStorage.getItem("userEmail")
 
-    setUserGroups((prev) => prev.filter((group) => group.id !== groupId))
+      if (!currentUserEmail) {
+        alert("Please log in to leave a group")
+        return
+      }
+
+      const response = await fetch("/api/groups", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type: "leave_group",
+          groupId,
+          userEmail: currentUserEmail,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        await loadGroups()
+        alert("Successfully left the group!")
+      } else {
+        alert(data.error || "Failed to leave group")
+      }
+    } catch (error) {
+      console.error("Error leaving group:", error)
+      alert("Failed to leave group")
+    }
   }
 
   const handleViewGroup = (groupId) => {
     router.push(`/groups/${groupId}`)
+  }
+
+  const isUserInGroup = (group) => {
+    const currentUserEmail = localStorage.getItem("userEmail")
+    return group.members?.some((member) => member.email === currentUserEmail)
+  }
+
+  const isUserCreator = (group) => {
+    const currentUserEmail = localStorage.getItem("userEmail")
+    return group.creatorEmail === currentUserEmail
   }
 
   const filteredGroups = groups.filter((group) => {
@@ -102,6 +219,20 @@ export default function GroupsPage() {
     const matchesCategory = selectedCategory === "all" || group.category === selectedCategory
     return matchesSearch && matchesCategory
   })
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <UserNavigation />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading groups...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -258,7 +389,7 @@ export default function GroupsPage() {
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center justify-between">
                     <span>{group.name}</span>
-                    {group.creator && (
+                    {isUserCreator(group) && (
                       <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">Creator</span>
                     )}
                   </CardTitle>
@@ -270,7 +401,7 @@ export default function GroupsPage() {
                       <div className="flex items-center gap-1">
                         <Users className="h-4 w-4" />
                         <span>
-                          {group.members} member{group.members !== 1 ? "s" : ""}
+                          {group.members?.length || 0} member{(group.members?.length || 0) !== 1 ? "s" : ""}
                           {group.maxMembers && ` / ${group.maxMembers}`}
                         </span>
                       </div>
@@ -287,22 +418,22 @@ export default function GroupsPage() {
                     )}
 
                     <div className="flex gap-2">
-                      {group.isJoined ? (
+                      {isUserInGroup(group) ? (
                         <Button
                           variant="outline"
                           className="flex-1"
                           onClick={() => handleLeaveGroup(group.id)}
-                          disabled={group.creator}
+                          disabled={isUserCreator(group)}
                         >
-                          {group.creator ? "Creator" : "Leave"}
+                          {isUserCreator(group) ? "Creator" : "Leave"}
                         </Button>
                       ) : (
                         <Button
                           className="flex-1 bg-blue-600 hover:bg-blue-700"
                           onClick={() => handleJoinGroup(group.id)}
-                          disabled={group.maxMembers && group.members >= group.maxMembers}
+                          disabled={group.maxMembers && (group.members?.length || 0) >= group.maxMembers}
                         >
-                          {group.maxMembers && group.members >= group.maxMembers ? "Full" : "Join Group"}
+                          {group.maxMembers && (group.members?.length || 0) >= group.maxMembers ? "Full" : "Join Group"}
                         </Button>
                       )}
                       <Button variant="outline" size="sm" onClick={() => handleViewGroup(group.id)}>
@@ -339,7 +470,7 @@ export default function GroupsPage() {
                     <CardTitle className="text-lg flex items-center gap-2">
                       <Car className="h-5 w-5 text-blue-600" />
                       {group.name}
-                      {group.creator && (
+                      {isUserCreator(group) && (
                         <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded-full ml-auto">Creator</span>
                       )}
                     </CardTitle>
@@ -347,14 +478,14 @@ export default function GroupsPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center justify-between text-sm text-gray-600 mb-3">
-                      <span>{group.members} members</span>
+                      <span>{group.members?.length || 0} members</span>
                       <span>{group.location}</span>
                     </div>
                     <div className="flex gap-2">
                       <Button variant="outline" className="flex-1" onClick={() => handleViewGroup(group.id)}>
                         View Group
                       </Button>
-                      {!group.creator && (
+                      {!isUserCreator(group) && (
                         <Button variant="outline" size="sm" onClick={() => handleLeaveGroup(group.id)}>
                           Leave
                         </Button>

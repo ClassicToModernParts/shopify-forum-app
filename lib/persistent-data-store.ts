@@ -122,6 +122,27 @@ interface UserRewards {
   }[]
 }
 
+interface Group {
+  id: string
+  name: string
+  description: string
+  category: string
+  location: string
+  maxMembers?: number
+  requirements?: string
+  creatorEmail: string
+  creatorName: string
+  createdAt: string
+  updatedAt: string
+  status: "active" | "deleted"
+  members: {
+    email: string
+    name: string
+    joinedAt: string
+    role: "creator" | "member"
+  }[]
+}
+
 // Simple hash function for passwords
 function simpleHash(str: string): string {
   let hash = 0
@@ -691,6 +712,147 @@ class PersistentForumDataStore {
       return meet
     } catch (error) {
       console.error("Error cancelling RSVP:", error)
+      return null
+    }
+  }
+
+  // Groups Methods
+  async getGroups(): Promise<Group[]> {
+    try {
+      await this.initialize()
+      const store = await this.getStore()
+      const groups = await store.get<Group[]>("forum:groups")
+      return (groups || []).filter((group) => group.status !== "deleted")
+    } catch (error) {
+      console.error("Error getting groups:", error)
+      return []
+    }
+  }
+
+  async getGroupById(id: string): Promise<Group | null> {
+    try {
+      const groups = await this.getGroups()
+      return groups.find((group) => group.id === id) || null
+    } catch (error) {
+      console.error("Error getting group by ID:", error)
+      return null
+    }
+  }
+
+  async createGroup(data: Omit<Group, "id" | "createdAt" | "updatedAt" | "members">): Promise<Group> {
+    try {
+      const store = await this.getStore()
+      const groups = await this.getGroups()
+      const group: Group = {
+        id: `group-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        members: [
+          {
+            email: data.creatorEmail,
+            name: data.creatorName,
+            joinedAt: new Date().toISOString(),
+            role: "creator",
+          },
+        ],
+        status: "active",
+        ...data,
+      }
+
+      groups.unshift(group) // Add to beginning of array
+      await store.set("forum:groups", groups)
+
+      console.log("✅ Group created and saved:", group)
+      return group
+    } catch (error) {
+      console.error("Error creating group:", error)
+      throw error
+    }
+  }
+
+  async joinGroup(groupId: string, userEmail: string, userName: string): Promise<Group | null> {
+    try {
+      const store = await this.getStore()
+      const groups = await this.getGroups()
+      const groupIndex = groups.findIndex((g) => g.id === groupId)
+
+      if (groupIndex === -1) {
+        console.warn(`⚠️ Group not found for join: ${groupId}`)
+        return null
+      }
+
+      const group = groups[groupIndex]
+
+      // Check if user already joined
+      const existingMember = group.members.find((m) => m.email === userEmail)
+      if (existingMember) {
+        console.warn(`⚠️ User ${userEmail} already in group ${groupId}`)
+        return group
+      }
+
+      // Check capacity
+      if (group.maxMembers && group.members.length >= group.maxMembers) {
+        console.warn(`⚠️ Group ${groupId} is at capacity`)
+        return null
+      }
+
+      // Add member
+      group.members.push({
+        email: userEmail,
+        name: userName,
+        joinedAt: new Date().toISOString(),
+        role: "member",
+      })
+
+      group.updatedAt = new Date().toISOString()
+      groups[groupIndex] = group
+
+      await store.set("forum:groups", groups)
+
+      console.log(`✅ User ${userEmail} joined group ${groupId}`)
+      return group
+    } catch (error) {
+      console.error("Error joining group:", error)
+      return null
+    }
+  }
+
+  async leaveGroup(groupId: string, userEmail: string): Promise<Group | null> {
+    try {
+      const store = await this.getStore()
+      const groups = await this.getGroups()
+      const groupIndex = groups.findIndex((g) => g.id === groupId)
+
+      if (groupIndex === -1) {
+        console.warn(`⚠️ Group not found for leave: ${groupId}`)
+        return null
+      }
+
+      const group = groups[groupIndex]
+      const memberIndex = group.members.findIndex((m) => m.email === userEmail)
+
+      if (memberIndex === -1) {
+        console.warn(`⚠️ User ${userEmail} not in group ${groupId}`)
+        return group
+      }
+
+      // Don't allow creator to leave
+      if (group.members[memberIndex].role === "creator") {
+        console.warn(`⚠️ Creator cannot leave group ${groupId}`)
+        return null
+      }
+
+      // Remove member
+      group.members.splice(memberIndex, 1)
+      group.updatedAt = new Date().toISOString()
+      groups[groupIndex] = group
+
+      await store.set("forum:groups", groups)
+
+      console.log(`✅ User ${userEmail} left group ${groupId}`)
+      return group
+    } catch (error) {
+      console.error("Error leaving group:", error)
       return null
     }
   }
