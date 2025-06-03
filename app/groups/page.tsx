@@ -5,8 +5,10 @@ import { Users, Plus, Search, MapPin, Car } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import UserNavigation from "@/components/UserNavigation"
+import { useRouter } from "next/navigation"
 
 export default function GroupsPage() {
+  const router = useRouter()
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [groups, setGroups] = useState([])
@@ -87,6 +89,10 @@ export default function GroupsPage() {
     )
 
     setUserGroups((prev) => prev.filter((group) => group.id !== groupId))
+  }
+
+  const handleViewGroup = (groupId) => {
+    router.push(`/groups/${groupId}`)
   }
 
   const filteredGroups = groups.filter((group) => {
@@ -299,7 +305,7 @@ export default function GroupsPage() {
                           {group.maxMembers && group.members >= group.maxMembers ? "Full" : "Join Group"}
                         </Button>
                       )}
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => handleViewGroup(group.id)}>
                         View
                       </Button>
                     </div>
@@ -345,7 +351,7 @@ export default function GroupsPage() {
                       <span>{group.location}</span>
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="outline" className="flex-1">
+                      <Button variant="outline" className="flex-1" onClick={() => handleViewGroup(group.id)}>
                         View Group
                       </Button>
                       {!group.creator && (
