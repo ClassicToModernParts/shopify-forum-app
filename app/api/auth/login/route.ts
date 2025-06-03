@@ -47,7 +47,36 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`✅ Login API: Login successful for ${username}`)
-    return NextResponse.json(result)
+
+    // Create response with user data
+    const response = NextResponse.json({
+      success: true,
+      message: "Login successful",
+      user: result.user,
+      token: result.token,
+    })
+
+    // Set session cookie with user email
+    response.cookies.set("session", result.user.email, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+      path: "/",
+    })
+
+    // Set auth token cookie (for client-side access)
+    response.cookies.set("authToken", result.token, {
+      httpOnly: false, // Allow client-side access
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+      path: "/",
+    })
+
+    console.log("🍪 Login API: Cookies set successfully")
+
+    return response
   } catch (error) {
     console.error("❌ Login API: Unexpected error:", error)
     return NextResponse.json(

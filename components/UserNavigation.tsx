@@ -16,6 +16,15 @@ export default function UserNavigation({ currentPage, showBreadcrumb = false }: 
   const [loading, setLoading] = useState(true)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
+  // Get cookie value
+  const getCookie = (name: string) => {
+    if (typeof document === "undefined") return null
+    const value = `; ${document.cookie}`
+    const parts = value.split(`; ${name}=`)
+    if (parts.length === 2) return parts.pop()?.split(";").shift()
+    return null
+  }
+
   // Check authentication status
   useEffect(() => {
     const checkAuth = async () => {
@@ -23,20 +32,18 @@ export default function UserNavigation({ currentPage, showBreadcrumb = false }: 
         setLoading(true)
 
         // Check for session cookie first
-        const sessionCookie = document.cookie
-          .split("; ")
-          .find((row) => row.startsWith("session="))
-          ?.split("=")[1]
-
-        // Check for auth token in localStorage
-        const authToken = localStorage.getItem("authToken")
+        const sessionCookie = getCookie("session")
+        const authTokenCookie = getCookie("authToken")
+        const authTokenLocal = localStorage.getItem("authToken")
 
         console.log("🔐 Auth check:", {
           sessionCookie: !!sessionCookie,
-          authToken: !!authToken,
+          authTokenCookie: !!authTokenCookie,
+          authTokenLocal: !!authTokenLocal,
         })
 
-        if (!sessionCookie && !authToken) {
+        // If no authentication found
+        if (!sessionCookie && !authTokenCookie && !authTokenLocal) {
           console.log("❌ No authentication found")
           setIsAuthenticated(false)
           setUser(null)
@@ -44,10 +51,15 @@ export default function UserNavigation({ currentPage, showBreadcrumb = false }: 
           return
         }
 
-        // Try to get user info
-        const headers = {}
-        if (authToken) {
-          headers["Authorization"] = `Bearer ${authToken}`
+        // Try to get user info from API
+        const headers = {
+          "Content-Type": "application/json",
+        }
+
+        // Use token from cookie first, then localStorage
+        const token = authTokenCookie || authTokenLocal
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`
         }
 
         const response = await fetch("/api/auth/user-info", {
@@ -61,15 +73,24 @@ export default function UserNavigation({ currentPage, showBreadcrumb = false }: 
           console.log("✅ User authenticated:", data.user.email)
           setIsAuthenticated(true)
           setUser(data.user)
+
+          // Store user info in localStorage for consistency
+          localStorage.setItem("userEmail", data.user.email)
+          localStorage.setItem("userName", data.user.name || data.user.username)
+
+          // Store token in localStorage if we got it from cookie
+          if (authTokenCookie && !authTokenLocal) {
+            localStorage.setItem("authToken", authTokenCookie)
+          }
         } else {
           console.log("❌ Auth failed:", data.error)
           setIsAuthenticated(false)
           setUser(null)
 
           // Clear invalid tokens
-          if (authToken) {
-            localStorage.removeItem("authToken")
-          }
+          localStorage.removeItem("authToken")
+          localStorage.removeItem("userEmail")
+          localStorage.removeItem("userName")
         }
       } catch (error) {
         console.error("Auth check error:", error)
@@ -90,10 +111,7 @@ export default function UserNavigation({ currentPage, showBreadcrumb = false }: 
       localStorage.removeItem("userEmail")
       localStorage.removeItem("userName")
 
-      // Clear session cookie
-      document.cookie = "session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
-
-      // Call logout API
+      // Call logout API to clear cookies
       await fetch("/api/auth/logout", {
         method: "POST",
         credentials: "include",
@@ -244,7 +262,7 @@ export default function UserNavigation({ currentPage, showBreadcrumb = false }: 
                 <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-2">
                   <div className="flex items-center space-x-2 text-green-700">
                     <User className="h-4 w-4" />
-                    <span className="font-medium">Logged in as:</span>
+                    <span className="font-medium">✅ Logged in as:</span>
                   </div>
                   <p className="text-sm text-green-600 mt-1">{user.name || user.username || user.email}</p>
                 </div>
@@ -252,7 +270,7 @@ export default function UserNavigation({ currentPage, showBreadcrumb = false }: 
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-2">
                   <div className="flex items-center space-x-2 text-gray-600">
                     <User className="h-4 w-4" />
-                    <span className="font-medium">Not logged in</span>
+                    <span className="font-medium">❌ Not logged in</span>
                   </div>
                   <p className="text-sm text-gray-500 mt-1">Log in to access all features</p>
                 </div>

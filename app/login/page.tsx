@@ -2,254 +2,196 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Eye, EyeOff, MessageSquare } from "lucide-react"
 import Link from "next/link"
-import useUserAuth from "@/hooks/useUserAuth"
 
 export default function LoginPage() {
-  const [username, setUsername] = useState("")
-  const [password, setPassword] = useState("")
+  const [formData, setFormData] = useState({
+    username: "",
+    password: "",
+  })
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-  const [isAdmin, setIsAdmin] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const router = useRouter()
-  const { login } = useUserAuth()
-
-  // Check if current user is admin
-  useEffect(() => {
-    const checkAdminStatus = () => {
-      try {
-        const user = localStorage.getItem("user")
-        if (user) {
-          const userData = JSON.parse(user)
-          setIsAdmin(userData.role === "admin")
-        }
-      } catch (error) {
-        console.error("Error checking admin status:", error)
-      }
-    }
-
-    checkAdminStatus()
-  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setLoading(true)
     setError("")
-    setIsLoading(true)
 
     try {
-      console.log("🔐 Login Page: Attempting login for:", username)
-      const result = await login({ username, password })
+      console.log("🔐 Attempting login for:", formData.username)
 
-      console.log("🔐 Login Page: Login result:", { success: result.success, message: result.message })
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include", // Important for cookies
+        body: JSON.stringify(formData),
+      })
 
-      if (result.success) {
-        console.log("✅ Login Page: Login successful, redirecting to forum")
-        // Update admin status after successful login
-        if (result.user?.role === "admin") {
-          setIsAdmin(true)
+      const data = await response.json()
+      console.log("🔐 Login response:", data)
+
+      if (data.success) {
+        console.log("✅ Login successful")
+
+        // Store auth token in localStorage for client-side access
+        if (data.token) {
+          localStorage.setItem("authToken", data.token)
+          console.log("🔐 Auth token stored in localStorage")
         }
-        router.push("/forum")
+
+        // Store user info in localStorage
+        if (data.user) {
+          localStorage.setItem("userEmail", data.user.email)
+          localStorage.setItem("userName", data.user.name || data.user.username)
+          console.log("👤 User info stored in localStorage")
+        }
+
+        // Redirect to home page
+        console.log("🔄 Redirecting to home page")
+        router.push("/")
       } else {
-        console.log("❌ Login Page: Login failed:", result.message)
-        setError(result.message || "Login failed. Please try again.")
+        console.log("❌ Login failed:", data.message)
+        setError(data.message || "Login failed")
       }
     } catch (error) {
-      console.error("❌ Login Page: Login error:", error)
-      setError("Login failed. Please check your connection and try again.")
+      console.error("❌ Login error:", error)
+      setError("An error occurred during login. Please try again.")
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    })
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-6 sm:px-6 lg:px-8">
-      <div className="w-full max-w-sm sm:max-w-md space-y-6">
-        <Card className="shadow-lg">
-          <CardHeader className="space-y-2 pb-4">
-            <CardTitle className="text-xl sm:text-2xl font-bold text-center">Sign in</CardTitle>
-            <CardDescription className="text-center text-sm sm:text-base px-2">
-              Enter your username and password to access your account
-            </CardDescription>
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="flex justify-center">
+          <div className="bg-blue-600 p-3 rounded-lg">
+            <MessageSquare className="h-8 w-8 text-white" />
+          </div>
+        </div>
+        <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900">Sign in to CTM Community</h2>
+        <p className="mt-2 text-center text-sm text-gray-600">
+          Or{" "}
+          <Link href="/register" className="font-medium text-blue-600 hover:text-blue-500">
+            create a new account
+          </Link>
+        </p>
+      </div>
+
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <Card>
+          <CardHeader>
+            <CardTitle>Login</CardTitle>
           </CardHeader>
-          <CardContent className="px-4 sm:px-6">
-            <form onSubmit={handleSubmit} className="space-y-4">
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-6">
               {error && (
-                <Alert variant="destructive" className="text-sm">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">{error}</div>
               )}
 
-              <div className="space-y-2">
-                <Label htmlFor="username" className="text-sm font-medium">
+              <div>
+                <label htmlFor="username" className="block text-sm font-medium text-gray-700">
                   Username
-                </Label>
-                <Input
-                  id="username"
-                  type="text"
-                  placeholder="Enter your username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  required
-                  className="h-11 text-base"
-                  autoComplete="username"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password" className="text-sm font-medium">
-                    Password
-                  </Label>
-                  <Link href="/forgot-password-security" className="text-xs sm:text-sm text-blue-600 hover:underline">
-                    Forgot password?
-                  </Link>
+                </label>
+                <div className="mt-1">
+                  <input
+                    id="username"
+                    name="username"
+                    type="text"
+                    autoComplete="username"
+                    required
+                    value={formData.username}
+                    onChange={handleChange}
+                    className="block w-full px-3 py-3 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base"
+                    placeholder="Enter your username"
+                  />
                 </div>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="h-11 text-base"
-                  autoComplete="current-password"
-                />
               </div>
 
-              <Button type="submit" className="w-full h-11 text-base font-medium" disabled={isLoading}>
-                {isLoading ? "Signing in..." : "Sign in"}
-              </Button>
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                  Password
+                </label>
+                <div className="mt-1 relative">
+                  <input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    required
+                    value={formData.password}
+                    onChange={handleChange}
+                    className="block w-full px-3 py-3 pr-10 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base"
+                    placeholder="Enter your password"
+                  />
+                  <button
+                    type="button"
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-5 w-5 text-gray-400" />
+                    ) : (
+                      <Eye className="h-5 w-5 text-gray-400" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <Button type="submit" disabled={loading} className="w-full text-base py-3">
+                  {loading ? "Signing in..." : "Sign in"}
+                </Button>
+              </div>
             </form>
 
-            <div className="mt-6 space-y-3">
-              <div className="text-center text-sm">
-                Don't have an account?{" "}
-                <Link href="/register" className="text-blue-600 hover:underline font-medium">
-                  Sign up
-                </Link>
+            <div className="mt-6">
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300" />
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-white text-gray-500">Default accounts for testing</span>
+                </div>
               </div>
 
-              <div className="text-center">
-                <Link href="/forum" className="text-sm text-gray-600 hover:underline">
-                  Continue as guest
-                </Link>
+              <div className="mt-4 space-y-2">
+                <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                  <p className="text-sm font-medium text-blue-900">Admin Account:</p>
+                  <p className="text-sm text-blue-700">Username: ctm_admin</p>
+                  <p className="text-sm text-blue-700">Password: admin123</p>
+                </div>
+                <div className="bg-green-50 border border-green-200 rounded-md p-3">
+                  <p className="text-sm font-medium text-green-900">Test User:</p>
+                  <p className="text-sm text-green-700">Username: testuser</p>
+                  <p className="text-sm text-green-700">Password: test123</p>
+                </div>
               </div>
+            </div>
+
+            <div className="mt-6 text-center">
+              <Link href="/" className="text-sm text-blue-600 hover:text-blue-500">
+                ← Back to home
+              </Link>
             </div>
           </CardContent>
         </Card>
-
-        {/* Debug section - only show for admins */}
-        {isAdmin && (
-          <Card className="shadow-lg">
-            <CardContent className="p-4">
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Debug Options</h3>
-              <div className="grid grid-cols-1 gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-10 text-sm"
-                  onClick={async () => {
-                    try {
-                      const response = await fetch("/api/debug/auth")
-                      const data = await response.json()
-                      console.log("Debug info:", data)
-                      alert(`System has ${data.debug?.userCount || 0} users. Check console for details.`)
-                    } catch (error) {
-                      console.error("Debug error:", error)
-                      alert("Debug check failed. Check console for details.")
-                    }
-                  }}
-                >
-                  Check System State
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-10 text-sm"
-                  onClick={async () => {
-                    try {
-                      const response = await fetch("/api/debug/reinitialize", { method: "POST" })
-                      const data = await response.json()
-                      console.log("Reinitialize result:", data)
-                      if (data.success) {
-                        alert("System reinitialized! You can now login with default users.")
-                      } else {
-                        alert("Failed to reinitialize. Check console for details.")
-                      }
-                    } catch (error) {
-                      console.error("Reinitialize error:", error)
-                      alert("Reinitialize failed. Check console for details.")
-                    }
-                  }}
-                >
-                  Reinitialize System
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-10 text-sm"
-                  onClick={async () => {
-                    try {
-                      const response = await fetch("/api/debug/create-test-user", { method: "POST" })
-                      const data = await response.json()
-                      console.log("Test user creation:", data)
-                      if (data.success) {
-                        alert("Test user created! Username: testuser, Password: password123")
-                      } else {
-                        alert("Failed to create test user. Check console for details.")
-                      }
-                    } catch (error) {
-                      console.error("Test user creation error:", error)
-                      alert("Test user creation failed. Check console for details.")
-                    }
-                  }}
-                >
-                  Create Test User
-                </Button>
-              </div>
-
-              <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                <h4 className="text-xs font-medium text-blue-800 mb-2">Default Login Credentials:</h4>
-                <div className="text-xs text-blue-700 space-y-1">
-                  <div className="flex justify-between">
-                    <span>
-                      <strong>Admin:</strong>
-                    </span>
-                    <span>ctm_admin / admin123</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>
-                      <strong>Moderator:</strong>
-                    </span>
-                    <span>tech_expert / tech123</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>
-                      <strong>User:</strong>
-                    </span>
-                    <span>builder_pro / builder123</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>
-                      <strong>Test User:</strong>
-                    </span>
-                    <span>testuser / password123</span>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </div>
     </div>
   )

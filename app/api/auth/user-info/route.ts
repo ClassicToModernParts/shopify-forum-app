@@ -3,99 +3,83 @@ import { persistentForumDataStore } from "@/lib/persistent-data-store"
 
 export async function GET(request: NextRequest) {
   try {
+    console.log("🔍 User info API called")
+
     // Get token from Authorization header
     const authHeader = request.headers.get("authorization")
     const token = authHeader?.split(" ")[1]
 
-    // Check if we have a token
-    if (!token) {
-      console.log("⚠️ No auth token provided in user-info request")
+    // Get session cookie
+    const sessionCookie = request.cookies.get("session")?.value
 
-      // Try to get user from session cookie as fallback
-      const sessionCookie = request.cookies.get("session")
-      const userEmail = sessionCookie?.value
+    console.log("🔐 Auth sources:", {
+      hasToken: !!token,
+      hasSessionCookie: !!sessionCookie,
+    })
 
-      if (!userEmail) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "No authentication token or session found",
-          },
-          { status: 401 },
-        )
-      }
+    let userEmail = null
 
-      // Get user from data store using cookie
-      const user = await persistentForumDataStore.getUserByEmail(userEmail)
-
-      if (!user) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "User not found from session cookie",
-          },
-          { status: 404 },
-        )
-      }
-
-      // Return user info (excluding password)
-      const { password, ...userInfo } = user
-
-      return NextResponse.json({
-        success: true,
-        user: userInfo,
-        message: "User found via session cookie",
-      })
+    // Try to get user email from session cookie first
+    if (sessionCookie) {
+      userEmail = sessionCookie
+      console.log("📧 Using email from session cookie:", userEmail)
     }
 
-    // Verify token
-    try {
-      // Get user from token
-      const tokenData = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString())
-      const userEmail = tokenData.email
-
-      if (!userEmail) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "Invalid token format - no email found",
-          },
-          { status: 401 },
-        )
+    // If no session cookie, try to get from token
+    if (!userEmail && token) {
+      try {
+        // Simple token parsing (in production, use proper JWT verification)
+        const tokenParts = token.split("_")
+        if (tokenParts.length >= 3) {
+          // Try to get user by token
+          const users = await persistentForumDataStore.getUsers()
+          const user = users.find((u) => u.id === tokenParts[0])
+          if (user) {
+            userEmail = user.email
+            console.log("📧 Using email from token:", userEmail)
+          }
+        }
+      } catch (error) {
+        console.error("Error parsing token:", error)
       }
+    }
 
-      // Get user from data store
-      const user = await persistentForumDataStore.getUserByEmail(userEmail)
-
-      if (!user) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "User not found with token email",
-          },
-          { status: 404 },
-        )
-      }
-
-      // Return user info (excluding password)
-      const { password, ...userInfo } = user
-
-      return NextResponse.json({
-        success: true,
-        user: userInfo,
-      })
-    } catch (error) {
-      console.error("Error verifying token:", error)
+    if (!userEmail) {
+      console.log("❌ No user email found from any source")
       return NextResponse.json(
         {
           success: false,
-          error: "Invalid authentication token",
+          error: "No authentication found",
         },
         { status: 401 },
       )
     }
+
+    // Get user from data store
+    const user = await persistentForumDataStore.getUserByEmail(userEmail)
+
+    if (!user) {
+      console.log("❌ User not found in database:", userEmail)
+      return NextResponse.json(
+        {
+          success: false,
+          error: "User not found",
+        },
+        { status: 404 },
+      )
+    }
+
+    // Return user info (excluding password)
+    const { password, ...userInfo } = user
+
+    console.log("✅ User info retrieved successfully:", userInfo.email)
+
+    return NextResponse.json({
+      success: true,
+      user: userInfo,
+    })
   } catch (error) {
-    console.error("Error in user-info API:", error)
+    console.error("❌ Error in user-info API:", error)
     return NextResponse.json(
       {
         success: false,
