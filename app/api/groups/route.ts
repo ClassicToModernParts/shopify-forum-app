@@ -1,8 +1,22 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { persistentForumDataStore } from "@/lib/persistent-data-store"
+import { ensureDataStoreInitialized } from "@/lib/data-store-manager"
 
 export async function GET(request: NextRequest) {
   try {
+    // Ensure data store is initialized before proceeding
+    const initialized = await ensureDataStoreInitialized()
+    if (!initialized) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Data store initialization failed. Please try again later.",
+          data: null,
+        },
+        { status: 500 },
+      )
+    }
+
     const { searchParams } = new URL(request.url)
     const requestType = searchParams.get("type")
     const shopId = searchParams.get("shop_id") || "demo"
@@ -81,6 +95,18 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Ensure data store is initialized before proceeding
+    const initialized = await ensureDataStoreInitialized()
+    if (!initialized) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Data store initialization failed. Please try again later.",
+        },
+        { status: 500 },
+      )
+    }
+
     const body = await request.json()
     const { type, shopId } = body
 

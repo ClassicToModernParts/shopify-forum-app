@@ -1,4 +1,5 @@
 import { kv } from "@vercel/kv"
+import * as crypto from "crypto"
 
 interface Category {
   id: string
@@ -143,38 +144,32 @@ interface Group {
   }[]
 }
 
-// Simple hash function for passwords
+// Update the simpleHash function to use a more secure method
 function simpleHash(str: string): string {
-  let hash = 0
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i)
-    hash = (hash << 5) - hash + char
-    hash = hash & hash // Convert to 32bit integer
-  }
-  return hash.toString()
+  return crypto.createHash("sha256").update(str).digest("hex")
 }
 
-// In-memory fallback storage for when KV is not available
 class MemoryStore {
-  private data: Map<string, any> = new Map()
+  private data: { [key: string]: any } = {}
 
   async get<T>(key: string): Promise<T | null> {
-    return this.data.get(key) || null
+    return this.data[key] || null
   }
 
-  async set(key: string, value: any): Promise<void> {
-    this.data.set(key, value)
+  async set<T>(key: string, value: T): Promise<void> {
+    this.data[key] = value
   }
 
   async del(key: string): Promise<void> {
-    this.data.delete(key)
+    delete this.data[key]
   }
 
   clear(): void {
-    this.data.clear()
+    this.data = {}
   }
 }
 
+// Update the PersistentForumDataStore class to include better error handling and initialization
 class PersistentForumDataStore {
   private readonly CATEGORIES_KEY = "forum:categories"
   private readonly POSTS_KEY = "forum:posts"
@@ -184,32 +179,48 @@ class PersistentForumDataStore {
   private readonly REWARDS_SETTINGS_KEY = "forum:rewards:settings"
   private readonly USER_REWARDS_KEY = "forum:user:rewards"
   private readonly MEETS_KEY = "forum:meets"
+  private readonly GROUPS_KEY = "forum:groups"
 
   private memoryStore = new MemoryStore()
   private useMemoryFallback = false
+  private storeInstance: any = null
 
+  /**
+   * Gets the appropriate store instance (KV or memory fallback)
+   */
   private async getStore() {
+    // If we already have a store instance, return it
+    if (this.storeInstance) {
+      return this.storeInstance
+    }
+
     // Check if KV environment variables are available
     const hasKvUrl = process.env.KV_REST_API_URL || process.env.KV_URL
-    const hasKvToken = process.env.KV_REST_API_TOKEN
+    const hasKvToken = process.env.KV_REST_API_TOKEN || process.env.KV_REST_API_READ_ONLY_TOKEN
 
     if (!hasKvUrl || !hasKvToken) {
       console.warn("⚠️ KV environment variables not found, using memory fallback")
       this.useMemoryFallback = true
-      return this.memoryStore
+      this.storeInstance = this.memoryStore
+      return this.storeInstance
     }
 
     try {
       // Test KV connection
       await kv.get("test-connection")
-      return kv
+      this.storeInstance = kv
+      return this.storeInstance
     } catch (error) {
       console.warn("⚠️ KV connection failed, using memory fallback:", error)
       this.useMemoryFallback = true
-      return this.memoryStore
+      this.storeInstance = this.memoryStore
+      return this.storeInstance
     }
   }
 
+  /**
+   * Checks if the data store has been initialized
+   */
   async isInitialized(): Promise<boolean> {
     try {
       const store = await this.getStore()
@@ -716,13 +727,27 @@ class PersistentForumDataStore {
     }
   }
 
-  // Groups Methods
+  /**
+   * Gets all groups from the data store
+   */
   async getGroups(): Promise<Group[]> {
     try {
-      await this.initialize()
+      // Ensure initialization
+      const isInit = await this.isInitialized()
+      if (!isInit) {
+        await this.initialize()
+      }
+
       const store = await this.getStore()
-      const groups = await store.get<Group[]>("forum:groups")
-      return (groups || []).filter((group) => group.status !== "deleted")
+      const groups = await store.get<Group[]>(this.GROUPS_KEY)
+
+      // If groups is null or undefined, return an empty array
+      if (!groups) {
+        console.log("⚠️ No groups found in data store, returning empty array")
+        return []
+      }
+
+      return groups.filter((group) => group.status !== "deleted")
     } catch (error) {
       console.error("Error getting groups:", error)
       return []
@@ -739,10 +764,16 @@ class PersistentForumDataStore {
     }
   }
 
+  /**
+   * Creates a new group
+   */
   async createGroup(data: Omit<Group, "id" | "createdAt" | "updatedAt" | "members">): Promise<Group> {
     try {
       const store = await this.getStore()
-      const groups = await this.getGroups()
+
+      // Get existing groups or initialize with empty array
+      const groups = (await store.get<Group[]>(this.GROUPS_KEY)) || []
+
       const group: Group = {
         id: `group-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         createdAt: new Date().toISOString(),
@@ -760,7 +791,7 @@ class PersistentForumDataStore {
       }
 
       groups.unshift(group) // Add to beginning of array
-      await store.set("forum:groups", groups)
+      await store.set(this.GROUPS_KEY, groups)
 
       console.log("✅ Group created and saved:", group)
       return group

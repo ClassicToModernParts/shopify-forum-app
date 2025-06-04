@@ -1,9 +1,23 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { authService } from "@/lib/auth-service"
+import { ensureDataStoreInitialized } from "@/lib/data-store-manager"
 
 export async function POST(request: NextRequest) {
   try {
     console.log("🔐 Login API: Request received")
+
+    // Ensure data store is initialized before proceeding
+    const initialized = await ensureDataStoreInitialized()
+    if (!initialized) {
+      console.error("❌ Login API: Data store initialization failed")
+      return NextResponse.json(
+        {
+          success: false,
+          message: "System initialization failed. Please try again later.",
+        },
+        { status: 500 },
+      )
+    }
 
     const body = await request.json()
     const { username, password } = body

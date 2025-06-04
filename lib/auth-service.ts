@@ -1,4 +1,6 @@
 import { persistentForumDataStore } from "@/lib/persistent-data-store"
+import { ensureDataStoreInitialized } from "@/lib/data-store-manager"
+import * as crypto from "crypto"
 
 export interface UserRegistrationData {
   username: string
@@ -22,25 +24,100 @@ export interface AuthResult {
   }
 }
 
-// Simple hash function for passwords (in production, use proper hashing)
-function simpleHash(password: string): string {
-  let hash = 0
-  for (let i = 0; i < password.length; i++) {
-    const char = password.charCodeAt(i)
-    hash = (hash << 5) - hash + char
-    hash = hash & hash // Convert to 32bit integer
-  }
-  return hash.toString()
+// Simple hash function for passwords
+function hashPassword(password: string): string {
+  return crypto.createHash("sha256").update(password).digest("hex")
 }
 
 // Simple token generation
-function generateToken(userId: string): string {
-  const timestamp = Date.now()
-  const random = Math.random().toString(36).substring(2)
-  return `${userId}_${timestamp}_${random}`
+function generateToken(user: any): string {
+  const payload = {
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    timestamp: Date.now(),
+  }
+
+  // In a real app, you'd use JWT with proper signing
+  const tokenParts = [
+    user.id,
+    Buffer.from(JSON.stringify(payload)).toString("base64"),
+    crypto.randomBytes(8).toString("hex"),
+  ]
+
+  return tokenParts.join("_")
 }
 
 export class AuthService {
+  async loginUser({ username, password }: { username: string; password: string }) {
+    try {
+      console.log(`🔐 Auth Service: Login attempt for ${username}`)
+
+      // Ensure data store is initialized
+      await ensureDataStoreInitialized()
+
+      // Get user by username
+      const user = await persistentForumDataStore.getUserByUsername(username)
+
+      if (!user) {
+        console.log(`❌ Auth Service: User not found: ${username}`)
+        return {
+          success: false,
+          message: "Invalid username or password",
+        }
+      }
+
+      // Check if user is active
+      if (user.isActive === false) {
+        console.log(`❌ Auth Service: User account is inactive: ${username}`)
+        return {
+          success: false,
+          message: "Your account is inactive. Please contact support.",
+        }
+      }
+
+      // Check password
+      const hashedPassword = hashPassword(password)
+      const passwordMatches = user.password === hashedPassword
+
+      if (!passwordMatches) {
+        console.log(`❌ Auth Service: Password mismatch for ${username}`)
+        return {
+          success: false,
+          message: "Invalid username or password",
+        }
+      }
+
+      // Generate token
+      const token = generateToken(user)
+
+      // Update last active timestamp
+      await persistentForumDataStore.updateUser(user.id, {
+        lastActive: new Date().toISOString(),
+      })
+
+      console.log(`✅ Auth Service: Login successful for ${username}`)
+
+      // Return success with user data (excluding password)
+      const { password: _, ...userWithoutPassword } = user
+
+      return {
+        success: true,
+        message: "Login successful",
+        user: userWithoutPassword,
+        token,
+      }
+    } catch (error) {
+      console.error("❌ Auth Service: Login error:", error)
+      return {
+        success: false,
+        message: "An error occurred during login",
+      }
+    }
+  }
+
+  // Add other auth methods as needed...
+
   // Register a new user
   async registerUser(userData: UserRegistrationData): Promise<AuthResult> {
     try {
@@ -70,7 +147,7 @@ export class AuthService {
       // Hash the password
       let hashedPassword
       try {
-        hashedPassword = simpleHash(userData.password)
+        hashedPassword = hashPassword(userData.password)
         console.log("🔐 AuthService: Password hashed successfully")
       } catch (hashError) {
         console.error("❌ AuthService: Error hashing password:", hashError)
@@ -113,7 +190,7 @@ export class AuthService {
       // Generate token
       let token
       try {
-        token = generateToken(newUser.id)
+        token = generateToken(newUser)
         console.log("🔐 AuthService: Token generated successfully")
       } catch (tokenError) {
         console.error("❌ AuthService: Error generating token:", tokenError)
@@ -138,104 +215,6 @@ export class AuthService {
       return {
         success: false,
         message: `Registration failed: ${error instanceof Error ? error.message : String(error)}`,
-      }
-    }
-  }
-
-  // Login user
-  async loginUser(loginData: UserLoginData): Promise<AuthResult> {
-    try {
-      console.log(`🔐 AuthService: Login attempt for ${loginData.username}`)
-
-      // First, let's check if any users exist at all
-      try {
-        // Changed from getAllUsers to getUsers which is the correct method
-        const allUsers = await persistentForumDataStore.getUsers()
-        console.log(`🔐 AuthService: Total users in system: ${allUsers.length}`)
-
-        if (allUsers.length === 0) {
-          console.log("⚠️ AuthService: No users found in system. System may need initialization.")
-          return {
-            success: false,
-            message: "System not initialized. Please use the 'Reinitialize System' button.",
-          }
-        }
-
-        // Log all usernames for debugging
-        console.log(
-          "🔐 AuthService: Available usernames:",
-          allUsers.map((u) => u.username),
-        )
-      } catch (error) {
-        console.error("❌ AuthService: Error checking user count:", error)
-      }
-
-      // Find user by username using persistent store
-      let user
-      try {
-        user = await persistentForumDataStore.getUserByUsername(loginData.username)
-        console.log(`🔐 AuthService: User lookup result for ${loginData.username}:`, user ? "Found" : "Not found")
-      } catch (error) {
-        console.error(`❌ AuthService: Error looking up user ${loginData.username}:`, error)
-        return {
-          success: false,
-          message: "Database error during login. Please try again.",
-        }
-      }
-
-      if (!user) {
-        console.log(`❌ AuthService: User ${loginData.username} not found`)
-        return {
-          success: false,
-          message: "Invalid username or password. Try: ctm_admin, tech_expert, builder_pro, or testuser",
-        }
-      }
-
-      // Compare passwords
-      const hashedPassword = simpleHash(loginData.password)
-      console.log(`🔐 AuthService: Password comparison for ${loginData.username}`)
-      console.log(`🔐 AuthService: Input password: "${loginData.password}"`)
-      console.log(`🔐 AuthService: Input password hash: ${hashedPassword}`)
-      console.log(`🔐 AuthService: Stored password hash: ${user.password}`)
-      console.log(`🔐 AuthService: Passwords match: ${hashedPassword === user.password}`)
-
-      if (hashedPassword !== user.password) {
-        console.log(`❌ AuthService: Invalid password for ${loginData.username}`)
-        return {
-          success: false,
-          message: "Invalid username or password. Check the default credentials in the debug section.",
-        }
-      }
-
-      // Update last active timestamp
-      try {
-        await persistentForumDataStore.updateUser(user.id, {
-          lastActive: new Date().toISOString(),
-        })
-        console.log(`✅ AuthService: User ${loginData.username} logged in successfully`)
-      } catch (updateError) {
-        console.warn("⚠️ AuthService: Failed to update user activity:", updateError)
-        // Don't fail login if activity update fails
-      }
-
-      // Generate token
-      const token = generateToken(user.id)
-
-      return {
-        success: true,
-        message: "Login successful",
-        token,
-        user: {
-          id: user.id,
-          name: user.name,
-          username: user.username,
-        },
-      }
-    } catch (error) {
-      console.error("❌ AuthService: Login error:", error)
-      return {
-        success: false,
-        message: "Login failed. Please try again.",
       }
     }
   }

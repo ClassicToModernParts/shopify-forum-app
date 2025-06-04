@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { Home, MessageSquare, Users, Calendar, Award, Settings, LogOut, Menu, X, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { MessageSquare, Trophy, Car, User, LogOut, Menu, X, Users, Home, ChevronRight } from "lucide-react"
 
 interface UserNavigationProps {
   currentPage?: string
@@ -11,91 +12,85 @@ interface UserNavigationProps {
 }
 
 export default function UserNavigation({ currentPage, showBreadcrumb = false }: UserNavigationProps) {
-  const [user, setUser] = useState(null)
+  const router = useRouter()
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [userName, setUserName] = useState("")
   const [loading, setLoading] = useState(true)
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
-  // Get cookie value
-  const getCookie = (name: string) => {
-    if (typeof document === "undefined") return null
-    const value = `; ${document.cookie}`
-    const parts = value.split(`; ${name}=`)
-    if (parts.length === 2) return parts.pop()?.split(";").shift()
-    return null
-  }
-
-  // Check authentication status
   useEffect(() => {
     const checkAuth = async () => {
       try {
         setLoading(true)
 
         // Check for session cookie first
-        const sessionCookie = getCookie("session")
-        const authTokenCookie = getCookie("authToken")
-        const authTokenLocal = localStorage.getItem("authToken")
+        const sessionCookie = document.cookie
+          .split("; ")
+          .find((row) => row.startsWith("session="))
+          ?.split("=")[1]
 
-        console.log("🔐 Auth check:", {
+        // Check for auth token in localStorage
+        const authToken = localStorage.getItem("authToken")
+        const storedUserName = localStorage.getItem("userName")
+        const storedUserEmail = localStorage.getItem("userEmail")
+
+        console.log("🔐 Navigation auth check:", {
           sessionCookie: !!sessionCookie,
-          authTokenCookie: !!authTokenCookie,
-          authTokenLocal: !!authTokenLocal,
+          authToken: !!authToken,
+          storedUserName: !!storedUserName,
+          storedUserEmail: !!storedUserEmail,
         })
 
-        // If no authentication found
-        if (!sessionCookie && !authTokenCookie && !authTokenLocal) {
-          console.log("❌ No authentication found")
-          setIsAuthenticated(false)
-          setUser(null)
-          setLoading(false)
-          return
-        }
-
-        // Try to get user info from API
-        const headers = {
-          "Content-Type": "application/json",
-        }
-
-        // Use token from cookie first, then localStorage
-        const token = authTokenCookie || authTokenLocal
-        if (token) {
-          headers["Authorization"] = `Bearer ${token}`
-        }
-
-        const response = await fetch("/api/auth/user-info", {
-          headers,
-          credentials: "include",
-        })
-
-        const data = await response.json()
-
-        if (data.success && data.user) {
-          console.log("✅ User authenticated:", data.user.email)
+        // If we have stored user info, use it immediately
+        if (storedUserName && (sessionCookie || authToken)) {
           setIsAuthenticated(true)
-          setUser(data.user)
-
-          // Store user info in localStorage for consistency
-          localStorage.setItem("userEmail", data.user.email)
-          localStorage.setItem("userName", data.user.name || data.user.username)
-
-          // Store token in localStorage if we got it from cookie
-          if (authTokenCookie && !authTokenLocal) {
-            localStorage.setItem("authToken", authTokenCookie)
-          }
+          setUserName(storedUserName)
         } else {
-          console.log("❌ Auth failed:", data.error)
           setIsAuthenticated(false)
-          setUser(null)
+          setUserName("")
+        }
 
-          // Clear invalid tokens
-          localStorage.removeItem("authToken")
-          localStorage.removeItem("userEmail")
-          localStorage.removeItem("userName")
+        // If we have a token or session, verify with the server
+        if (sessionCookie || authToken) {
+          const headers = {}
+          if (authToken) {
+            headers["Authorization"] = `Bearer ${authToken}`
+          }
+
+          const response = await fetch("/api/auth/user-info", {
+            headers,
+            credentials: "include",
+          })
+
+          const data = await response.json()
+
+          if (data.success && data.user) {
+            console.log("✅ User authenticated in navigation:", data.user.email)
+            setIsAuthenticated(true)
+            setUserName(data.user.name || data.user.username || "User")
+
+            // Update localStorage with latest info
+            localStorage.setItem("userEmail", data.user.email)
+            localStorage.setItem("userName", data.user.name || data.user.username)
+            localStorage.setItem("user", JSON.stringify(data.user))
+          } else {
+            console.log("❌ Auth failed in navigation:", data.error)
+            setIsAuthenticated(false)
+            setUserName("")
+
+            // Clear invalid tokens
+            if (authToken) {
+              localStorage.removeItem("authToken")
+              localStorage.removeItem("userEmail")
+              localStorage.removeItem("userName")
+              localStorage.removeItem("user")
+            }
+          }
         }
       } catch (error) {
-        console.error("Auth check error:", error)
+        console.error("Auth check error in navigation:", error)
         setIsAuthenticated(false)
-        setUser(null)
+        setUserName("")
       } finally {
         setLoading(false)
       }
@@ -104,235 +99,158 @@ export default function UserNavigation({ currentPage, showBreadcrumb = false }: 
     checkAuth()
   }, [])
 
-  const logout = async () => {
+  const handleLogout = async () => {
     try {
-      // Clear local storage
-      localStorage.removeItem("authToken")
-      localStorage.removeItem("userEmail")
-      localStorage.removeItem("userName")
-
-      // Call logout API to clear cookies
+      // Call logout API
       await fetch("/api/auth/logout", {
         method: "POST",
         credentials: "include",
       })
 
+      // Clear local storage
+      localStorage.removeItem("authToken")
+      localStorage.removeItem("userEmail")
+      localStorage.removeItem("userName")
+      localStorage.removeItem("user")
+
       // Update state
       setIsAuthenticated(false)
-      setUser(null)
+      setUserName("")
+
+      // Close menu if open
+      setIsMenuOpen(false)
 
       // Redirect to home
-      window.location.href = "/"
+      router.push("/")
     } catch (error) {
       console.error("Logout error:", error)
-      // Force redirect even if API call fails
-      window.location.href = "/"
     }
   }
 
-  const toggleMobileMenu = () => {
-    setIsMobileMenuOpen(!isMobileMenuOpen)
-  }
-
-  const closeMobileMenu = () => {
-    setIsMobileMenuOpen(false)
-  }
-
-  const navigationItems = [
-    { href: "/", label: "Home", icon: Home, color: "text-gray-600 hover:text-blue-600" },
-    { href: "/forum", label: "Forum", icon: MessageSquare, color: "text-gray-600 hover:text-blue-600" },
-    { href: "/meets", label: "Meets", icon: Car, color: "text-gray-600 hover:text-green-600" },
-    { href: "/groups", label: "Groups", icon: Users, color: "text-gray-600 hover:text-purple-600" },
-    { href: "/rewards", label: "Rewards", icon: Trophy, color: "text-gray-600 hover:text-yellow-600" },
+  const navItems = [
+    { name: "Home", href: "/", icon: Home, active: currentPage === "home" },
+    { name: "Forum", href: "/forum", icon: MessageSquare, active: currentPage === "forum" },
+    { name: "Groups", href: "/groups", icon: Users, active: currentPage === "groups" },
+    { name: "Meets", href: "/meets", icon: Calendar, active: currentPage === "meets" },
+    { name: "Rewards", href: "/rewards", icon: Award, active: currentPage === "rewards" },
+    { name: "Settings", href: "/settings", icon: Settings, active: currentPage === "settings" },
   ]
 
   return (
-    <nav className="bg-white shadow-sm border-b sticky top-0 z-40">
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center py-3 sm:py-4">
-          {/* Logo */}
-          <Link href="/" className="flex items-center space-x-2 sm:space-x-3">
-            <div className="bg-blue-600 p-1.5 sm:p-2 rounded-lg">
-              <MessageSquare className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+    <div className="bg-white shadow-sm">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between h-16">
+          <div className="flex">
+            <div className="flex-shrink-0 flex items-center">
+              <Link href="/" className="flex items-center">
+                <div className="bg-blue-600 p-1 rounded">
+                  <MessageSquare className="h-6 w-6 text-white" />
+                </div>
+                <span className="ml-2 text-xl font-bold text-gray-900">CTM Community</span>
+              </Link>
             </div>
-            <span className="text-lg sm:text-xl font-bold text-gray-900">CTM Community</span>
-          </Link>
-
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-1">
-            {navigationItems.map((item) => {
-              const Icon = item.icon
-              const isActive = currentPage === item.label.toLowerCase()
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
-                    isActive ? "bg-blue-100 text-blue-700 font-medium" : item.color
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  <span className="font-medium">{item.label}</span>
-                </Link>
-              )
-            })}
           </div>
 
-          {/* Desktop User Menu */}
-          <div className="hidden md:flex items-center space-x-4">
+          {/* Desktop Navigation */}
+          <div className="hidden md:flex md:items-center md:space-x-4">
+            {navItems.map((item) => (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={`px-3 py-2 rounded-md text-sm font-medium ${
+                  item.active ? "bg-blue-100 text-blue-700" : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                }`}
+              >
+                <div className="flex items-center space-x-1">
+                  <item.icon className="h-4 w-4" />
+                  <span>{item.name}</span>
+                </div>
+              </Link>
+            ))}
+
             {loading ? (
-              <div className="flex items-center space-x-2 text-gray-500">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                <span className="text-sm">Loading...</span>
+              <div className="animate-pulse bg-gray-200 h-8 w-20 rounded"></div>
+            ) : isAuthenticated ? (
+              <div className="flex items-center space-x-3">
+                <span className="text-sm text-gray-600">Hi, {userName}</span>
+                <Button variant="outline" size="sm" onClick={handleLogout} className="flex items-center">
+                  <LogOut className="h-4 w-4 mr-1" />
+                  Logout
+                </Button>
               </div>
-            ) : isAuthenticated && user ? (
-              <div className="flex items-center space-x-4">
-                <Link
-                  href="/profile"
-                  className="flex items-center space-x-2 text-gray-600 hover:text-blue-600 transition-colors px-3 py-2 rounded-lg hover:bg-gray-50"
-                >
-                  <User className="h-4 w-4" />
-                  <span>{user.name || user.username || user.email}</span>
-                </Link>
-                <Button variant="outline" size="sm" onClick={logout}>
+            ) : (
+              <Link href="/login">
+                <Button size="sm">Login</Button>
+              </Link>
+            )}
+          </div>
+
+          {/* Mobile menu button */}
+          <div className="flex items-center md:hidden">
+            <button
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="inline-flex items-center justify-center p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+            >
+              <span className="sr-only">{isMenuOpen ? "Close menu" : "Open menu"}</span>
+              {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile menu */}
+      {isMenuOpen && (
+        <div className="md:hidden">
+          <div className="pt-2 pb-3 space-y-1">
+            {navItems.map((item) => (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={`block px-3 py-2 rounded-md text-base font-medium ${
+                  item.active ? "bg-blue-100 text-blue-700" : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                }`}
+                onClick={() => setIsMenuOpen(false)}
+              >
+                <div className="flex items-center space-x-3">
+                  <item.icon className="h-5 w-5" />
+                  <span>{item.name}</span>
+                </div>
+              </Link>
+            ))}
+
+            {loading ? (
+              <div className="animate-pulse bg-gray-200 h-10 mx-3 rounded"></div>
+            ) : isAuthenticated ? (
+              <div className="px-3 py-2">
+                <div className="text-sm text-gray-600 mb-2">Signed in as {userName}</div>
+                <Button variant="outline" size="sm" onClick={handleLogout} className="flex items-center w-full">
                   <LogOut className="h-4 w-4 mr-2" />
                   Logout
                 </Button>
               </div>
             ) : (
-              <div className="flex items-center space-x-2">
-                <Link href="/login">
-                  <Button variant="outline" size="sm">
-                    Login
-                  </Button>
-                </Link>
-                <Link href="/register">
-                  <Button size="sm">Sign Up</Button>
-                </Link>
-              </div>
+              <Link href="/login" className="block px-3 py-2" onClick={() => setIsMenuOpen(false)}>
+                <Button size="sm" className="w-full">
+                  Login
+                </Button>
+              </Link>
             )}
-          </div>
-
-          {/* Mobile Menu Button */}
-          <div className="md:hidden flex items-center space-x-2">
-            {/* Mobile Login Status Indicator */}
-            {loading ? (
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-            ) : isAuthenticated && user ? (
-              <div className="flex items-center space-x-1 text-green-600 bg-green-50 px-2 py-1 rounded-full">
-                <User className="h-3 w-3" />
-                <span className="text-xs font-medium">{user.name?.split(" ")[0] || user.username || "User"}</span>
-              </div>
-            ) : (
-              <div className="flex items-center space-x-1 text-gray-500 bg-gray-50 px-2 py-1 rounded-full">
-                <span className="text-xs">Not logged in</span>
-              </div>
-            )}
-
-            <Button variant="ghost" size="sm" onClick={toggleMobileMenu}>
-              {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </Button>
           </div>
         </div>
+      )}
 
-        {/* Breadcrumb */}
-        {showBreadcrumb && currentPage && (
-          <div className="pb-3 border-t border-gray-100 pt-3">
-            <div className="flex items-center space-x-2 text-sm text-gray-500">
-              <Link href="/" className="hover:text-blue-600 transition-colors">
-                Home
-              </Link>
-              <ChevronRight className="h-4 w-4" />
-              <span className="text-gray-900 font-medium capitalize">{currentPage}</span>
-            </div>
+      {/* Breadcrumb */}
+      {showBreadcrumb && currentPage && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
+          <div className="flex items-center text-sm text-gray-500">
+            <Link href="/" className="hover:text-gray-700">
+              Home
+            </Link>
+            <ChevronRight className="h-4 w-4 mx-1" />
+            <span className="font-medium text-gray-900 capitalize">{currentPage}</span>
           </div>
-        )}
-
-        {/* Mobile Menu */}
-        {isMobileMenuOpen && (
-          <div className="md:hidden border-t bg-white">
-            <div className="px-2 pt-2 pb-3 space-y-1">
-              {/* Mobile Login Status */}
-              {loading ? (
-                <div className="flex items-center space-x-3 px-3 py-3 text-gray-500">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                  <span>Checking login status...</span>
-                </div>
-              ) : isAuthenticated && user ? (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-2">
-                  <div className="flex items-center space-x-2 text-green-700">
-                    <User className="h-4 w-4" />
-                    <span className="font-medium">✅ Logged in as:</span>
-                  </div>
-                  <p className="text-sm text-green-600 mt-1">{user.name || user.username || user.email}</p>
-                </div>
-              ) : (
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-2">
-                  <div className="flex items-center space-x-2 text-gray-600">
-                    <User className="h-4 w-4" />
-                    <span className="font-medium">❌ Not logged in</span>
-                  </div>
-                  <p className="text-sm text-gray-500 mt-1">Log in to access all features</p>
-                </div>
-              )}
-
-              {navigationItems.map((item) => {
-                const Icon = item.icon
-                const isActive = currentPage === item.label.toLowerCase()
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`flex items-center space-x-3 px-3 py-3 rounded-md transition-colors ${
-                      isActive ? "bg-blue-100 text-blue-700 font-medium" : "text-gray-600 hover:bg-gray-50"
-                    }`}
-                    onClick={closeMobileMenu}
-                  >
-                    <Icon className="h-5 w-5" />
-                    <span className="font-medium">{item.label}</span>
-                  </Link>
-                )
-              })}
-
-              {isAuthenticated && user ? (
-                <>
-                  <Link
-                    href="/profile"
-                    className="flex items-center space-x-3 px-3 py-3 rounded-md text-gray-600 hover:text-blue-600 hover:bg-gray-50"
-                    onClick={closeMobileMenu}
-                  >
-                    <User className="h-5 w-5" />
-                    <span className="font-medium">Profile</span>
-                  </Link>
-                  <button
-                    onClick={() => {
-                      logout()
-                      closeMobileMenu()
-                    }}
-                    className="flex items-center space-x-3 px-3 py-3 rounded-md text-gray-600 hover:text-red-600 hover:bg-gray-50 w-full text-left"
-                  >
-                    <LogOut className="h-5 w-5" />
-                    <span className="font-medium">Logout</span>
-                  </button>
-                </>
-              ) : (
-                <div className="px-3 py-2 space-y-2">
-                  <Link href="/login" onClick={closeMobileMenu}>
-                    <Button variant="outline" size="sm" className="w-full">
-                      Login
-                    </Button>
-                  </Link>
-                  <Link href="/register" onClick={closeMobileMenu}>
-                    <Button size="sm" className="w-full">
-                      Sign Up
-                    </Button>
-                  </Link>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    </nav>
+        </div>
+      )}
+    </div>
   )
 }

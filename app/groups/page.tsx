@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Users, Plus, Search, MapPin, Car } from "lucide-react"
+import { Users, Plus, Search, MapPin, Car, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import UserNavigation from "@/components/UserNavigation"
@@ -19,6 +19,7 @@ export default function GroupsPage() {
   const [authLoading, setAuthLoading] = useState(true)
   const [userInfo, setUserInfo] = useState({ email: "", name: "" })
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [systemError, setSystemError] = useState("")
   const [newGroup, setNewGroup] = useState({
     name: "",
     description: "",
@@ -37,6 +38,25 @@ export default function GroupsPage() {
     { id: "performance", name: "Performance" },
     { id: "offroad", name: "Off-Road" },
   ]
+
+  // Check system status
+  useEffect(() => {
+    const checkSystemStatus = async () => {
+      try {
+        const response = await fetch("/api/system/init")
+        const data = await response.json()
+
+        if (!data.success || !data.status?.isInitialized) {
+          setSystemError("System is not initialized. Please initialize the system from the login page.")
+        }
+      } catch (error) {
+        console.error("Error checking system status:", error)
+        setSystemError("Failed to check system status")
+      }
+    }
+
+    checkSystemStatus()
+  }, [])
 
   // Check authentication and get user info
   useEffect(() => {
@@ -110,10 +130,10 @@ export default function GroupsPage() {
 
   // Load groups from API
   useEffect(() => {
-    if (!authLoading) {
+    if (!authLoading && !systemError) {
       loadGroups()
     }
-  }, [authLoading, userInfo.email])
+  }, [authLoading, userInfo.email, systemError])
 
   const loadGroups = async () => {
     try {
@@ -130,6 +150,8 @@ export default function GroupsPage() {
           )
           setUserGroups(userJoinedGroups)
         }
+      } else {
+        console.error("Error loading groups:", data.error)
       }
     } catch (error) {
       console.error("Error loading groups:", error)
@@ -339,6 +361,24 @@ export default function GroupsPage() {
     return matchesSearch && matchesCategory
   })
 
+  if (systemError) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <UserNavigation />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+            <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-red-700 mb-2">System Error</h2>
+            <p className="text-red-600 mb-4">{systemError}</p>
+            <Link href="/login">
+              <Button>Go to Login Page</Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (loading || authLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -540,46 +580,51 @@ export default function GroupsPage() {
                   <div className="space-y-3">
                     <div className="flex items-center justify-between text-sm text-gray-500">
                       <div className="flex items-center gap-1">
-                        <Users className="h-4 w-4" />
-                        <span>
-                          {group.members?.length || 0} member{(group.members?.length || 0) !== 1 ? "s" : ""}
-                          {group.maxMembers && ` / ${group.maxMembers}`}
-                        </span>
+                        <Car className="h-4 w-4" />
+                        <span>{categories.find((c) => c.id === group.category)?.name || group.category}</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <MapPin className="h-4 w-4" />
-                        <span>{group.location}</span>
+                        <Users className="h-4 w-4" />
+                        <span>
+                          {group.members?.length || 0}
+                          {group.maxMembers ? ` / ${group.maxMembers}` : ""}
+                        </span>
                       </div>
                     </div>
 
-                    {group.requirements && (
-                      <p className="text-xs text-gray-600 bg-gray-50 p-2 rounded">
-                        <strong>Requirements:</strong> {group.requirements}
-                      </p>
+                    {group.location && (
+                      <div className="flex items-center gap-1 text-sm text-gray-500">
+                        <MapPin className="h-4 w-4" />
+                        <span>{group.location}</span>
+                      </div>
                     )}
 
-                    <div className="flex gap-2">
+                    <div className="pt-3 flex flex-wrap gap-2">
+                      <Button variant="outline" size="sm" onClick={() => handleViewGroup(group.id)} className="flex-1">
+                        View Details
+                      </Button>
                       {isUserInGroup(group) ? (
-                        <Button
-                          variant="outline"
-                          className="flex-1"
-                          onClick={() => handleLeaveGroup(group.id)}
-                          disabled={isUserCreator(group)}
-                        >
-                          {isUserCreator(group) ? "Creator" : "Leave"}
-                        </Button>
+                        !isUserCreator(group) && (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleLeaveGroup(group.id)}
+                            className="flex-1"
+                          >
+                            Leave Group
+                          </Button>
+                        )
                       ) : (
                         <Button
-                          className="flex-1 bg-blue-600 hover:bg-blue-700"
+                          variant="default"
+                          size="sm"
                           onClick={() => handleJoinGroup(group.id)}
-                          disabled={group.maxMembers && (group.members?.length || 0) >= group.maxMembers}
+                          className="flex-1"
+                          disabled={!isAuthenticated || (group.maxMembers && group.members?.length >= group.maxMembers)}
                         >
-                          {group.maxMembers && (group.members?.length || 0) >= group.maxMembers ? "Full" : "Join Group"}
+                          Join Group
                         </Button>
                       )}
-                      <Button variant="outline" size="sm" onClick={() => handleViewGroup(group.id)}>
-                        View
-                      </Button>
                     </div>
                   </div>
                 </CardContent>
@@ -587,50 +632,51 @@ export default function GroupsPage() {
             ))}
           </div>
         ) : (
-          <div className="text-center py-12 mb-12">
-            <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              {searchTerm || selectedCategory !== "all" ? "No groups found" : "No groups yet"}
-            </h3>
-            <p className="text-gray-600">
+          <div className="text-center py-12 bg-gray-50 rounded-lg border border-gray-200">
+            <Users className="h-12 w-12 text-gray-400 mx-auto" />
+            <h3 className="mt-4 text-lg font-medium text-gray-900">No groups found</h3>
+            <p className="mt-2 text-gray-500">
               {searchTerm || selectedCategory !== "all"
-                ? "Try adjusting your search or create a new group to get started."
-                : "Be the first to create a group for your automotive community!"}
+                ? "Try adjusting your search or filters"
+                : "Be the first to create a group!"}
             </p>
           </div>
         )}
 
-        {/* My Groups Section */}
-        {userGroups.length > 0 && (
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">My Groups</h2>
+        {/* Your Groups Section */}
+        {isAuthenticated && userGroups.length > 0 && (
+          <div className="mt-12">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Your Groups</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {userGroups.map((group) => (
-                <Card key={group.id} className="border-blue-200 bg-blue-50">
+                <Card key={`my-${group.id}`} className="border-blue-200 hover:shadow-lg transition-shadow">
                   <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Car className="h-5 w-5 text-blue-600" />
-                      {group.name}
+                    <CardTitle className="text-lg flex items-center justify-between">
+                      <span>{group.name}</span>
                       {isUserCreator(group) && (
-                        <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded-full ml-auto">Creator</span>
+                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">Creator</span>
                       )}
                     </CardTitle>
-                    <p className="text-gray-600 text-sm">{group.description}</p>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex items-center justify-between text-sm text-gray-600 mb-3">
-                      <span>{group.members?.length || 0} members</span>
-                      <span>{group.location}</span>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" className="flex-1" onClick={() => handleViewGroup(group.id)}>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between text-sm text-gray-500">
+                        <div className="flex items-center gap-1">
+                          <Car className="h-4 w-4" />
+                          <span>{categories.find((c) => c.id === group.category)?.name || group.category}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Users className="h-4 w-4" />
+                          <span>
+                            {group.members?.length || 0}
+                            {group.maxMembers ? ` / ${group.maxMembers}` : ""}
+                          </span>
+                        </div>
+                      </div>
+
+                      <Button onClick={() => handleViewGroup(group.id)} className="w-full">
                         View Group
                       </Button>
-                      {!isUserCreator(group) && (
-                        <Button variant="outline" size="sm" onClick={() => handleLeaveGroup(group.id)}>
-                          Leave
-                        </Button>
-                      )}
                     </div>
                   </CardContent>
                 </Card>

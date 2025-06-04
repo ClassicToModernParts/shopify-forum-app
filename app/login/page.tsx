@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Eye, EyeOff, MessageSquare } from "lucide-react"
 import Link from "next/link"
+import SystemStatus from "@/components/SystemStatus"
 
 export default function LoginPage() {
   const [formData, setFormData] = useState({
@@ -17,6 +18,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [showPassword, setShowPassword] = useState(false)
+  const [showSystemStatus, setShowSystemStatus] = useState(false)
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -52,6 +54,7 @@ export default function LoginPage() {
         if (data.user) {
           localStorage.setItem("userEmail", data.user.email)
           localStorage.setItem("userName", data.user.name || data.user.username)
+          localStorage.setItem("user", JSON.stringify(data.user))
           console.log("👤 User info stored in localStorage")
         }
 
@@ -189,6 +192,22 @@ export default function LoginPage() {
               <Link href="/" className="text-sm text-blue-600 hover:text-blue-500">
                 ← Back to home
               </Link>
+            </div>
+
+            <div className="mt-6">
+              <button
+                type="button"
+                className="text-sm text-gray-500 hover:text-gray-700 flex items-center justify-center w-full"
+                onClick={() => setShowSystemStatus(!showSystemStatus)}
+              >
+                {showSystemStatus ? "Hide System Status" : "Show System Status"}
+              </button>
+
+              {showSystemStatus && (
+                <div className="mt-2">
+                  <SystemStatus />
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
