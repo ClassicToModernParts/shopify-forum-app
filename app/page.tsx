@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Users, Shield, PenToolIcon as Tool, MessageSquare, Car, Trophy } from "lucide-react"
+import { Shield, PenToolIcon as Tool, MessageSquare, Car, Trophy } from "lucide-react"
 import AdminNavigation from "@/components/AdminNavigation"
 
 export default function HomePage() {
@@ -47,7 +47,7 @@ export default function HomePage() {
       {/* Main Navigation Cards */}
       <section className="py-12 sm:py-20 bg-white/60 backdrop-blur-sm">
         <div className="container mx-auto px-4 sm:px-6">
-          <div className="grid gap-6 sm:gap-8 md:grid-cols-3 max-w-4xl mx-auto">
+          <div className="grid gap-6 sm:gap-8 md:grid-cols-2 max-w-4xl mx-auto">
             {/* Forum Card */}
             <Link href="/forum" className="group">
               <div className="text-center p-6 sm:p-8 bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 group-hover:scale-105 border border-gray-100">
@@ -70,19 +70,6 @@ export default function HomePage() {
                 <h3 className="text-xl sm:text-2xl font-semibold mb-3 sm:mb-4 text-gray-900">Car & Truck Meets</h3>
                 <p className="text-gray-600 leading-relaxed text-sm sm:text-base">
                   Organize and join local car and truck meets with fellow enthusiasts.
-                </p>
-              </div>
-            </Link>
-
-            {/* Groups Card */}
-            <Link href="/groups" className="group">
-              <div className="text-center p-6 sm:p-8 bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 group-hover:scale-105 border border-gray-100">
-                <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 sm:mb-6 shadow-lg group-hover:shadow-xl transition-shadow">
-                  <Users className="h-8 w-8 sm:h-10 sm:w-10 text-white" />
-                </div>
-                <h3 className="text-xl sm:text-2xl font-semibold mb-3 sm:mb-4 text-gray-900">Groups</h3>
-                <p className="text-gray-600 leading-relaxed text-sm sm:text-base">
-                  Find or create groups based on your interests and automotive hobbies.
                 </p>
               </div>
             </Link>

@@ -2,10 +2,10 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Eye, EyeOff, LogIn, AlertCircle, Info, UserPlus } from "lucide-react"
+import { Eye, EyeOff, LogIn, AlertCircle, Info, UserPlus, Settings } from "lucide-react"
 
 export default function LoginPage() {
   const [credentials, setCredentials] = useState({ username: "", password: "" })
@@ -14,7 +14,19 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [debugInfo, setDebugInfo] = useState<any>(null)
   const [showQuickCreate, setShowQuickCreate] = useState(false)
+  const [isAdminMode, setIsAdminMode] = useState(false)
   const router = useRouter()
+
+  // Check if user is trying to access admin features
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const adminParam = urlParams.get("admin")
+    const fromAdmin = window.location.pathname.includes("/admin")
+
+    if (adminParam === "true" || fromAdmin) {
+      setIsAdminMode(true)
+    }
+  }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -35,19 +47,25 @@ export default function LoginPage() {
       const data = await response.json()
 
       if (data.success) {
-        // Store token in localStorage
+        // Store token and user info in localStorage
         localStorage.setItem("authToken", data.token)
         localStorage.setItem("user", JSON.stringify(data.user))
+        localStorage.setItem("userEmail", data.user.email)
+        localStorage.setItem("userName", data.user.name || data.user.username)
 
-        // Redirect to home page
-        router.push("/")
+        // Redirect based on user role and where they came from
+        if (data.user.role === "admin" && isAdminMode) {
+          router.push("/admin")
+        } else {
+          router.push("/")
+        }
       } else {
-        setError(data.message || "Login failed")
+        setError(data.error || "Login failed")
         if (data.debug) {
           setDebugInfo(data.debug)
         }
-        // Show quick create option if user not found
-        if (data.message?.includes("Invalid username")) {
+        // Show quick create option if user not found and not in admin mode
+        if (data.error?.includes("Invalid username") && !isAdminMode) {
           setShowQuickCreate(true)
         }
       }
@@ -75,6 +93,7 @@ export default function LoginPage() {
           password: credentials.password.trim(),
           name: credentials.username.trim(),
           email: `${credentials.username.trim()}@example.com`,
+          role: "user",
         }),
       })
 
@@ -99,36 +118,61 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">Sign in to your account</h2>
+        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          {isAdminMode ? "Admin Login" : "Sign in to your account"}
+        </h2>
         <p className="mt-2 text-center text-sm text-gray-600">
-          Or{" "}
-          <Link href="/register" className="font-medium text-blue-600 hover:text-blue-500">
-            create a new account
-          </Link>
+          {!isAdminMode && (
+            <>
+              Or{" "}
+              <Link href="/register" className="font-medium text-blue-600 hover:text-blue-500">
+                create a new account
+              </Link>
+            </>
+          )}
         </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          {/* Default credentials info */}
-          <div className="mb-4 p-3 bg-blue-50 rounded-md">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <Info className="h-5 w-5 text-blue-400" aria-hidden="true" />
-              </div>
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-blue-800">Default credentials</h3>
-                <div className="mt-2 text-sm text-blue-700">
-                  <p>
-                    Admin: username <strong>admin</strong> / password <strong>admin123</strong>
-                  </p>
-                  <p>
-                    Demo: username <strong>demo</strong> / password <strong>demo123</strong>
-                  </p>
+          {/* Admin mode indicator */}
+          {isAdminMode && (
+            <div className="mb-4 p-3 bg-orange-50 rounded-md">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <Settings className="h-5 w-5 text-orange-400" aria-hidden="true" />
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-orange-800">Admin Access Required</h3>
+                  <div className="mt-2 text-sm text-orange-700">
+                    <p>You need administrator privileges to access this area.</p>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
+
+          {/* Default credentials info - only show to admin users or in admin mode */}
+          {isAdminMode && (
+            <div className="mb-4 p-3 bg-blue-50 rounded-md">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <Info className="h-5 w-5 text-blue-400" aria-hidden="true" />
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-blue-800">Default admin credentials</h3>
+                  <div className="mt-2 text-sm text-blue-700">
+                    <p>
+                      Admin: username <strong>admin</strong> / password <strong>admin123</strong>
+                    </p>
+                    <p>
+                      Demo: username <strong>demo</strong> / password <strong>demo123</strong>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {error && (
             <div className="mb-4 p-3 bg-red-50 rounded-md">
@@ -140,7 +184,7 @@ export default function LoginPage() {
                   <h3 className="text-sm font-medium text-red-800">Login failed</h3>
                   <div className="mt-2 text-sm text-red-700">
                     <p>{error}</p>
-                    {debugInfo && (
+                    {debugInfo && isAdminMode && (
                       <div className="mt-2 text-xs font-mono">
                         <p>Username: {debugInfo.receivedUsername}</p>
                         <p>Password length: {debugInfo.receivedPasswordLength}</p>
@@ -158,7 +202,7 @@ export default function LoginPage() {
             </div>
           )}
 
-          {showQuickCreate && (
+          {showQuickCreate && !isAdminMode && (
             <div className="mb-4 p-3 bg-yellow-50 rounded-md">
               <div className="flex">
                 <div className="flex-shrink-0">
@@ -267,31 +311,43 @@ export default function LoginPage() {
             </div>
           </form>
 
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300" />
+          {/* Debug tools - only show in admin mode */}
+          {isAdminMode && (
+            <div className="mt-6">
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300" />
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-white text-gray-500">Debug Tools</span>
+                </div>
               </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">Debug Tools</span>
-              </div>
-            </div>
 
-            <div className="mt-6 grid grid-cols-1 gap-3">
-              <Link
-                href="/api/debug/users"
-                className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
-              >
-                View All Users
-              </Link>
-              <Link
-                href="/api/debug/reinitialize-auth"
-                className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
-              >
-                Reset Authentication System
+              <div className="mt-6 grid grid-cols-1 gap-3">
+                <Link
+                  href="/api/debug/users"
+                  className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
+                >
+                  View All Users
+                </Link>
+                <Link
+                  href="/api/debug/reinitialize-auth"
+                  className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
+                >
+                  Reset Authentication System
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {/* Switch to admin mode for regular users */}
+          {!isAdminMode && (
+            <div className="mt-6 text-center">
+              <Link href="/login?admin=true" className="text-sm text-gray-500 hover:text-gray-700">
+                Admin Login
               </Link>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

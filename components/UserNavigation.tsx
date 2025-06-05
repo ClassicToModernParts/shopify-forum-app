@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Home, MessageSquare, Users, Calendar, Award, Settings, LogOut, Menu, X, ChevronRight } from "lucide-react"
+import { Home, MessageSquare, Calendar, Award, Settings, LogOut, Menu, X, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 interface UserNavigationProps {
@@ -130,7 +130,6 @@ export default function UserNavigation({ currentPage, showBreadcrumb = false }: 
   const navItems = [
     { name: "Home", href: "/", icon: Home, active: currentPage === "home" },
     { name: "Forum", href: "/forum", icon: MessageSquare, active: currentPage === "forum" },
-    { name: "Groups", href: "/groups", icon: Users, active: currentPage === "groups" },
     { name: "Meets", href: "/meets", icon: Calendar, active: currentPage === "meets" },
     { name: "Rewards", href: "/rewards", icon: Award, active: currentPage === "rewards" },
     { name: "Settings", href: "/settings", icon: Settings, active: currentPage === "settings" },

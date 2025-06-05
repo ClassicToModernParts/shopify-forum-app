@@ -1,60 +1,86 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
+import { cookies } from "next/headers"
 import { persistentForumDataStore } from "@/lib/persistent-data-store"
+import * as crypto from "crypto"
 
-export async function GET(request: NextRequest) {
+// Verify token function
+function verifyToken(token: string): { valid: boolean; userId?: string } {
   try {
-    console.log("👤 User Info API: Checking user authentication")
+    const [header, payload, signature] = token.split(".")
 
-    // Get session from cookie
-    const sessionCookie = request.cookies.get("session")
-    if (!sessionCookie) {
-      console.log("❌ User Info API: No session cookie found")
-      return NextResponse.json({
-        success: false,
-        message: "Not authenticated",
-        user: null,
-      })
+    // Verify signature
+    const expectedSignature = crypto
+      .createHmac("sha256", "your-secret-key")
+      .update(`${header}.${payload}`)
+      .digest("base64")
+
+    if (signature !== expectedSignature) {
+      return { valid: false }
     }
 
-    const userEmail = sessionCookie.value
-    console.log("👤 User Info API: Looking up user by email:", userEmail)
+    // Decode payload
+    const decodedPayload = JSON.parse(Buffer.from(payload, "base64").toString())
 
-    // Get user from data store
-    const user = await persistentForumDataStore.getUserByEmail(userEmail)
+    // Check expiration
+    if (decodedPayload.exp < Date.now()) {
+      return { valid: false }
+    }
+
+    return { valid: true, userId: decodedPayload.sub }
+  } catch (error) {
+    console.error("Token verification error:", error)
+    return { valid: false }
+  }
+}
+
+export async function GET() {
+  try {
+    // Check for auth token in cookies
+    const authToken = cookies().get("auth-token")?.value
+    const userSession = cookies().get("user-session")?.value
+
+    if (!authToken && !userSession) {
+      return NextResponse.json({ success: false, message: "Not authenticated" }, { status: 401 })
+    }
+
+    let userId: string | undefined
+
+    // If we have an auth token, verify it
+    if (authToken) {
+      const verification = verifyToken(authToken)
+      if (!verification.valid) {
+        return NextResponse.json({ success: false, message: "Invalid token" }, { status: 401 })
+      }
+      userId = verification.userId
+    } else if (userSession) {
+      // Fall back to user session cookie
+      userId = userSession
+    }
+
+    if (!userId) {
+      return NextResponse.json({ success: false, message: "User ID not found" }, { status: 401 })
+    }
+
+    // Get user from database
+    const user = await persistentForumDataStore.getUserById(userId)
+
     if (!user) {
-      console.log("❌ User Info API: User not found")
-      return NextResponse.json({
-        success: false,
-        message: "User not found",
-        user: null,
-      })
+      return NextResponse.json({ success: false, message: "User not found" }, { status: 401 })
     }
 
-    // Check if user is active
-    if (!user.isActive) {
-      console.log("❌ User Info API: User account is inactive")
-      return NextResponse.json({
-        success: false,
-        message: "Account is inactive",
-        user: null,
-      })
-    }
-
-    // Return user data (without password)
-    const { password: _, ...userWithoutPassword } = user
-
-    console.log("✅ User Info API: User authenticated:", user.username)
+    // Return user info without sensitive data
     return NextResponse.json({
       success: true,
-      message: "User authenticated",
-      user: userWithoutPassword,
+      user: {
+        id: user.id,
+        username: user.username,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
     })
   } catch (error) {
-    console.error("❌ User Info API: Error:", error)
-    return NextResponse.json({
-      success: false,
-      message: "Failed to get user info",
-      user: null,
-    })
+    console.error("User info error:", error)
+    return NextResponse.json({ success: false, message: "Server error" }, { status: 500 })
   }
 }

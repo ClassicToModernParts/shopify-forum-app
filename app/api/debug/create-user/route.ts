@@ -1,14 +1,9 @@
 import { NextResponse } from "next/server"
 import { persistentForumDataStore } from "@/lib/persistent-data-store"
-import * as crypto from "crypto"
-
-function simpleHash(str: string): string {
-  return crypto.createHash("sha256").update(str).digest("hex")
-}
 
 export async function POST(request: Request) {
   try {
-    const { username, password, name, email } = await request.json()
+    const { username, password, name, email, role = "user" } = await request.json()
 
     if (!username || !password || !name || !email) {
       return NextResponse.json({ success: false, message: "All fields are required" }, { status: 400 })
@@ -25,16 +20,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: "Email already exists" }, { status: 400 })
     }
 
-    // Create new user
-    const newUser = await persistentForumDataStore.addUser({
+    // Create new user - using createUser instead of addUser
+    const newUser = await persistentForumDataStore.createUser({
       username,
       name,
       email,
-      password: simpleHash(password),
-      role: "user",
+      password, // The createUser method will hash the password
+      role: role as "user" | "admin" | "moderator",
       isActive: true,
-      emailVerified: true,
     })
+
+    if (!newUser) {
+      return NextResponse.json({ success: false, message: "Failed to create user" }, { status: 500 })
+    }
 
     console.log("✅ User created via debug endpoint:", newUser.username)
 

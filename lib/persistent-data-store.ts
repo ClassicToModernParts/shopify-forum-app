@@ -53,27 +53,6 @@ interface Reply {
   updatedAt: string
 }
 
-interface Group {
-  id: string
-  name: string
-  description: string
-  category: string
-  location?: string
-  maxMembers?: number
-  requirements?: string
-  creatorEmail: string
-  creatorName: string
-  members: Array<{
-    email: string
-    name: string
-    joinedAt: string
-    role: "creator" | "admin" | "member"
-  }>
-  createdAt: string
-  updatedAt: string
-  isActive: boolean
-}
-
 interface Meet {
   id: string
   title: string
@@ -172,19 +151,19 @@ class PersistentDataStore {
     }
   }
 
-  async initialize(options: { includeSampleGroups?: boolean } = {}): Promise<boolean> {
+  async initialize(): Promise<boolean> {
     // Prevent multiple simultaneous initializations
     if (this.initPromise) {
       return this.initPromise
     }
 
-    this.initPromise = this._doInitialize(options)
+    this.initPromise = this._doInitialize()
     const result = await this.initPromise
     this.initPromise = null
     return result
   }
 
-  private async _doInitialize(options: { includeSampleGroups?: boolean } = {}): Promise<boolean> {
+  private async _doInitialize(): Promise<boolean> {
     try {
       console.log("🔄 Initializing persistent data store...")
 
@@ -256,63 +235,7 @@ class PersistentDataStore {
 
       // Initialize empty collections
       await this.set("forum:posts", [])
-      await this.set("forum:groups", [])
       await this.set("forum:meets", [])
-
-      // Only create sample groups if requested
-      if (options.includeSampleGroups) {
-        const sampleGroups: Group[] = [
-          {
-            id: "truck-enthusiasts",
-            name: "Truck Enthusiasts",
-            description: "A community for truck lovers to share experiences, modifications, and tips.",
-            category: "trucks",
-            location: "Nationwide",
-            maxMembers: 100,
-            requirements: "Must own or be interested in trucks",
-            creatorEmail: "admin@example.com",
-            creatorName: "Administrator",
-            members: [
-              {
-                email: "admin@example.com",
-                name: "Administrator",
-                joinedAt: new Date().toISOString(),
-                role: "creator",
-              },
-            ],
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            isActive: true,
-          },
-          {
-            id: "classic-car-restoration",
-            name: "Classic Car Restoration",
-            description: "Dedicated to restoring and maintaining classic automobiles.",
-            category: "cars",
-            location: "Regional",
-            maxMembers: 50,
-            requirements: "Interest in classic cars",
-            creatorEmail: "demo@example.com",
-            creatorName: "Demo User",
-            members: [
-              {
-                email: "demo@example.com",
-                name: "Demo User",
-                joinedAt: new Date().toISOString(),
-                role: "creator",
-              },
-            ],
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            isActive: true,
-          },
-        ]
-
-        await this.set("forum:groups", sampleGroups)
-        console.log("✅ Sample groups created")
-      } else {
-        console.log("ℹ️ Skipping sample groups creation")
-      }
 
       // Mark as initialized
       await this.set("system:initialized", true)
@@ -330,7 +253,7 @@ class PersistentDataStore {
     }
   }
 
-  async forceReinitialize(options: { includeSampleGroups?: boolean } = {}): Promise<boolean> {
+  async forceReinitialize(): Promise<boolean> {
     try {
       console.log("🔄 Force reinitializing persistent data store...")
 
@@ -339,14 +262,13 @@ class PersistentDataStore {
       await this.del("forum:categories")
       await this.del("forum:users")
       await this.del("forum:posts")
-      await this.del("forum:groups")
       await this.del("forum:meets")
 
       // Clear memory store as well
       this.memoryStore.clear()
 
       // Reinitialize
-      return await this.initialize(options)
+      return await this.initialize()
     } catch (error) {
       console.error("❌ Error force reinitializing:", error)
       return false
@@ -370,6 +292,18 @@ class PersistentDataStore {
       await this.ensureInitialized()
       const users = await this.getUsers()
 
+      // Check if username or email already exists
+      const existingUser = users.find(
+        (user) =>
+          user.username.toLowerCase() === userData.username.toLowerCase() ||
+          user.email.toLowerCase() === userData.email.toLowerCase(),
+      )
+
+      if (existingUser) {
+        console.error("User with this username or email already exists")
+        return null
+      }
+
       // Hash the password
       const hashedPassword = hashPassword(userData.password)
 
@@ -382,6 +316,7 @@ class PersistentDataStore {
 
       users.push(newUser)
       await this.set("forum:users", users)
+      console.log("✅ User created:", newUser.username)
       return newUser
     } catch (error) {
       console.error("Error creating user:", error)
@@ -409,6 +344,16 @@ class PersistentDataStore {
     }
   }
 
+  async getUserById(id: string): Promise<User | null> {
+    try {
+      const users = await this.getUsers()
+      return users.find((user) => user.id === id) || null
+    } catch (error) {
+      console.error("Error getting user by ID:", error)
+      return null
+    }
+  }
+
   async verifyPassword(username: string, password: string): Promise<User | null> {
     try {
       const user = await this.getUserByUsername(username)
@@ -418,12 +363,32 @@ class PersistentDataStore {
 
       const hashedPassword = hashPassword(password)
       if (user.password === hashedPassword) {
+        // Update last active
+        await this.updateUser(user.id, { lastActive: new Date().toISOString() })
         return user
       }
 
       return null
     } catch (error) {
       console.error("Error verifying password:", error)
+      return null
+    }
+  }
+
+  async updateUser(userId: string, updates: Partial<User>): Promise<User | null> {
+    try {
+      const users = await this.getUsers()
+      const userIndex = users.findIndex((user) => user.id === userId)
+
+      if (userIndex === -1) {
+        return null
+      }
+
+      users[userIndex] = { ...users[userIndex], ...updates }
+      await this.set("forum:users", users)
+      return users[userIndex]
+    } catch (error) {
+      console.error("Error updating user:", error)
       return null
     }
   }
@@ -437,82 +402,6 @@ class PersistentDataStore {
     } catch (error) {
       console.error("Error getting categories:", error)
       return []
-    }
-  }
-
-  // Group management
-  async getGroups(): Promise<Group[]> {
-    try {
-      await this.ensureInitialized()
-      const groups = await this.get("forum:groups")
-      return groups || []
-    } catch (error) {
-      console.error("Error getting groups:", error)
-      return []
-    }
-  }
-
-  async createGroup(
-    groupData: Omit<Group, "id" | "createdAt" | "updatedAt" | "members" | "isActive">,
-  ): Promise<Group | null> {
-    try {
-      await this.ensureInitialized()
-      const groups = await this.getGroups()
-      const newGroup: Group = {
-        ...groupData,
-        id: `group-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        members: [
-          {
-            email: groupData.creatorEmail,
-            name: groupData.creatorName,
-            joinedAt: new Date().toISOString(),
-            role: "creator",
-          },
-        ],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        isActive: true,
-      }
-
-      groups.push(newGroup)
-      await this.set("forum:groups", groups)
-      return newGroup
-    } catch (error) {
-      console.error("Error creating group:", error)
-      return null
-    }
-  }
-
-  async updateGroup(groupId: string, updates: Partial<Group>): Promise<Group | null> {
-    try {
-      const groups = await this.getGroups()
-      const groupIndex = groups.findIndex((group) => group.id === groupId)
-
-      if (groupIndex === -1) {
-        return null
-      }
-
-      groups[groupIndex] = {
-        ...groups[groupIndex],
-        ...updates,
-        updatedAt: new Date().toISOString(),
-      }
-
-      await this.set("forum:groups", groups)
-      return groups[groupIndex]
-    } catch (error) {
-      console.error("Error updating group:", error)
-      return null
-    }
-  }
-
-  async getGroupById(groupId: string): Promise<Group | null> {
-    try {
-      const groups = await this.getGroups()
-      return groups.find((group) => group.id === groupId) || null
-    } catch (error) {
-      console.error("Error getting group by ID:", error)
-      return null
     }
   }
 
@@ -666,7 +555,6 @@ class PersistentDataStore {
       users: number
       categories: number
       posts: number
-      groups: number
       meets: number
     }
   }> {
@@ -677,7 +565,6 @@ class PersistentDataStore {
       const users = await this.getUsers()
       const categories = await this.getCategories()
       const posts = await this.getPosts()
-      const groups = await this.getGroups()
       const meets = await this.getMeets()
 
       return {
@@ -688,7 +575,6 @@ class PersistentDataStore {
           users: users.length,
           categories: categories.length,
           posts: posts.length,
-          groups: groups.length,
           meets: meets.length,
         },
       }
@@ -701,7 +587,6 @@ class PersistentDataStore {
           users: 0,
           categories: 0,
           posts: 0,
-          groups: 0,
           meets: 0,
         },
       }
@@ -711,7 +596,7 @@ class PersistentDataStore {
   // Utility methods
   private async ensureInitialized(): Promise<void> {
     if (!(await this.isInitialized())) {
-      await this.initialize({ includeSampleGroups: false })
+      await this.initialize()
     }
   }
 }
