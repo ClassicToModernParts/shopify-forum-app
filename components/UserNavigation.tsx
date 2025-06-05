@@ -23,26 +23,19 @@ export default function UserNavigation({ currentPage, showBreadcrumb = false }: 
       try {
         setLoading(true)
 
-        // Check for session cookie first
-        const sessionCookie = document.cookie
-          .split("; ")
-          .find((row) => row.startsWith("session="))
-          ?.split("=")[1]
-
         // Check for auth token in localStorage
         const authToken = localStorage.getItem("authToken")
         const storedUserName = localStorage.getItem("userName")
         const storedUserEmail = localStorage.getItem("userEmail")
 
         console.log("🔐 Navigation auth check:", {
-          sessionCookie: !!sessionCookie,
           authToken: !!authToken,
           storedUserName: !!storedUserName,
           storedUserEmail: !!storedUserEmail,
         })
 
         // If we have stored user info, use it immediately
-        if (storedUserName && (sessionCookie || authToken)) {
+        if (storedUserName && authToken) {
           setIsAuthenticated(true)
           setUserName(storedUserName)
         } else {
@@ -50,11 +43,10 @@ export default function UserNavigation({ currentPage, showBreadcrumb = false }: 
           setUserName("")
         }
 
-        // If we have a token or session, verify with the server
-        if (sessionCookie || authToken) {
-          const headers = {}
-          if (authToken) {
-            headers["Authorization"] = `Bearer ${authToken}`
+        // If we have a token, verify with the server
+        if (authToken) {
+          const headers = {
+            Authorization: `Bearer ${authToken}`,
           }
 
           const response = await fetch("/api/auth/user-info", {

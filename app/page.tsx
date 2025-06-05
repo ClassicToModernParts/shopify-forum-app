@@ -1,6 +1,5 @@
 import Link from "next/link"
 import { Shield, PenToolIcon as Tool, MessageSquare, Car, Trophy } from "lucide-react"
-import AdminNavigation from "@/components/AdminNavigation"
 
 export default function HomePage() {
   return (
@@ -19,9 +18,15 @@ export default function HomePage() {
               </div>
             </div>
             <div className="flex items-center space-x-2 sm:space-x-4">
-              <div className="hidden sm:block">
-                <AdminNavigation />
-              </div>
+              <Link href="/admin" className="text-sm text-gray-600 hover:text-gray-900">
+                Admin
+              </Link>
+              <Link
+                href="/login"
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Login
+              </Link>
             </div>
           </div>
         </div>
@@ -34,7 +39,9 @@ export default function HomePage() {
           <div className="max-w-4xl mx-auto">
             <h1 className="text-3xl sm:text-6xl font-bold text-gray-900 mb-6 sm:mb-8 leading-tight">
               Welcome to
-              <span className="gradient-text block mt-1 sm:mt-2">CTM Parts Community</span>
+              <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent block mt-1 sm:mt-2">
+                CTM Parts Community
+              </span>
             </h1>
             <p className="text-lg sm:text-xl text-gray-600 mb-8 sm:mb-10 max-w-3xl mx-auto leading-relaxed px-4">
               Connect with fellow CTM Parts customers, share installation tips, get technical support, and discover the

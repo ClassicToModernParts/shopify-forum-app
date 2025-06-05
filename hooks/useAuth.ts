@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 
 interface User {
   id: string
@@ -16,7 +16,6 @@ export function useAuth(options: { redirectTo?: string; requiredRole?: "admin" |
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
-  const searchParams = useSearchParams()
 
   useEffect(() => {
     async function checkAuth() {
@@ -109,14 +108,7 @@ export function useAuth(options: { redirectTo?: string; requiredRole?: "admin" |
     localStorage.removeItem("userName")
 
     setUser(null)
-
-    // Check if there's a redirect parameter
-    const redirect = searchParams.get("redirect")
-    if (redirect) {
-      router.push(`/login?redirect=${encodeURIComponent(redirect)}`)
-    } else {
-      router.push("/login")
-    }
+    router.push("/login")
   }
 
   return { user, loading, error, logout, isAuthenticated: !!user }

@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Calendar, MapPin, Clock, Car, Truck, Users, ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -11,11 +11,19 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import UserNavigation from "@/components/UserNavigation"
-import { useAuth } from "@/hooks/useAuth"
+
+interface User {
+  id: string
+  username: string
+  name?: string
+  email: string
+  role: "admin" | "user" | "moderator"
+}
 
 export default function CreateMeetContent() {
   const router = useRouter()
-  const { user, loading: authLoading } = useAuth({ redirectTo: "/login?redirect=/meets/create" })
+  const [user, setUser] = useState<User | null>(null)
+  const [authLoading, setAuthLoading] = useState(true)
   const [loading, setLoading] = useState(false)
 
   const [formData, setFormData] = useState({
@@ -31,6 +39,32 @@ export default function CreateMeetContent() {
     requirements: "",
   })
 
+  // Check authentication
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const storedUser = localStorage.getItem("user")
+        const storedToken = localStorage.getItem("authToken")
+
+        if (storedUser && storedToken) {
+          const parsedUser = JSON.parse(storedUser)
+          setUser(parsedUser)
+        } else {
+          // Redirect to login with return URL
+          router.push("/login?redirect=/meets/create")
+          return
+        }
+      } catch (error) {
+        console.error("Auth error:", error)
+        router.push("/login?redirect=/meets/create")
+      } finally {
+        setAuthLoading(false)
+      }
+    }
+
+    checkAuth()
+  }, [router])
+
   // Show loading while checking authentication
   if (authLoading) {
     return (
@@ -43,7 +77,7 @@ export default function CreateMeetContent() {
     )
   }
 
-  // Don't render if not authenticated (useAuth will handle redirect)
+  // Don't render if not authenticated
   if (!user) {
     return null
   }
