@@ -1,9 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { persistentForumDataStore } from "@/lib/persistent-data-store"
+import { emailService } from "@/lib/email-service"
 import * as crypto from "crypto"
 
 function hashPassword(password: string): string {
   return crypto.createHash("sha256").update(password).digest("hex")
+}
+
+function generateToken(length = 32): string {
+  return crypto.randomBytes(length).toString("hex")
 }
 
 export async function POST(request: NextRequest) {
@@ -63,6 +68,25 @@ export async function POST(request: NextRequest) {
       lastActive: new Date().toISOString(),
     })
 
+    // Generate auth token
+    const authToken = generateToken()
+
+    // Store token with user
+    await persistentForumDataStore.storeUserToken(user.id, authToken)
+
+    // Send login notification email (non-blocking)
+    try {
+      console.log("📧 Login API: Sending login notification email")
+      await emailService.sendLoginNotificationEmail(
+        user.email,
+        user.name,
+        request.headers.get("user-agent") || "Unknown device",
+      )
+    } catch (emailError) {
+      console.warn("⚠️ Login notification email error:", emailError)
+      // Don't block login if email fails
+    }
+
     // Create response
     const { password: _, ...userWithoutPassword } = user
     console.log("✅ Login API: Login successful for:", username)
@@ -71,11 +95,21 @@ export async function POST(request: NextRequest) {
       success: true,
       message: "Login successful",
       user: userWithoutPassword,
+      token: authToken,
     })
 
     // Set session cookie
     response.cookies.set("session", user.email, {
       httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+      path: "/",
+    })
+
+    // Set auth token cookie
+    response.cookies.set("authToken", authToken, {
+      httpOnly: false, // Accessible to JavaScript
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: 60 * 60 * 24 * 7, // 7 days

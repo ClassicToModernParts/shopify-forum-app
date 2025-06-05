@@ -3,113 +3,96 @@
 import type React from "react"
 
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("")
-  const [message, setMessage] = useState("")
-  const [error, setError] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-  const [resetToken, setResetToken] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
+  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError("")
-    setMessage("")
-    setIsLoading(true)
+    setIsSubmitting(true)
+    setMessage(null)
 
     try {
-      const response = await fetch("/api/auth/reset-password", {
+      const response = await fetch("/api/auth/forgot-password", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       })
 
       const data = await response.json()
 
-      if (data.success) {
-        setMessage(data.message)
-        // For demo purposes, show the reset token
-        if (data.resetToken) {
-          setResetToken(data.resetToken)
-        }
+      if (response.ok) {
+        setMessage({
+          type: "success",
+          text: "If your email is registered, you will receive password reset instructions shortly.",
+        })
+        // Clear form
+        setEmail("")
       } else {
-        setError(data.message)
+        setMessage({ type: "error", text: data.message || "Something went wrong" })
       }
     } catch (error) {
-      setError("Failed to send reset instructions. Please try again.")
+      setMessage({ type: "error", text: "An error occurred. Please try again." })
     } finally {
-      setIsLoading(false)
+      setIsSubmitting(false)
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">Reset Password</CardTitle>
-          <CardDescription className="text-center">
-            Enter your email address and we'll send you instructions to reset your password
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
+      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
+        <div className="text-center mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">Reset Your Password</h1>
+          <p className="text-gray-600 mt-2">Enter your email to receive a password reset link</p>
+        </div>
 
-            {message && (
-              <Alert>
-                <AlertDescription>{message}</AlertDescription>
-              </Alert>
-            )}
-
-            {resetToken && (
-              <Alert>
-                <AlertDescription>
-                  <strong>Demo Reset Token:</strong> {resetToken}
-                  <br />
-                  <Link href={`/reset-password?token=${resetToken}`} className="text-blue-600 hover:underline">
-                    Click here to reset your password
-                  </Link>
-                </AlertDescription>
-              </Alert>
-            )}
-
-            <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="Enter your email address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Sending..." : "Send Reset Instructions"}
-            </Button>
-          </form>
-
-          <div className="mt-4 text-center text-sm">
-            Remember your password?{" "}
-            <Link href="/login" className="text-blue-600 hover:underline">
-              Back to Sign In
-            </Link>
+        {message && (
+          <div
+            className={`p-4 mb-6 rounded-md ${
+              message.type === "success" ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"
+            }`}
+          >
+            {message.text}
           </div>
-        </CardContent>
-      </Card>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+              Email Address
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+              placeholder="your@email.com"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+          >
+            {isSubmitting ? "Sending..." : "Send Reset Link"}
+          </button>
+        </form>
+
+        <div className="mt-6 text-center">
+          <Link href="/login" className="text-sm text-blue-600 hover:text-blue-800">
+            Back to Login
+          </Link>
+        </div>
+      </div>
     </div>
   )
 }

@@ -1,56 +1,113 @@
-import { Resend } from "resend"
-
-const resend = new Resend(process.env.RESEND_API_KEY)
-
-interface EmailOptions {
-  to: string | string[]
-  subject: string
-  html?: string
-  text?: string
-  from?: string
+// Robust email service with better error handling
+interface EmailResult {
+  success: boolean
+  error?: string
+  messageId?: string
+  provider?: string
 }
 
-export class EmailService {
-  // Use a verified domain or Resend's onboarding domain
-  private defaultFrom = "CTM Parts <onboarding@resend.dev>"
+interface EmailOptions {
+  to: string
+  subject: string
+  html: string
+  text?: string
+}
 
-  async sendEmail(options: EmailOptions): Promise<{ success: boolean; messageId?: string; error?: string }> {
+class EmailService {
+  private async tryResend(options: EmailOptions): Promise<EmailResult> {
     try {
+      // Check if Resend is properly configured
       if (!process.env.RESEND_API_KEY) {
-        console.warn("⚠️ RESEND_API_KEY not found")
-        return { success: false, error: "Email service not configured" }
+        return { success: false, error: "RESEND_API_KEY not configured", provider: "none" }
       }
 
-      console.log("📧 Sending email to:", options.to)
+      if (!process.env.RESEND_API_KEY.startsWith("re_")) {
+        return { success: false, error: "Invalid Resend API key format", provider: "resend" }
+      }
+
+      // Dynamic import to avoid build issues
+      const { Resend } = await import("resend")
+      const resend = new Resend(process.env.RESEND_API_KEY)
+
+      console.log("📧 Attempting to send email via Resend to:", options.to)
 
       const result = await resend.emails.send({
-        from: options.from || this.defaultFrom,
-        to: Array.isArray(options.to) ? options.to : [options.to],
+        from: "CTM Parts <onboarding@resend.dev>",
+        to: options.to,
         subject: options.subject,
-        html: options.html || options.text,
-        text: options.text,
+        html: options.html,
+        text: options.text || options.html.replace(/<[^>]*>/g, ""), // Strip HTML for text
       })
 
       if (result.error) {
-        console.error("❌ Resend error:", result.error)
-        return { success: false, error: result.error.message }
+        console.error("❌ Resend API error:", result.error)
+        return {
+          success: false,
+          error: `Resend error: ${result.error.message}`,
+          provider: "resend",
+        }
       }
 
-      console.log("✅ Email sent successfully:", result.data?.id)
-      return { success: true, messageId: result.data?.id }
+      console.log("✅ Email sent successfully via Resend:", result.data?.id)
+      return {
+        success: true,
+        messageId: result.data?.id,
+        provider: "resend",
+      }
     } catch (error) {
-      console.error("❌ Email send failed:", error)
-      return { success: false, error: error instanceof Error ? error.message : "Unknown error" }
+      console.error("❌ Resend service error:", error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown Resend error",
+        provider: "resend",
+      }
     }
   }
 
-  async sendWelcomeEmail(userEmail: string, userName: string): Promise<void> {
+  private logEmail(options: EmailOptions): EmailResult {
+    console.log("📧 EMAIL LOG (Console Mode):")
+    console.log("To:", options.to)
+    console.log("Subject:", options.subject)
+    console.log("Content Preview:", options.text?.substring(0, 100) || options.html.substring(0, 100))
+    console.log("Full HTML:", options.html)
+
+    return {
+      success: true,
+      messageId: `console-${Date.now()}`,
+      provider: "console",
+    }
+  }
+
+  async sendEmail(options: EmailOptions): Promise<EmailResult> {
+    // Validate input
+    if (!options.to || !options.subject || !options.html) {
+      return { success: false, error: "Missing required email fields" }
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(options.to)) {
+      return { success: false, error: "Invalid email address format" }
+    }
+
+    // Try Resend first
+    const resendResult = await this.tryResend(options)
+    if (resendResult.success) {
+      return resendResult
+    }
+
+    // Fall back to console logging
+    console.warn("⚠️ Resend failed, falling back to console logging:", resendResult.error)
+    return this.logEmail(options)
+  }
+
+  async sendWelcomeEmail(userEmail: string, userName: string): Promise<EmailResult> {
     const html = `
       <!DOCTYPE html>
       <html>
       <head>
         <meta charset="utf-8">
-        <title>Welcome to CTM Parts Community</title>
+        <title>Welcome to CTM Parts</title>
       </head>
       <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
@@ -73,7 +130,7 @@ export class EmailService {
           </div>
           
           <div style="text-align: center; margin: 30px 0;">
-            <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://your-app.vercel.app"}" 
+            <a href="${process.env.NEXT_PUBLIC_APP_URL || "#"}" 
                style="background: #667eea; color: white; padding: 15px 30px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
               🚀 Get Started Now
             </a>
@@ -88,7 +145,7 @@ export class EmailService {
       </html>
     `
 
-    const textVersion = `
+    const text = `
 Welcome to CTM Parts Community, ${userName}!
 
 We're excited to have you join our automotive community.
@@ -99,38 +156,116 @@ What you can do:
 • Create and join groups
 • Earn rewards for participation
 
-Get started: ${process.env.NEXT_PUBLIC_APP_URL || "https://your-app.vercel.app"}
+Get started: ${process.env.NEXT_PUBLIC_APP_URL || "your-app-url"}
 
 Questions? Just reply to this email!
 - The CTM Parts Team
     `
 
-    await this.sendEmail({
+    return await this.sendEmail({
       to: userEmail,
       subject: "🚗 Welcome to CTM Parts Community!",
       html,
-      text: textVersion,
+      text,
     })
   }
 
-  async sendPasswordResetEmail(userEmail: string, userName: string, resetToken: string): Promise<void> {
-    const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://your-app.vercel.app"}/reset-password?token=${resetToken}`
+  async sendLoginNotificationEmail(userEmail: string, userName: string, device: string): Promise<EmailResult> {
+    const timestamp = new Date().toLocaleString()
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "#"
 
     const html = `
       <!DOCTYPE html>
       <html>
+      <head>
+        <meta charset="utf-8">
+        <title>New Login - CTM Parts</title>
+      </head>
       <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <div style="background: #dc3545; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
-          <h1 style="color: white; margin: 0;">🔐 Password Reset</h1>
+        <div style="background: #4CAF50; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
+          <h1 style="color: white; margin: 0; font-size: 24px;">✅ New Login to Your Account</h1>
         </div>
         
         <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px;">
-          <h2 style="margin-top: 0;">Hi ${userName},</h2>
-          <p>You requested a password reset for your CTM Parts Community account.</p>
+          <h2 style="color: #333; margin-top: 0;">Hi ${userName},</h2>
+          
+          <p>We detected a new login to your CTM Parts account.</p>
+          
+          <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #4CAF50;">
+            <h3 style="margin-top: 0; color: #4CAF50;">Login Details:</h3>
+            <p><strong>Time:</strong> ${timestamp}</p>
+            <p><strong>Device:</strong> ${device}</p>
+          </div>
+          
+          <p>If this was you, no action is needed. If you didn't log in recently, please secure your account immediately.</p>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${appUrl}/settings/security" 
+               style="background: #FF5722; color: white; padding: 12px 25px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
+              🔒 Secure My Account
+            </a>
+          </div>
+          
+          <p style="color: #666; font-size: 14px; text-align: center; margin-top: 30px;">
+            Need help? Contact our support team.<br>
+            <strong>The CTM Parts Team</strong>
+          </p>
+        </div>
+      </body>
+      </html>
+    `
+
+    const text = `
+New Login to Your CTM Parts Account
+
+Hi ${userName},
+
+We detected a new login to your CTM Parts account.
+
+Login Details:
+• Time: ${timestamp}
+• Device: ${device}
+
+If this was you, no action is needed. If you didn't log in recently, please secure your account immediately.
+
+Secure your account: ${appUrl}/settings/security
+
+Need help? Contact our support team.
+- The CTM Parts Team
+    `
+
+    return await this.sendEmail({
+      to: userEmail,
+      subject: "✅ New Login to Your CTM Parts Account",
+      html,
+      text,
+    })
+  }
+
+  async sendPasswordResetEmail(userEmail: string, userName: string, resetToken: string): Promise<EmailResult> {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "#"
+    const resetUrl = `${appUrl}/reset-password?token=${resetToken}`
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Password Reset - CTM Parts</title>
+      </head>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: #FF5722; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
+          <h1 style="color: white; margin: 0; font-size: 24px;">🔐 Password Reset Request</h1>
+        </div>
+        
+        <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px;">
+          <h2 style="color: #333; margin-top: 0;">Hi ${userName},</h2>
+          
+          <p>We received a request to reset your password for your CTM Parts account.</p>
           
           <div style="text-align: center; margin: 30px 0;">
             <a href="${resetUrl}" 
-               style="background: #dc3545; color: white; padding: 15px 30px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
+               style="background: #FF5722; color: white; padding: 15px 30px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
               Reset My Password
             </a>
           </div>
@@ -140,37 +275,103 @@ Questions? Just reply to this email!
             This link expires in 1 hour.
           </p>
           
-          <p style="color: #666; font-size: 14px;">
-            If you didn't request this, please ignore this email.
+          <div style="background: #FFF3E0; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #FF5722;">
+            <p style="margin: 0; color: #E64A19;"><strong>Important:</strong> If you didn't request this password reset, please ignore this email or contact support if you have concerns.</p>
+          </div>
+          
+          <p style="color: #666; font-size: 14px; text-align: center; margin-top: 30px;">
+            Need help? Contact our support team.<br>
+            <strong>The CTM Parts Team</strong>
           </p>
         </div>
       </body>
       </html>
     `
 
-    await this.sendEmail({
+    const text = `
+Password Reset Request - CTM Parts
+
+Hi ${userName},
+
+We received a request to reset your password for your CTM Parts account.
+
+Reset your password: ${resetUrl}
+
+This link expires in 1 hour.
+
+Important: If you didn't request this password reset, please ignore this email or contact support if you have concerns.
+
+Need help? Contact our support team.
+- The CTM Parts Team
+    `
+
+    return await this.sendEmail({
       to: userEmail,
       subject: "🔐 Reset Your Password - CTM Parts",
       html,
-      text: `Reset your password: ${resetUrl}`,
+      text,
     })
   }
 
-  // Test email function
-  async sendTestEmail(toEmail: string): Promise<{ success: boolean; error?: string }> {
-    return await this.sendEmail({
-      to: toEmail,
-      subject: "🧪 CTM Parts - Email Test",
-      html: `
-        <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto;">
-          <h1 style="color: #667eea;">✅ Email Test Successful!</h1>
-          <p>If you're reading this, your email service is working perfectly!</p>
-          <p><strong>Timestamp:</strong> ${new Date().toLocaleString()}</p>
-          <p style="color: #666; font-size: 14px;">This is a test email from CTM Parts Community.</p>
+  async sendTestEmail(userEmail: string): Promise<EmailResult> {
+    const timestamp = new Date().toLocaleString()
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <body style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto;">
+        <div style="background: #667eea; color: white; padding: 20px; border-radius: 10px 10px 0 0; text-align: center;">
+          <h1 style="margin: 0;">✅ Email Test Successful!</h1>
         </div>
-      `,
-      text: `Email test successful! Timestamp: ${new Date().toLocaleString()}`,
+        
+        <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px;">
+          <p>If you're reading this, your email service is working perfectly!</p>
+          
+          <div style="background: white; padding: 15px; border-radius: 8px; margin: 20px 0;">
+            <p style="margin: 0;"><strong>Timestamp:</strong> ${timestamp}</p>
+            <p style="margin: 5px 0 0 0;"><strong>Sent to:</strong> ${userEmail}</p>
+          </div>
+          
+          <p style="color: #666; font-size: 14px; text-align: center;">
+            This is a test email from CTM Parts Community.
+          </p>
+        </div>
+      </body>
+      </html>
+    `
+
+    const text = `Email test successful! Timestamp: ${timestamp}. Sent to: ${userEmail}`
+
+    return await this.sendEmail({
+      to: userEmail,
+      subject: "🧪 CTM Parts - Email Test Success",
+      html,
+      text,
     })
+  }
+
+  getStatus(): { configured: boolean; provider: string; details: string } {
+    const hasKey = !!process.env.RESEND_API_KEY
+    const validKey = process.env.RESEND_API_KEY?.startsWith("re_")
+
+    if (hasKey && validKey) {
+      return {
+        configured: true,
+        provider: "Resend",
+        details: "Resend API key is properly configured",
+      }
+    } else if (hasKey && !validKey) {
+      return {
+        configured: false,
+        provider: "Console (Invalid Key)",
+        details: "Resend API key exists but is invalid (should start with 're_')",
+      }
+    } else {
+      return {
+        configured: false,
+        provider: "Console (No Key)",
+        details: "No Resend API key found - using console logging",
+      }
+    }
   }
 }
 

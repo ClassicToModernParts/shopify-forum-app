@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { persistentForumDataStore } from "@/lib/persistent-data-store"
-import { simpleEmailService } from "@/lib/simple-email-service"
+import { emailService } from "@/lib/email-service"
 import * as crypto from "crypto"
 
 function hashPassword(password: string): string {
@@ -70,11 +70,14 @@ export async function POST(request: NextRequest) {
 
     console.log("✅ Registration API: User created successfully:", user.username)
 
-    // Send welcome email (won't fail registration if email fails)
+    // Send welcome email (non-blocking)
+    let emailResult = null
     try {
-      const emailResult = await simpleEmailService.sendWelcomeEmail(user.email, user.name)
+      console.log("📧 Registration API: Sending welcome email")
+      emailResult = await emailService.sendWelcomeEmail(user.email, user.name)
+
       if (emailResult.success) {
-        console.log("✅ Welcome email sent to:", user.email)
+        console.log("✅ Welcome email sent successfully via", emailResult.provider)
       } else {
         console.warn("⚠️ Welcome email failed:", emailResult.error)
       }
@@ -85,8 +88,10 @@ export async function POST(request: NextRequest) {
     const { password: _, ...userWithoutPassword } = user
     return NextResponse.json({
       success: true,
-      message: "Registration successful! Welcome email sent.",
+      message: "Registration successful!",
       user: userWithoutPassword,
+      emailSent: emailResult?.success || false,
+      emailProvider: emailResult?.provider || "none",
     })
   } catch (error) {
     console.error("❌ Registration API: Error:", error)
