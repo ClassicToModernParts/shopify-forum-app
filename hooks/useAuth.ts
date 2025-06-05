@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 interface User {
   id: string
   username: string
-  name: string
+  name?: string
   email: string
   role: "admin" | "user" | "moderator"
 }
@@ -15,9 +15,12 @@ export function useAuth(options: { redirectTo?: string } = {}) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
   const router = useRouter()
 
   const checkAuth = async () => {
+    if (!mounted) return
+
     try {
       console.log("🔍 useAuth: Checking authentication")
 
@@ -75,8 +78,10 @@ export function useAuth(options: { redirectTo?: string } = {}) {
       console.error("❌ useAuth: Error checking auth:", err)
       setError("Authentication error")
       setUser(null)
-      localStorage.removeItem("user")
-      localStorage.removeItem("authToken")
+      if (mounted) {
+        localStorage.removeItem("user")
+        localStorage.removeItem("authToken")
+      }
       if (options.redirectTo) {
         router.push(options.redirectTo)
       }
@@ -86,6 +91,8 @@ export function useAuth(options: { redirectTo?: string } = {}) {
   }
 
   const logout = async () => {
+    if (!mounted) return
+
     try {
       console.log("🚪 useAuth: Logging out")
       await fetch("/api/auth/logout", {
@@ -107,8 +114,14 @@ export function useAuth(options: { redirectTo?: string } = {}) {
   }
 
   useEffect(() => {
-    checkAuth()
+    setMounted(true)
   }, [])
+
+  useEffect(() => {
+    if (mounted) {
+      checkAuth()
+    }
+  }, [mounted])
 
   return {
     user,

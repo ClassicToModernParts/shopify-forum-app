@@ -1,261 +1,210 @@
 "use client"
 
 import type React from "react"
+
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { Eye, EyeOff, AlertCircle, UserPlus, LogIn } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import Link from "next/link"
 
 export default function LoginPage() {
-  const [credentials, setCredentials] = useState({ username: "", password: "" })
-  const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState("")
+  const [username, setUsername] = useState("")
+  const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
-  const [isAdminMode, setIsAdminMode] = useState(false)
-  const [redirectUrl, setRedirectUrl] = useState<string | null>(null)
-  const router = useRouter()
+  const [message, setMessage] = useState("")
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
-  // Check for admin mode and redirect URL from URL parameters
+  // Only run on client side
   useEffect(() => {
+    setMounted(true)
+    // Check if admin mode is requested
     if (typeof window !== "undefined") {
       const urlParams = new URLSearchParams(window.location.search)
-      const admin = urlParams.get("admin")
-      const redirect = urlParams.get("redirect")
-
-      setIsAdminMode(admin === "true")
-      setRedirectUrl(redirect)
+      setIsAdmin(urlParams.get("admin") === "true")
     }
   }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    setError("")
+    setMessage("")
 
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: credentials.username.trim(),
-          password: credentials.password.trim(),
-        }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ username, password }),
       })
 
       const data = await response.json()
 
       if (data.success) {
-        // Store user data and token
-        localStorage.setItem("user", JSON.stringify(data.user))
-        localStorage.setItem("authToken", data.token)
-        localStorage.setItem("userEmail", data.user.email)
-        localStorage.setItem("userName", data.user.name || data.user.username)
+        setMessage(`Login successful! Welcome ${data.user.username}`)
 
-        // Redirect to intended page or default
-        if (redirectUrl) {
-          router.push(redirectUrl)
-        } else if (data.user.role === "admin") {
-          router.push("/admin/dashboard")
-        } else {
-          router.push("/forum")
+        // Only access localStorage on client side
+        if (typeof window !== "undefined") {
+          localStorage.setItem("user", JSON.stringify(data.user))
+          localStorage.setItem("authToken", data.token)
+
+          // Redirect based on role
+          if (data.user.role === "admin") {
+            window.location.href = "/admin"
+          } else {
+            // Get redirect URL or default to home
+            const urlParams = new URLSearchParams(window.location.search)
+            const redirect = urlParams.get("redirect") || "/"
+            window.location.href = redirect
+          }
         }
       } else {
-        setError(data.error || "Invalid credentials")
+        setMessage(`Login failed: ${data.error}`)
       }
     } catch (error) {
-      console.error("Login error:", error)
-      setError("Login failed. Please try again.")
+      setMessage(`Error: ${error}`)
     } finally {
       setLoading(false)
     }
   }
 
   const handleQuickCreate = async () => {
-    if (!credentials.username.trim()) {
-      setError("Please enter a username")
+    if (!username) {
+      setMessage("Please enter a username")
       return
     }
 
     setLoading(true)
-    setError("")
+    setMessage("")
 
     try {
       const response = await fetch("/api/debug/create-user", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
-          username: credentials.username.trim(),
-          email: `${credentials.username.trim()}@example.com`,
-          password: credentials.password.trim() || "password123",
-          name: credentials.username.trim(),
+          username,
+          password: password || username, // Use username as password if none provided
+          email: `${username}@example.com`,
         }),
       })
 
       const data = await response.json()
 
       if (data.success) {
-        // Auto-login after creation
-        const loginResponse = await fetch("/api/auth/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            username: credentials.username.trim(),
-            password: credentials.password.trim() || "password123",
-          }),
-        })
-
-        const loginData = await loginResponse.json()
-
-        if (loginData.success) {
-          localStorage.setItem("user", JSON.stringify(loginData.user))
-          localStorage.setItem("authToken", loginData.token)
-          localStorage.setItem("userEmail", loginData.user.email)
-          localStorage.setItem("userName", loginData.user.name || loginData.user.username)
-
-          if (redirectUrl) {
-            router.push(redirectUrl)
-          } else {
-            router.push("/forum")
-          }
-        } else {
-          setError("Account created but login failed")
-        }
+        setMessage(`Account created! You can now login.`)
       } else {
-        setError(data.error || "Failed to create account")
+        setMessage(`Account creation failed: ${data.error}`)
       }
     } catch (error) {
-      console.error("Error creating user:", error)
-      setError("Failed to create account")
+      setMessage(`Error: ${error}`)
     } finally {
       setLoading(false)
     }
   }
 
+  // Don't render anything with localStorage until client-side
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="w-full max-w-md p-4">
+          <Card>
+            <CardHeader className="space-y-1">
+              <CardTitle className="text-2xl text-center">Login</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex justify-center">
+                <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white rounded-xl shadow-lg">
-        <div className="p-6 sm:p-8 text-center">
-          <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
-            <LogIn className="h-8 w-8 text-white" />
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
-            {isAdminMode ? "Admin Login" : "Welcome Back"}
-          </h1>
-          <p className="text-gray-600 text-sm sm:text-base">
-            {isAdminMode ? "Access the administration panel" : "Sign in to your account or create a new one"}
-          </p>
-        </div>
-
-        <div className="px-6 pb-6 sm:px-8 sm:pb-8">
-          {/* Admin credentials - only show in admin mode */}
-          {isAdminMode && (
-            <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-              <div className="flex items-start">
-                <AlertCircle className="h-5 w-5 text-blue-400 mt-0.5 mr-3 flex-shrink-0" />
-                <div>
-                  <h3 className="text-sm font-medium text-blue-800 mb-2">Default Admin Credentials</h3>
-                  <div className="grid grid-cols-2 gap-4 text-sm text-blue-700">
-                    <div>
-                      <p className="font-medium">Username:</p>
-                      <p className="font-mono bg-blue-100 px-2 py-1 rounded">admin</p>
-                    </div>
-                    <div>
-                      <p className="font-medium">Password:</p>
-                      <p className="font-mono bg-blue-100 px-2 py-1 rounded">admin123</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <form onSubmit={handleLogin} className="space-y-4">
-            {error && (
-              <div className="flex items-center space-x-2 text-red-600 bg-red-50 p-3 rounded-lg">
-                <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                <span className="text-sm">{error}</span>
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <label htmlFor="username" className="block text-sm font-medium text-gray-700">
-                Username
-              </label>
-              <input
-                id="username"
-                type="text"
-                placeholder="Enter your username"
-                value={credentials.username}
-                onChange={(e) => setCredentials({ ...credentials, username: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-base"
-                required
-                autoComplete="username"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Enter your password"
-                  value={credentials.password}
-                  onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-base pr-12"
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="w-full max-w-md">
+        <Card>
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl text-center">Login</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="username">Username</Label>
+                <Input
+                  id="username"
+                  placeholder="Enter your username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
                   required
-                  autoComplete="current-password"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                >
-                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                </button>
               </div>
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Logging in..." : "Login"}
+              </Button>
+            </form>
 
-            <div className="space-y-3 pt-2">
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-base"
-              >
-                {loading ? "Signing in..." : "Sign In"}
-              </button>
-
-              {!isAdminMode && (
-                <button
-                  type="button"
-                  onClick={handleQuickCreate}
-                  disabled={loading}
-                  className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-base flex items-center justify-center"
-                >
-                  <UserPlus className="h-4 w-4 mr-2" />
-                  {loading ? "Creating..." : "Quick Create Account"}
-                </button>
-              )}
+            <div className="text-center text-sm">
+              <Button variant="link" onClick={handleQuickCreate} disabled={loading}>
+                Create account if username doesn't exist
+              </Button>
             </div>
-          </form>
+          </CardContent>
 
-          {!isAdminMode && (
-            <div className="mt-6 text-center">
-              <p className="text-sm text-gray-600">
-                {"Don't have an account? Just enter a username and click 'Quick Create Account'"}
-              </p>
-            </div>
+          {message && (
+            <CardContent>
+              <Alert>
+                <AlertDescription>{message}</AlertDescription>
+              </Alert>
+            </CardContent>
           )}
 
-          {isAdminMode && (
-            <div className="mt-4 text-center">
-              <a href="/api/debug/reinitialize-auth" className="text-sm text-blue-600 hover:text-blue-800">
-                Reset Authentication System
-              </a>
-            </div>
+          {isAdmin && (
+            <CardFooter className="flex flex-col space-y-2 border-t pt-4">
+              <div className="text-sm text-center">
+                <p className="font-medium">Default Admin Credentials:</p>
+                <p>
+                  Username: <code>admin</code> / Password: <code>admin123</code>
+                </p>
+                <p>
+                  Username: <code>demo</code> / Password: <code>demo123</code>
+                </p>
+              </div>
+            </CardFooter>
           )}
-        </div>
+
+          <CardFooter className="flex justify-center border-t pt-4">
+            <div className="text-sm text-center">
+              <Link href="/register" className="text-blue-600 hover:underline">
+                Register
+              </Link>
+              {" | "}
+              <Link href="/forgot-password" className="text-blue-600 hover:underline">
+                Forgot Password
+              </Link>
+            </div>
+          </CardFooter>
+        </Card>
       </div>
     </div>
   )
