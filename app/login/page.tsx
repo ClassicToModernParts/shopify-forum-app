@@ -2,354 +2,294 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import Link from "next/link"
-import { Eye, EyeOff, LogIn, AlertCircle, Info, UserPlus, Settings } from "lucide-react"
+import { useState, useEffect, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Eye, EyeOff, User, Lock, AlertCircle, Info } from "lucide-react"
 
-export default function LoginPage() {
-  const [credentials, setCredentials] = useState({ username: "", password: "" })
-  const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState("")
+function LoginForm() {
+  const [formData, setFormData] = useState({
+    username: "",
+    password: "",
+  })
   const [loading, setLoading] = useState(false)
-  const [debugInfo, setDebugInfo] = useState<any>(null)
-  const [showQuickCreate, setShowQuickCreate] = useState(false)
+  const [error, setError] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [isAdminMode, setIsAdminMode] = useState(false)
+
   const router = useRouter()
+  const searchParams = useSearchParams()
 
-  // Check if user is trying to access admin features
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search)
-    const adminParam = urlParams.get("admin")
-    const fromAdmin = window.location.pathname.includes("/admin")
+    // Check if this is admin mode
+    const adminParam = searchParams.get("admin")
+    const referrer = document.referrer
+    const isFromAdmin = referrer.includes("/admin") || adminParam === "true"
+    setIsAdminMode(isFromAdmin)
 
-    if (adminParam === "true" || fromAdmin) {
-      setIsAdminMode(true)
+    // Check if user is already logged in
+    const checkAuth = async () => {
+      try {
+        const storedUser = localStorage.getItem("user")
+        const storedToken = localStorage.getItem("authToken")
+
+        if (storedUser && storedToken) {
+          const response = await fetch("/api/auth/user-info", {
+            credentials: "include",
+            headers: {
+              Authorization: `Bearer ${storedToken}`,
+            },
+          })
+
+          if (response.ok) {
+            const data = await response.json()
+            if (data.success && data.user) {
+              // User is already logged in, redirect
+              const redirectTo = searchParams.get("redirect") || "/"
+              router.push(redirectTo)
+              return
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Auth check error:", error)
+      }
     }
-  }, [])
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError("")
-    setDebugInfo(null)
+    checkAuth()
+  }, [router, searchParams])
 
+  const handleQuickCreate = async (username: string) => {
     try {
-      const response = await fetch("/api/auth/login", {
+      setLoading(true)
+      setError("")
+
+      const response = await fetch("/api/debug/create-user", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
-          username: credentials.username.trim(),
-          password: credentials.password.trim(),
+          username,
+          password: "password123",
+          email: `${username}@example.com`,
+          name: username.charAt(0).toUpperCase() + username.slice(1),
         }),
       })
 
       const data = await response.json()
 
       if (data.success) {
-        // Store token and user info in localStorage
-        localStorage.setItem("authToken", data.token)
-        localStorage.setItem("user", JSON.stringify(data.user))
-        localStorage.setItem("userEmail", data.user.email)
-        localStorage.setItem("userName", data.user.name || data.user.username)
-
-        // Redirect based on user role and where they came from
-        if (data.user.role === "admin" && isAdminMode) {
-          router.push("/admin")
-        } else {
-          router.push("/")
-        }
+        // Auto-login the created user
+        setFormData({ username, password: "password123" })
+        await handleLogin(username, "password123")
       } else {
-        setError(data.error || "Login failed")
-        if (data.debug) {
-          setDebugInfo(data.debug)
-        }
-        // Show quick create option if user not found and not in admin mode
-        if (data.error?.includes("Invalid username") && !isAdminMode) {
-          setShowQuickCreate(true)
-        }
+        setError(data.error || "Failed to create account")
       }
     } catch (error) {
-      console.error("Login error:", error)
-      setError("An error occurred during login. Please try again.")
+      console.error("Quick create error:", error)
+      setError("An error occurred while creating account")
     } finally {
       setLoading(false)
     }
   }
 
-  const handleQuickCreate = async () => {
-    if (!credentials.username || !credentials.password) {
-      setError("Please enter username and password first")
+  const handleLogin = async (username?: string, password?: string) => {
+    const loginUsername = username || formData.username
+    const loginPassword = password || formData.password
+
+    if (!loginUsername || !loginPassword) {
+      setError("Please enter both username and password")
       return
     }
 
     setLoading(true)
+    setError("")
+
     try {
-      const response = await fetch("/api/debug/create-user", {
+      const response = await fetch("/api/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
         body: JSON.stringify({
-          username: credentials.username.trim(),
-          password: credentials.password.trim(),
-          name: credentials.username.trim(),
-          email: `${credentials.username.trim()}@example.com`,
-          role: "user",
+          username: loginUsername,
+          password: loginPassword,
         }),
       })
 
       const data = await response.json()
 
       if (data.success) {
-        setError("")
-        setShowQuickCreate(false)
-        // Now try to login
-        handleLogin(new Event("submit") as any)
+        // Store user data and token
+        localStorage.setItem("user", JSON.stringify(data.user))
+        localStorage.setItem("authToken", data.token)
+        localStorage.setItem("userEmail", data.user.email)
+        localStorage.setItem("userName", data.user.name || data.user.username)
+
+        console.log("✅ Login successful")
+
+        // Redirect to intended page or home
+        const redirectTo = searchParams.get("redirect") || "/"
+        router.push(redirectTo)
       } else {
-        setError(data.message || "Failed to create user")
+        if (data.error === "User not found" && !isAdminMode) {
+          // Offer to create account for regular users
+          const shouldCreate = confirm(
+            `Username "${loginUsername}" not found. Would you like to create this account with password "password123"?`,
+          )
+          if (shouldCreate) {
+            await handleQuickCreate(loginUsername)
+            return
+          }
+        }
+        setError(data.error || "Login failed")
       }
     } catch (error) {
-      console.error("User creation error:", error)
-      setError("Failed to create user account")
+      console.error("Login error:", error)
+      setError("An error occurred during login")
     } finally {
       setLoading(false)
     }
   }
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    await handleLogin()
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          {isAdminMode ? "Admin Login" : "Sign in to your account"}
-        </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
-          {!isAdminMode && (
-            <>
-              Or{" "}
-              <Link href="/register" className="font-medium text-blue-600 hover:text-blue-500">
-                create a new account
-              </Link>
-            </>
-          )}
-        </p>
-      </div>
-
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          {/* Admin mode indicator */}
-          {isAdminMode && (
-            <div className="mb-4 p-3 bg-orange-50 rounded-md">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <Settings className="h-5 w-5 text-orange-400" aria-hidden="true" />
-                </div>
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-orange-800">Admin Access Required</h3>
-                  <div className="mt-2 text-sm text-orange-700">
-                    <p>You need administrator privileges to access this area.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Default credentials info - only show to admin users or in admin mode */}
-          {isAdminMode && (
-            <div className="mb-4 p-3 bg-blue-50 rounded-md">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <Info className="h-5 w-5 text-blue-400" aria-hidden="true" />
-                </div>
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-blue-800">Default admin credentials</h3>
-                  <div className="mt-2 text-sm text-blue-700">
-                    <p>
-                      Admin: username <strong>admin</strong> / password <strong>admin123</strong>
-                    </p>
-                    <p>
-                      Demo: username <strong>demo</strong> / password <strong>demo123</strong>
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <Card className="w-full max-w-md shadow-lg">
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-2xl font-bold text-center flex items-center justify-center gap-2">
+            <User className="h-6 w-6 text-blue-600" />
+            {isAdminMode ? "Admin Login" : "Login"}
+          </CardTitle>
+          <p className="text-gray-600 text-center text-sm">
+            {isAdminMode ? "Access admin dashboard" : "Sign in to your account"}
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
           {error && (
-            <div className="mb-4 p-3 bg-red-50 rounded-md">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <AlertCircle className="h-5 w-5 text-red-400" aria-hidden="true" />
-                </div>
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-red-800">Login failed</h3>
-                  <div className="mt-2 text-sm text-red-700">
-                    <p>{error}</p>
-                    {debugInfo && isAdminMode && (
-                      <div className="mt-2 text-xs font-mono">
-                        <p>Username: {debugInfo.receivedUsername}</p>
-                        <p>Password length: {debugInfo.receivedPasswordLength}</p>
-                        {debugInfo.receivedPasswordHash && (
-                          <>
-                            <p>Received hash: {debugInfo.receivedPasswordHash}</p>
-                            <p>Stored hash: {debugInfo.storedPasswordHash}</p>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
 
-          {showQuickCreate && !isAdminMode && (
-            <div className="mb-4 p-3 bg-yellow-50 rounded-md">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <UserPlus className="h-5 w-5 text-yellow-400" aria-hidden="true" />
-                </div>
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-yellow-800">User not found</h3>
-                  <div className="mt-2 text-sm text-yellow-700">
-                    <p>Would you like to create an account with username "{credentials.username}"?</p>
-                    <button
-                      onClick={handleQuickCreate}
-                      disabled={loading}
-                      className="mt-2 inline-flex items-center px-3 py-1 border border-transparent text-xs font-medium rounded text-yellow-800 bg-yellow-100 hover:bg-yellow-200 disabled:opacity-50"
-                    >
-                      <UserPlus className="mr-1 h-3 w-3" />
-                      Create Account & Login
-                    </button>
+          {isAdminMode && (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                <div className="space-y-2">
+                  <p className="font-medium">Default Admin Credentials:</p>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="font-medium">Admin:</p>
+                      <p>admin / admin123</p>
+                    </div>
+                    <div>
+                      <p className="font-medium">Demo:</p>
+                      <p>demo / demo123</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
+              </AlertDescription>
+            </Alert>
           )}
 
-          <form className="space-y-6" onSubmit={handleLogin}>
-            <div>
-              <label htmlFor="username" className="block text-sm font-medium text-gray-700">
-                Username
-              </label>
-              <div className="mt-1">
-                <input
-                  id="username"
-                  name="username"
-                  type="text"
-                  autoComplete="username"
-                  required
-                  value={credentials.username}
-                  onChange={(e) => setCredentials({ ...credentials, username: e.target.value })}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                />
-              </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                type="text"
+                placeholder="Enter your username"
+                value={formData.username}
+                onChange={(e) => setFormData((prev) => ({ ...prev, username: e.target.value }))}
+                required
+                autoComplete="username"
+                className="h-11"
+              />
             </div>
 
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
-              </label>
-              <div className="mt-1 relative">
-                <input
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <div className="relative">
+                <Input
                   id="password"
-                  name="password"
                   type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
+                  placeholder="Enter your password"
+                  value={formData.password}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, password: e.target.value }))}
                   required
-                  value={credentials.password}
-                  onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  autoComplete="current-password"
+                  className="h-11 pr-10"
                 />
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
                 >
-                  {showPassword ? (
-                    <EyeOff className="h-5 w-5 text-gray-400" />
-                  ) : (
-                    <Eye className="h-5 w-5 text-gray-400" />
-                  )}
-                </button>
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <input
-                  id="remember-me"
-                  name="remember-me"
-                  type="checkbox"
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">
-                  Remember me
-                </label>
-              </div>
-
-              <div className="text-sm">
-                <Link href="/forgot-password" className="font-medium text-blue-600 hover:text-blue-500">
-                  Forgot your password?
-                </Link>
-              </div>
-            </div>
-
-            <div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-              >
-                {loading ? (
-                  "Signing in..."
-                ) : (
-                  <>
-                    <LogIn className="mr-2 h-4 w-4" /> Sign in
-                  </>
-                )}
-              </button>
-            </div>
+            <Button type="submit" className="w-full h-11" disabled={loading}>
+              {loading ? (
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  Signing in...
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Lock className="h-4 w-4" />
+                  Sign In
+                </div>
+              )}
+            </Button>
           </form>
 
-          {/* Debug tools - only show in admin mode */}
-          {isAdminMode && (
-            <div className="mt-6">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300" />
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-gray-500">Debug Tools</span>
-                </div>
-              </div>
-
-              <div className="mt-6 grid grid-cols-1 gap-3">
-                <Link
-                  href="/api/debug/users"
-                  className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
-                >
-                  View All Users
-                </Link>
-                <Link
-                  href="/api/debug/reinitialize-auth"
-                  className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
-                >
-                  Reset Authentication System
-                </Link>
-              </div>
-            </div>
-          )}
-
-          {/* Switch to admin mode for regular users */}
           {!isAdminMode && (
-            <div className="mt-6 text-center">
-              <Link href="/login?admin=true" className="text-sm text-gray-500 hover:text-gray-700">
-                Admin Login
-              </Link>
+            <div className="text-center">
+              <p className="text-sm text-gray-600">
+                Don't have an account? Just enter a username and we'll create one for you!
+              </p>
             </div>
           )}
-        </div>
-      </div>
+
+          <div className="text-center space-y-2">
+            <Button variant="link" onClick={() => router.push("/forgot-password")} className="text-sm">
+              Forgot your password?
+            </Button>
+          </div>
+
+          {isAdminMode && (
+            <div className="border-t pt-4">
+              <p className="text-xs text-gray-500 text-center">
+                Debug tools and system management available after login
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <LoginForm />
+    </Suspense>
   )
 }

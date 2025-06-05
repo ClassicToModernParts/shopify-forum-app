@@ -18,6 +18,14 @@ interface Category {
   description: string
 }
 
+interface User {
+  id: string
+  username: string
+  name?: string
+  email: string
+  role: "admin" | "user" | "moderator"
+}
+
 export default function CreatePost() {
   const [categories, setCategories] = useState<Category[]>([])
   const [formData, setFormData] = useState({
@@ -28,25 +36,65 @@ export default function CreatePost() {
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
-  const [userInfo, setUserInfo] = useState({ email: "", name: "" })
+  const [user, setUser] = useState<User | null>(null)
+  const [authLoading, setAuthLoading] = useState(true)
 
   const router = useRouter()
 
-  // Get user info and check authentication
+  // Check authentication
   useEffect(() => {
-    const userEmail = localStorage.getItem("userEmail")
-    const userName = localStorage.getItem("userName")
+    const checkAuth = async () => {
+      try {
+        setAuthLoading(true)
 
-    if (!userEmail) {
-      alert("Please log in to create a post")
-      router.push("/login")
-      return
+        // Check localStorage first
+        const storedUser = localStorage.getItem("user")
+        const storedToken = localStorage.getItem("authToken")
+
+        if (storedUser && storedToken) {
+          const parsedUser = JSON.parse(storedUser)
+          setUser(parsedUser)
+        }
+
+        // Verify with server
+        const response = await fetch("/api/auth/user-info", {
+          credentials: "include",
+          headers: {
+            Authorization: storedToken ? `Bearer ${storedToken}` : "",
+          },
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success && data.user) {
+            setUser(data.user)
+            localStorage.setItem("user", JSON.stringify(data.user))
+            if (data.token) {
+              localStorage.setItem("authToken", data.token)
+            }
+          } else {
+            // Not authenticated
+            localStorage.removeItem("user")
+            localStorage.removeItem("authToken")
+            setUser(null)
+            router.push("/login?redirect=/forum/create")
+          }
+        } else {
+          // Server error or not authenticated
+          localStorage.removeItem("user")
+          localStorage.removeItem("authToken")
+          setUser(null)
+          router.push("/login?redirect=/forum/create")
+        }
+      } catch (error) {
+        console.error("Auth check error:", error)
+        router.push("/login?redirect=/forum/create")
+      } finally {
+        setAuthLoading(false)
+      }
     }
 
-    setUserInfo({
-      email: userEmail,
-      name: userName || "User",
-    })
+    checkAuth()
   }, [router])
 
   // Fetch categories
@@ -63,15 +111,16 @@ export default function CreatePost() {
       }
     }
 
-    fetchCategories()
-  }, [])
+    if (user) {
+      fetchCategories()
+    }
+  }, [user])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!userInfo.email) {
-      alert("Please log in to create a post")
-      router.push("/login")
+    if (!user) {
+      router.push("/login?redirect=/forum/create")
       return
     }
 
@@ -84,18 +133,22 @@ export default function CreatePost() {
     setError("")
 
     try {
+      const authToken = localStorage.getItem("authToken")
       const response = await fetch("/api/forum", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: authToken ? `Bearer ${authToken}` : "",
         },
+        credentials: "include",
         body: JSON.stringify({
           type: "create_post",
           title: formData.title.trim(),
           content: formData.content.trim(),
           categoryId: formData.categoryId,
-          author: userInfo.name,
-          authorEmail: userInfo.email,
+          author: user.name || user.username,
+          authorEmail: user.email,
+          authorId: user.id,
           tags: formData.tags
             .split(",")
             .map((tag) => tag.trim())
@@ -126,6 +179,33 @@ export default function CreatePost() {
     }))
   }
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <UserNavigation currentPage="forum" />
+        <div className="container mx-auto py-8 px-4 max-w-2xl">
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Checking authentication...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <UserNavigation currentPage="forum" />
+        <div className="container mx-auto py-8 px-4 max-w-2xl">
+          <div className="text-center py-12">
+            <p className="text-gray-600">Redirecting to login...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <UserNavigation currentPage="forum" />
@@ -133,11 +213,9 @@ export default function CreatePost() {
         <Card>
           <CardHeader>
             <CardTitle>Create New Post</CardTitle>
-            {userInfo.email && (
-              <p className="text-sm text-gray-600">
-                Posting as: {userInfo.name} ({userInfo.email})
-              </p>
-            )}
+            <p className="text-sm text-gray-600">
+              Posting as: {user.name || user.username} ({user.email})
+            </p>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
