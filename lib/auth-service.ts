@@ -45,10 +45,17 @@ export const authService = {
         }
       }
 
-      // Check password
+      // Check password - add debugging
       const hashedPassword = simpleHash(password)
+      console.log("🔐 Auth Service: Comparing passwords for", username)
+      console.log("🔐 Stored password length:", user.password?.length)
+      console.log("🔐 Hashed input length:", hashedPassword?.length)
+
       if (user.password !== hashedPassword) {
-        console.log("❌ Auth Service: Invalid password for:", username)
+        console.log("❌ Auth Service: Password mismatch for:", username)
+        // Add more detailed debugging
+        console.log("🔐 Expected hash starts with:", user.password?.substring(0, 10))
+        console.log("🔐 Provided hash starts with:", hashedPassword?.substring(0, 10))
         return {
           success: false,
           message: "Invalid username or password",
@@ -133,8 +140,9 @@ export const authService = {
         }
       }
 
-      // Hash password
+      // Hash password - ensure consistency
       const hashedPassword = simpleHash(password)
+      console.log("🔐 Auth Service: Hashed password for registration:", hashedPassword?.substring(0, 10))
 
       // Create user
       const user = await persistentForumDataStore.addUser({
