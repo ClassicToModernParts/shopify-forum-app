@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import UserNavigation from "@/components/UserNavigation"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import InitializeSystemButton from "@/components/InitializeSystemButton"
 
 export default function GroupsPage() {
   const router = useRouter()
@@ -369,10 +370,24 @@ export default function GroupsPage() {
           <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
             <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
             <h2 className="text-xl font-bold text-red-700 mb-2">System Error</h2>
-            <p className="text-red-600 mb-4">{systemError}</p>
-            <Link href="/login">
-              <Button>Go to Login Page</Button>
-            </Link>
+            <p className="text-red-600 mb-6">{systemError}</p>
+
+            <div className="flex flex-col items-center gap-4">
+              <InitializeSystemButton variant="clean" />
+
+              <div className="mt-4 text-sm text-gray-600">
+                <p className="mb-2">This will initialize the system without creating sample groups.</p>
+                <p className="mb-2">After initialization, you can log in with:</p>
+                <div className="bg-gray-100 p-3 rounded-md inline-block text-left">
+                  <p>
+                    <strong>Admin:</strong> admin / admin123
+                  </p>
+                  <p>
+                    <strong>Demo:</strong> demo / demo123
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

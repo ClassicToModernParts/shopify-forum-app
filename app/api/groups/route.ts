@@ -1,21 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { persistentForumDataStore } from "@/lib/persistent-data-store"
-import { ensureDataStoreInitialized } from "@/lib/data-store-manager"
+import { dataStore } from "@/lib/persistent-data-store"
 
 export async function GET(request: NextRequest) {
   try {
-    // Ensure data store is initialized before proceeding
-    const initialized = await ensureDataStoreInitialized()
-    if (!initialized) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Data store initialization failed. Please try again later.",
-          data: null,
-        },
-        { status: 500 },
-      )
-    }
+    console.log("📋 Groups API GET request started")
 
     const { searchParams } = new URL(request.url)
     const requestType = searchParams.get("type")
@@ -23,8 +11,25 @@ export async function GET(request: NextRequest) {
 
     console.log(`👥 Groups API GET request: ${requestType} for shop ${shopId}`)
 
+    // Ensure system is initialized
+    const isInitialized = await dataStore.isInitialized()
+    if (!isInitialized) {
+      console.log("⚠️ System not initialized, initializing now...")
+      const initResult = await dataStore.initialize({ includeSampleGroups: false })
+      if (!initResult) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Failed to initialize system",
+            data: null,
+          },
+          { status: 500 },
+        )
+      }
+    }
+
     if (requestType === "list" || !requestType) {
-      const groups = await persistentForumDataStore.getGroups()
+      const groups = await dataStore.getGroups()
       console.log(`📋 Returning ${groups.length} groups`)
 
       // Sort groups by creation date (newest first)
@@ -53,7 +58,7 @@ export async function GET(request: NextRequest) {
         )
       }
 
-      const group = await persistentForumDataStore.getGroupById(groupId)
+      const group = await dataStore.getGroupById(groupId)
       if (!group) {
         return NextResponse.json(
           {
@@ -81,7 +86,7 @@ export async function GET(request: NextRequest) {
       )
     }
   } catch (error) {
-    console.error("❌ Error in groups API:", error)
+    console.error("❌ Error in groups API GET:", error)
     return NextResponse.json(
       {
         success: false,
@@ -95,16 +100,22 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Ensure data store is initialized before proceeding
-    const initialized = await ensureDataStoreInitialized()
-    if (!initialized) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Data store initialization failed. Please try again later.",
-        },
-        { status: 500 },
-      )
+    console.log("📝 Groups API POST request started")
+
+    // Ensure system is initialized
+    const isInitialized = await dataStore.isInitialized()
+    if (!isInitialized) {
+      console.log("⚠️ System not initialized, initializing now...")
+      const initResult = await dataStore.initialize({ includeSampleGroups: false })
+      if (!initResult) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Failed to initialize system",
+          },
+          { status: 500 },
+        )
+      }
     }
 
     const body = await request.json()
@@ -135,7 +146,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Verify user exists
-      const user = await persistentForumDataStore.getUserByEmail(userEmail)
+      const user = await dataStore.getUserByEmail(userEmail)
       if (!user) {
         return NextResponse.json(
           {
@@ -151,7 +162,7 @@ export async function POST(request: NextRequest) {
     } else {
       // Verify token
       try {
-        // Get user from token
+        // Simple token verification - in production you'd use proper JWT
         const tokenData = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString())
         const userEmail = tokenData.email
 
@@ -166,7 +177,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Verify user exists
-        const user = await persistentForumDataStore.getUserByEmail(userEmail)
+        const user = await dataStore.getUserByEmail(userEmail)
         if (!user) {
           return NextResponse.json(
             {
@@ -209,16 +220,26 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const group = await persistentForumDataStore.createGroup({
+      const group = await dataStore.createGroup({
         name,
         description,
         category: category || "general",
         location: location || "Not specified",
-        maxMembers: maxMembers ? Number.parseInt(maxMembers) : null,
+        maxMembers: maxMembers ? Number.parseInt(maxMembers) : undefined,
         requirements,
         creatorEmail,
         creatorName: creatorName || "Anonymous",
       })
+
+      if (!group) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Failed to create group",
+          },
+          { status: 500 },
+        )
+      }
 
       return NextResponse.json({
         success: true,
@@ -238,21 +259,64 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const result = await persistentForumDataStore.joinGroup(groupId, userEmail, userName)
-
-      if (!result) {
+      // Get the group
+      const group = await dataStore.getGroupById(groupId)
+      if (!group) {
         return NextResponse.json(
           {
             success: false,
-            error: "Group not found, at capacity, or user already joined",
+            error: "Group not found",
           },
           { status: 404 },
         )
       }
 
+      // Check if user is already a member
+      if (group.members.some((member) => member.email === userEmail)) {
+        return NextResponse.json({
+          success: true,
+          data: group,
+          message: "User is already a member of this group",
+        })
+      }
+
+      // Check if group is at capacity
+      if (group.maxMembers && group.members.length >= group.maxMembers) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Group is at maximum capacity",
+          },
+          { status: 400 },
+        )
+      }
+
+      // Add user to group
+      const updatedGroup = await dataStore.updateGroup(groupId, {
+        members: [
+          ...group.members,
+          {
+            email: userEmail,
+            name: userName,
+            joinedAt: new Date().toISOString(),
+            role: "member",
+          },
+        ],
+      })
+
+      if (!updatedGroup) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Failed to join group",
+          },
+          { status: 500 },
+        )
+      }
+
       return NextResponse.json({
         success: true,
-        data: result,
+        data: updatedGroup,
         message: "Successfully joined group",
       })
     } else if (type === "leave_group") {
@@ -268,21 +332,58 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const result = await persistentForumDataStore.leaveGroup(groupId, userEmail)
-
-      if (!result) {
+      // Get the group
+      const group = await dataStore.getGroupById(groupId)
+      if (!group) {
         return NextResponse.json(
           {
             success: false,
-            error: "Group not found or user not in group",
+            error: "Group not found",
           },
           { status: 404 },
         )
       }
 
+      // Check if user is a member
+      if (!group.members.some((member) => member.email === userEmail)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "User is not a member of this group",
+          },
+          { status: 400 },
+        )
+      }
+
+      // Check if user is the creator (cannot leave if creator)
+      if (group.creatorEmail === userEmail) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Group creator cannot leave the group",
+          },
+          { status: 400 },
+        )
+      }
+
+      // Remove user from group
+      const updatedGroup = await dataStore.updateGroup(groupId, {
+        members: group.members.filter((member) => member.email !== userEmail),
+      })
+
+      if (!updatedGroup) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Failed to leave group",
+          },
+          { status: 500 },
+        )
+      }
+
       return NextResponse.json({
         success: true,
-        data: result,
+        data: updatedGroup,
         message: "Successfully left group",
       })
     } else {

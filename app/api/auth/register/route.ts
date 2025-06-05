@@ -1,88 +1,69 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { persistentForumDataStore } from "@/lib/persistent-data-store"
-import * as crypto from "crypto"
-
-function hashPassword(password: string): string {
-  return crypto.createHash("sha256").update(password).digest("hex")
-}
-
-function hashAnswer(answer: string): string {
-  return crypto.createHash("sha256").update(answer.toLowerCase().trim()).digest("hex")
-}
+import { dataStore } from "@/lib/persistent-data-store"
 
 export async function POST(request: NextRequest) {
   try {
-    console.log("📝 Registration API: Starting registration")
+    const { username, email, password, name } = await request.json()
 
-    const { username, password, name, securityQuestions } = await request.json()
-    console.log("📝 Registration API: Received data for:", username, name)
-
-    if (!username || !password || !name) {
-      console.log("❌ Registration API: Missing required fields")
-      return NextResponse.json(
-        { success: false, message: "Username, password, and name are required" },
-        { status: 400 },
-      )
+    if (!username || !email || !password) {
+      return NextResponse.json({ error: "Username, email, and password are required" }, { status: 400 })
     }
 
-    // Validate security questions
-    if (!securityQuestions || securityQuestions.length !== 2) {
-      console.log("❌ Registration API: Invalid security questions")
-      return NextResponse.json({ success: false, message: "Two security questions are required" }, { status: 400 })
+    console.log(`📝 Registration attempt for username: ${username}`)
+
+    // Check if user already exists
+    const existingUserByUsername = await dataStore.getUserByUsername(username)
+    if (existingUserByUsername) {
+      return NextResponse.json({ error: "Username already exists" }, { status: 409 })
     }
 
-    // Validate password length
-    if (password.length < 6) {
-      console.log("❌ Registration API: Password too short")
-      return NextResponse.json({ success: false, message: "Password must be at least 6 characters" }, { status: 400 })
+    const existingUserByEmail = await dataStore.getUserByEmail(email)
+    if (existingUserByEmail) {
+      return NextResponse.json({ error: "Email already exists" }, { status: 409 })
     }
 
-    // Ensure data store is initialized
-    console.log("🔄 Registration API: Checking initialization")
-    if (!(await persistentForumDataStore.isInitialized())) {
-      console.log("🔄 Registration API: Initializing data store")
-      await persistentForumDataStore.initialize()
-    }
-
-    // Check if username exists
-    console.log("🔍 Registration API: Checking username availability")
-    const existingUsername = await persistentForumDataStore.getUserByUsername(username)
-    if (existingUsername) {
-      console.log("❌ Registration API: Username already exists")
-      return NextResponse.json({ success: false, message: "Username already exists" }, { status: 409 })
-    }
-
-    // Create user with security questions
-    console.log("👤 Registration API: Creating user")
-    const hashedPassword = hashPassword(password)
-
-    // Hash security question answers for storage
-    const hashedSecurityQuestions = securityQuestions.map((sq: any) => ({
-      question: sq.question,
-      answer: hashAnswer(sq.answer),
-    }))
-
-    const user = await persistentForumDataStore.addUser({
-      username: username.trim(),
-      email: `${username.trim()}@local.user`, // Generate a placeholder email for internal use
-      password: hashedPassword,
-      name: name.trim(),
+    // Create new user
+    const newUser = await dataStore.createUser({
+      username,
+      email,
+      password, // Will be hashed in createUser method
+      name: name || username,
       role: "user",
       isActive: true,
-      emailVerified: true, // No email verification needed
-      securityQuestions: hashedSecurityQuestions,
     })
 
-    console.log("✅ Registration API: User created successfully:", user.username)
+    if (!newUser) {
+      return NextResponse.json({ error: "Failed to create user" }, { status: 500 })
+    }
 
-    const { password: _, securityQuestions: __, ...userWithoutSensitiveData } = user
-    return NextResponse.json({
+    console.log(`✅ User registered successfully: ${username}`)
+
+    // Return user info (excluding password)
+    const userInfo = {
+      id: newUser.id,
+      username: newUser.username,
+      email: newUser.email,
+      name: newUser.name,
+      role: newUser.role,
+    }
+
+    const response = NextResponse.json({
       success: true,
-      message: "Registration successful!",
-      user: userWithoutSensitiveData,
+      user: userInfo,
+      message: "Registration successful",
     })
+
+    // Set authentication cookie
+    response.cookies.set("auth-token", newUser.id, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+    })
+
+    return response
   } catch (error) {
-    console.error("❌ Registration API: Error:", error)
-    return NextResponse.json({ success: false, message: "Registration failed" }, { status: 500 })
+    console.error("❌ Registration error:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
