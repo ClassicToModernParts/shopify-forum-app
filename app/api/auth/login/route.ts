@@ -1,18 +1,5 @@
 import { NextResponse } from "next/server"
 import { persistentForumDataStore } from "@/lib/persistent-data-store"
-import * as crypto from "crypto"
-
-// Generate a simple session token
-function generateSessionToken(user: any): string {
-  const timestamp = Date.now()
-  const randomBytes = crypto.randomBytes(16).toString("hex")
-  const userHash = crypto
-    .createHash("sha256")
-    .update(user.id + user.email)
-    .digest("hex")
-    .substring(0, 8)
-  return `${userHash}-${timestamp}-${randomBytes}`
-}
 
 export async function POST(request: Request) {
   try {
@@ -44,19 +31,10 @@ export async function POST(request: Request) {
 
     if (!user) {
       console.log("❌ Login API: Invalid credentials for:", username)
-
-      // Check if user exists for debugging
-      const existingUser = await persistentForumDataStore.getUserByUsername(username)
-
       return NextResponse.json(
         {
           success: false,
-          error: existingUser ? "Invalid password" : "Invalid username",
-          debug: {
-            userExists: !!existingUser,
-            receivedUsername: username,
-            receivedPasswordLength: password.length,
-          },
+          error: "Invalid username or password",
         },
         { status: 401 },
       )
@@ -64,18 +42,19 @@ export async function POST(request: Request) {
 
     console.log("✅ Login API: Valid credentials for:", username)
 
-    // Generate session token
-    const sessionToken = generateSessionToken(user)
+    // Create simple session token
+    const sessionToken = `session_${user.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
-    // Create response with user info (excluding password)
+    // Create user info (excluding password)
     const userInfo = {
       id: user.id,
       username: user.username,
       email: user.email,
-      name: user.name,
+      name: user.name || user.username,
       role: user.role,
     }
 
+    // Create response
     const response = NextResponse.json({
       success: true,
       token: sessionToken,
@@ -83,32 +62,22 @@ export async function POST(request: Request) {
       message: "Login successful",
     })
 
-    // Set multiple cookies for reliability
-    response.cookies.set("auth-token", sessionToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7, // 7 days
+    // Set cookies with proper settings
+    const cookieOptions = {
+      httpOnly: false, // Allow JavaScript access
+      secure: false, // Allow HTTP in development
+      sameSite: "lax" as const,
+      maxAge: 60 * 60 * 24 * 30, // 30 days
       path: "/",
-    })
+    }
 
-    response.cookies.set("user-session", user.id, {
-      httpOnly: false, // Allow client-side access
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7, // 7 days
-      path: "/",
-    })
+    response.cookies.set("authToken", sessionToken, cookieOptions)
+    response.cookies.set("userId", user.id, cookieOptions)
+    response.cookies.set("userEmail", user.email, cookieOptions)
+    response.cookies.set("userName", user.name || user.username, cookieOptions)
+    response.cookies.set("userRole", user.role, cookieOptions)
 
-    response.cookies.set("user-email", user.email, {
-      httpOnly: false, // Allow client-side access
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7, // 7 days
-      path: "/",
-    })
-
-    console.log("✅ Login API: Session created for:", username)
+    console.log("✅ Login API: Session created and cookies set for:", username)
     return response
   } catch (error) {
     console.error("❌ Login API: Error:", error)
@@ -116,7 +85,6 @@ export async function POST(request: Request) {
       {
         success: false,
         error: "Internal server error",
-        details: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 },
     )
