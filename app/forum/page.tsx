@@ -1,12 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Filter, Plus, RefreshCw, MessageSquare, Eye, ThumbsUp, Calendar } from "lucide-react"
+import { Filter, Plus, RefreshCw, MessageSquare, Eye, ThumbsUp, Calendar, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import UserNavigation from "@/components/UserNavigation"
 import { useRouter } from "next/navigation"
 
@@ -44,6 +45,7 @@ export default function ForumPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState<string>("")
   const [userInfo, setUserInfo] = useState({ email: "", name: "" })
+  const [initializingSystem, setInitializingSystem] = useState(false)
 
   const router = useRouter()
 
@@ -60,28 +62,81 @@ export default function ForumPage() {
     }
   }, [])
 
-  // Fetch categories and posts
+  // Initialize system and fetch data
   useEffect(() => {
+    const initializeSystem = async () => {
+      try {
+        setInitializingSystem(true)
+        console.log("🔄 Initializing system...")
+
+        const initResponse = await fetch("/api/system/init")
+        const initData = await initResponse.json()
+
+        if (!initData.success) {
+          throw new Error(`System initialization failed: ${initData.error}`)
+        }
+
+        console.log("✅ System initialized:", initData)
+        return true
+      } catch (error) {
+        console.error("❌ System initialization error:", error)
+        return false
+      } finally {
+        setInitializingSystem(false)
+      }
+    }
+
     const fetchForumData = async () => {
       try {
         setLoading(true)
         setError(null)
 
+        console.log("🔄 Fetching forum data...")
+
+        // First initialize the system
+        await initializeSystem()
+
         // Fetch categories
+        console.log("📋 Fetching categories...")
         const categoriesResponse = await fetch("/api/forum?type=categories")
+        console.log("📋 Categories response status:", categoriesResponse.status)
+
         if (!categoriesResponse.ok) {
-          throw new Error("Failed to fetch categories")
+          const errorText = await categoriesResponse.text()
+          console.error("❌ Categories fetch failed:", errorText)
+          throw new Error(`Failed to fetch categories: ${categoriesResponse.status} ${errorText}`)
         }
+
         const categoriesData = await categoriesResponse.json()
-        setCategories(categoriesData.success ? categoriesData.data : [])
+        console.log("📋 Categories data:", categoriesData)
+
+        if (!categoriesData.success) {
+          throw new Error(`Categories API error: ${categoriesData.error}`)
+        }
+
+        setCategories(categoriesData.data || [])
 
         // Fetch posts
+        console.log("📝 Fetching posts...")
         const postsResponse = await fetch("/api/forum?type=posts")
+        console.log("📝 Posts response status:", postsResponse.status)
+
         if (!postsResponse.ok) {
-          throw new Error("Failed to fetch posts")
+          const errorText = await postsResponse.text()
+          console.error("❌ Posts fetch failed:", errorText)
+          throw new Error(`Failed to fetch posts: ${postsResponse.status} ${errorText}`)
         }
+
         const postsData = await postsResponse.json()
-        setPosts(postsData.success ? postsData.data : [])
+        console.log("📝 Posts data:", postsData)
+
+        if (!postsData.success) {
+          throw new Error(`Posts API error: ${postsData.error}`)
+        }
+
+        setPosts(postsData.data || [])
+
+        console.log("✅ Forum data loaded successfully")
       } catch (e) {
         console.error("❌ Error fetching forum data:", e)
         setError(e instanceof Error ? e.message : "Failed to load forum data")
@@ -102,10 +157,39 @@ export default function ForumPage() {
     router.push("/forum/create")
   }
 
+  const handleReinitializeSystem = async () => {
+    try {
+      setInitializingSystem(true)
+      setError(null)
+
+      const response = await fetch("/api/system/init", {
+        method: "POST",
+      })
+
+      if (!response.ok) {
+        throw new Error(`Reinitialization failed: ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (!data.success) {
+        throw new Error(`Reinitialization error: ${data.error}`)
+      }
+
+      alert("System reinitialized successfully! Reloading page...")
+      window.location.reload()
+    } catch (error) {
+      console.error("❌ Reinitialization error:", error)
+      setError(`Failed to reinitialize system: ${error instanceof Error ? error.message : "Unknown error"}`)
+    } finally {
+      setInitializingSystem(false)
+    }
+  }
+
   const filteredPosts = posts.filter((post) => {
     const matchesSearch =
-      post.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      post.content.toLowerCase().includes(searchTerm.toLowerCase())
+      post.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      post.content?.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesCategory = !selectedCategory || post.categoryId === selectedCategory
     return matchesSearch && matchesCategory
   })
@@ -120,14 +204,14 @@ export default function ForumPage() {
     return category?.color || "#6B7280"
   }
 
-  if (loading) {
+  if (loading || initializingSystem) {
     return (
       <div className="min-h-screen bg-gray-50">
         <UserNavigation currentPage="forum" />
         <div className="container mx-auto py-8">
           <div className="flex items-center justify-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-3"></div>
-            <span>Loading forum...</span>
+            <span>{initializingSystem ? "Initializing system..." : "Loading forum..."}</span>
           </div>
         </div>
       </div>
@@ -138,10 +222,24 @@ export default function ForumPage() {
     return (
       <div className="min-h-screen bg-gray-50">
         <UserNavigation currentPage="forum" />
-        <div className="container mx-auto py-8">
+        <div className="container mx-auto py-8 px-4">
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+
           <div className="text-center">
-            <div className="text-red-600 mb-4">Error: {error}</div>
-            <Button onClick={() => window.location.reload()}>Try Again</Button>
+            <p className="mb-4">There was a problem loading the forum. This might be due to initialization issues.</p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button onClick={() => window.location.reload()}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Reload Page
+              </Button>
+              <Button variant="outline" onClick={handleReinitializeSystem} disabled={initializingSystem}>
+                {initializingSystem ? "Initializing..." : "Reinitialize System"}
+              </Button>
+            </div>
           </div>
         </div>
       </div>

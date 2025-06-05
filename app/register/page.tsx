@@ -12,13 +12,27 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye, EyeOff, MessageSquare } from "lucide-react"
 import Link from "next/link"
 
+const securityQuestions = [
+  "What was the name of your first pet?",
+  "What city were you born in?",
+  "What was your childhood nickname?",
+  "What is your mother's maiden name?",
+  "What was the name of your first school?",
+  "What is your favorite movie?",
+  "What street did you grow up on?",
+  "What was your first car?",
+]
+
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
     name: "",
     username: "",
-    email: "",
     password: "",
     confirmPassword: "",
+    securityQuestion1: "",
+    securityAnswer1: "",
+    securityQuestion2: "",
+    securityAnswer2: "",
   })
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
@@ -27,7 +41,7 @@ export default function RegisterPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const router = useRouter()
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
@@ -55,17 +69,6 @@ export default function RegisterPage() {
       return
     }
 
-    if (!formData.email.trim()) {
-      setError("Email is required")
-      return
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(formData.email)) {
-      setError("Please enter a valid email address")
-      return
-    }
-
     if (!formData.password) {
       setError("Password is required")
       return
@@ -78,6 +81,21 @@ export default function RegisterPage() {
 
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords do not match")
+      return
+    }
+
+    if (!formData.securityQuestion1 || !formData.securityAnswer1.trim()) {
+      setError("Please select and answer the first security question")
+      return
+    }
+
+    if (!formData.securityQuestion2 || !formData.securityAnswer2.trim()) {
+      setError("Please select and answer the second security question")
+      return
+    }
+
+    if (formData.securityQuestion1 === formData.securityQuestion2) {
+      setError("Please choose different security questions")
       return
     }
 
@@ -94,8 +112,17 @@ export default function RegisterPage() {
         body: JSON.stringify({
           name: formData.name.trim(),
           username: formData.username.trim(),
-          email: formData.email.trim().toLowerCase(),
           password: formData.password,
+          securityQuestions: [
+            {
+              question: formData.securityQuestion1,
+              answer: formData.securityAnswer1.trim().toLowerCase(),
+            },
+            {
+              question: formData.securityQuestion2,
+              answer: formData.securityAnswer2.trim().toLowerCase(),
+            },
+          ],
         }),
       })
 
@@ -187,21 +214,6 @@ export default function RegisterPage() {
               </div>
 
               <div>
-                <Label htmlFor="email">Email Address</Label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={formData.email}
-                  onChange={handleChange}
-                  className="mt-1 block w-full px-3 py-3 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base"
-                  placeholder="Enter your email address"
-                />
-              </div>
-
-              <div>
                 <Label htmlFor="password">Password</Label>
                 <div className="mt-1 relative">
                   <Input
@@ -255,6 +267,83 @@ export default function RegisterPage() {
                       <Eye className="h-5 w-5 text-gray-400" />
                     )}
                   </button>
+                </div>
+              </div>
+
+              <div className="border-t pt-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Security Questions</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Choose two security questions to help you reset your password if needed.
+                </p>
+
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="securityQuestion1">Security Question 1</Label>
+                    <select
+                      id="securityQuestion1"
+                      name="securityQuestion1"
+                      required
+                      value={formData.securityQuestion1}
+                      onChange={handleChange}
+                      className="mt-1 block w-full px-3 py-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base"
+                    >
+                      <option value="">Select a question...</option>
+                      {securityQuestions.map((question, index) => (
+                        <option key={index} value={question}>
+                          {question}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="securityAnswer1">Answer 1</Label>
+                    <Input
+                      id="securityAnswer1"
+                      name="securityAnswer1"
+                      type="text"
+                      required
+                      value={formData.securityAnswer1}
+                      onChange={handleChange}
+                      className="mt-1 block w-full px-3 py-3 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base"
+                      placeholder="Enter your answer"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="securityQuestion2">Security Question 2</Label>
+                    <select
+                      id="securityQuestion2"
+                      name="securityQuestion2"
+                      required
+                      value={formData.securityQuestion2}
+                      onChange={handleChange}
+                      className="mt-1 block w-full px-3 py-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base"
+                    >
+                      <option value="">Select a question...</option>
+                      {securityQuestions
+                        .filter((q) => q !== formData.securityQuestion1)
+                        .map((question, index) => (
+                          <option key={index} value={question}>
+                            {question}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="securityAnswer2">Answer 2</Label>
+                    <Input
+                      id="securityAnswer2"
+                      name="securityAnswer2"
+                      type="text"
+                      required
+                      value={formData.securityAnswer2}
+                      onChange={handleChange}
+                      className="mt-1 block w-full px-3 py-3 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-base"
+                      placeholder="Enter your answer"
+                    />
+                  </div>
                 </div>
               </div>
 

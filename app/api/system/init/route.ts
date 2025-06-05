@@ -1,55 +1,75 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { ensureDataStoreInitialized, getDataStoreStatus, reinitializeDataStore } from "@/lib/data-store-manager"
+import { NextResponse } from "next/server"
+import { dataStore } from "@/lib/persistent-data-store"
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    // Get current status
-    const status = getDataStoreStatus()
+    console.log("🔄 System initialization check...")
+
+    const isInitialized = await dataStore.isInitialized()
+    console.log("📊 System initialized:", isInitialized)
+
+    if (!isInitialized) {
+      console.log("🔄 Initializing system...")
+      await dataStore.initialize()
+      console.log("✅ System initialized successfully")
+    }
+
+    // Get basic stats to verify initialization
+    const categories = await dataStore.getCategories()
+    const users = await dataStore.getUsers()
 
     return NextResponse.json({
       success: true,
-      status,
+      initialized: true,
+      stats: {
+        categories: categories?.length || 0,
+        users: users?.length || 0,
+      },
+      message: isInitialized ? "System already initialized" : "System initialized successfully",
     })
   } catch (error) {
-    console.error("❌ System init API error:", error)
+    console.error("❌ System initialization error:", error)
     return NextResponse.json(
       {
         success: false,
-        error: `An error occurred: ${error instanceof Error ? error.message : "Unknown error"}`,
+        initialized: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+        stack: error instanceof Error ? error.stack : undefined,
       },
       { status: 500 },
     )
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
-    const { searchParams } = new URL(request.url)
-    const force = searchParams.get("force") === "true"
+    console.log("🔄 Forcing system reinitialization...")
 
-    if (force) {
-      // Force reinitialization
-      const success = await reinitializeDataStore()
-      return NextResponse.json({
-        success,
-        message: success ? "System reinitialized successfully" : "System reinitialization failed",
-        status: getDataStoreStatus(),
-      })
-    } else {
-      // Normal initialization
-      const success = await ensureDataStoreInitialized()
-      return NextResponse.json({
-        success,
-        message: success ? "System initialized successfully" : "System initialization failed",
-        status: getDataStoreStatus(),
-      })
-    }
+    // Force reinitialization
+    const success = await dataStore.forceReinitialize()
+    console.log("✅ System reinitialized successfully")
+
+    // Get basic stats to verify initialization
+    const categories = await dataStore.getCategories()
+    const users = await dataStore.getUsers()
+
+    return NextResponse.json({
+      success,
+      initialized: success,
+      stats: {
+        categories: categories?.length || 0,
+        users: users?.length || 0,
+      },
+      message: success ? "System reinitialized successfully" : "System reinitialization failed",
+    })
   } catch (error) {
-    console.error("❌ System init API error:", error)
+    console.error("❌ System reinitialization error:", error)
     return NextResponse.json(
       {
         success: false,
-        error: `An error occurred: ${error instanceof Error ? error.message : "Unknown error"}`,
+        initialized: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+        stack: error instanceof Error ? error.stack : undefined,
       },
       { status: 500 },
     )

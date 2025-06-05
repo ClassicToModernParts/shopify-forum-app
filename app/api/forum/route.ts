@@ -1,135 +1,227 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { persistentForumDataStore } from "@/lib/persistent-data-store"
+import { dataStore } from "@/lib/persistent-data-store"
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const requestType = searchParams.get("type")
-    const shopId = searchParams.get("shop_id") || "demo"
 
-    console.log(`🔍 Forum API GET request: ${requestType} for shop ${shopId}`)
+    console.log(`🔍 Forum API GET request: ${requestType}`)
+
+    // Ensure data store is initialized
+    try {
+      if (!(await dataStore.isInitialized())) {
+        console.log("🔄 Data store not initialized, initializing now...")
+        await dataStore.initialize()
+        console.log("✅ Data store initialized successfully")
+      }
+    } catch (initError) {
+      console.error("❌ Failed to initialize data store:", initError)
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Failed to initialize data store",
+          details: initError instanceof Error ? initError.message : "Unknown error",
+        },
+        { status: 500 },
+      )
+    }
 
     if (requestType === "categories") {
-      const categories = await persistentForumDataStore.getCategories()
-      console.log(`📋 Returning ${categories.length} categories`)
+      try {
+        console.log("📋 Fetching categories...")
+        const categories = await dataStore.getCategories()
+        console.log(`📋 Retrieved ${categories?.length || 0} categories`)
 
-      // Add postCount and lastActivity for each category
-      const posts = await persistentForumDataStore.getPosts()
-
-      const categoriesWithMeta = categories.map((category) => {
-        const categoryPosts = posts.filter((post) => post.categoryId === category.id)
-        const lastPost = categoryPosts.sort(
-          (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-        )[0]
-
-        return {
-          ...category,
-          postCount: categoryPosts.length,
-          lastActivity: lastPost ? lastPost.updatedAt : category.createdAt,
+        // Safely handle posts
+        let posts = []
+        try {
+          posts = await dataStore.getPosts()
+        } catch (postsError) {
+          console.warn("⚠️ Error fetching posts for category metadata:", postsError)
         }
-      })
 
-      return NextResponse.json({
-        success: true,
-        data: categoriesWithMeta,
-        message: "Categories retrieved successfully",
-      })
+        // Safely map categories with metadata
+        const categoriesWithMeta = (categories || []).map((category) => {
+          try {
+            const categoryPosts = posts.filter((post) => post.categoryId === category.id)
+            const lastPost = categoryPosts.sort(
+              (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+            )[0]
+
+            return {
+              ...category,
+              postCount: categoryPosts.length,
+              lastActivity: lastPost ? lastPost.updatedAt : category.createdAt,
+            }
+          } catch (error) {
+            console.warn(`⚠️ Error processing metadata for category ${category.id}:`, error)
+            return {
+              ...category,
+              postCount: 0,
+              lastActivity: category.createdAt,
+            }
+          }
+        })
+
+        return NextResponse.json({
+          success: true,
+          data: categoriesWithMeta,
+          message: "Categories retrieved successfully",
+        })
+      } catch (categoriesError) {
+        console.error("❌ Error fetching categories:", categoriesError)
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Failed to fetch categories",
+            details: categoriesError instanceof Error ? categoriesError.message : "Unknown error",
+          },
+          { status: 500 },
+        )
+      }
     } else if (requestType === "posts") {
-      const categoryId = searchParams.get("category_id")
-      const search = searchParams.get("search")
-      const sortBy = searchParams.get("sort_by") || "recent"
+      try {
+        const categoryId = searchParams.get("category_id")
+        const search = searchParams.get("search")
+        const sortBy = searchParams.get("sort_by") || "recent"
 
-      let posts = await persistentForumDataStore.getPosts()
+        let posts = await dataStore.getPosts()
 
-      // Filter by category if specified
-      if (categoryId) {
-        posts = posts.filter((post) => post.categoryId === categoryId)
-      }
+        if (!Array.isArray(posts)) {
+          console.warn("⚠️ Posts is not an array, defaulting to empty array")
+          posts = []
+        }
 
-      // Filter by search query if specified
-      if (search) {
-        const searchLower = search.toLowerCase()
-        posts = posts.filter(
-          (post) => post.title.toLowerCase().includes(searchLower) || post.content.toLowerCase().includes(searchLower),
+        // Filter by category if specified
+        if (categoryId) {
+          posts = posts.filter((post) => post.categoryId === categoryId)
+        }
+
+        // Filter by search query if specified
+        if (search) {
+          const searchLower = search.toLowerCase()
+          posts = posts.filter(
+            (post) =>
+              post.title?.toLowerCase().includes(searchLower) || post.content?.toLowerCase().includes(searchLower),
+          )
+        }
+
+        // Sort posts
+        switch (sortBy) {
+          case "popular":
+            posts = posts.sort((a, b) => b.views + b.likes - (a.views + a.likes))
+            break
+          case "replies":
+            posts = posts.sort((a, b) => b.replies - a.replies)
+            break
+          case "oldest":
+            posts = posts.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+            break
+          case "recent":
+          default:
+            posts = posts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        }
+
+        return NextResponse.json({
+          success: true,
+          data: posts,
+          message: "Posts retrieved successfully",
+        })
+      } catch (postsError) {
+        console.error("❌ Error fetching posts:", postsError)
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Failed to fetch posts",
+            details: postsError instanceof Error ? postsError.message : "Unknown error",
+          },
+          { status: 500 },
         )
       }
-
-      // Sort posts
-      switch (sortBy) {
-        case "popular":
-          posts = posts.sort((a, b) => b.views + b.likes - (a.views + a.likes))
-          break
-        case "replies":
-          posts = posts.sort((a, b) => b.replies - a.replies)
-          break
-        case "oldest":
-          posts = posts.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-          break
-        case "recent":
-        default:
-          posts = posts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      }
-
-      return NextResponse.json({
-        success: true,
-        data: posts,
-        message: "Posts retrieved successfully",
-      })
     } else if (requestType === "post") {
-      const postId = searchParams.get("post_id")
+      try {
+        const postId = searchParams.get("post_id")
 
-      if (!postId) {
+        if (!postId) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Post ID is required",
+              data: null,
+            },
+            { status: 400 },
+          )
+        }
+
+        const post = await dataStore.getPostById(postId)
+        if (!post) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Post not found",
+              data: null,
+            },
+            { status: 404 },
+          )
+        }
+
+        // Increment view count
+        try {
+          await dataStore.incrementPostViews(postId)
+        } catch (viewError) {
+          console.warn(`⚠️ Failed to increment view count for post ${postId}:`, viewError)
+        }
+
+        return NextResponse.json({
+          success: true,
+          data: post,
+          message: "Post retrieved successfully",
+        })
+      } catch (postError) {
+        console.error("❌ Error fetching post:", postError)
         return NextResponse.json(
           {
             success: false,
-            error: "Post ID is required",
-            data: null,
+            error: "Failed to fetch post",
+            details: postError instanceof Error ? postError.message : "Unknown error",
           },
-          { status: 400 },
+          { status: 500 },
         )
       }
-
-      const post = await persistentForumDataStore.getPostById(postId)
-      if (!post) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "Post not found",
-            data: null,
-          },
-          { status: 404 },
-        )
-      }
-
-      // Increment view count
-      const updatedPost = await persistentForumDataStore.incrementPostViews(postId)
-
-      return NextResponse.json({
-        success: true,
-        data: updatedPost || post,
-        message: "Post retrieved successfully",
-      })
     } else if (requestType === "replies") {
-      const postId = searchParams.get("post_id")
+      try {
+        const postId = searchParams.get("post_id")
 
-      if (!postId) {
+        if (!postId) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Post ID is required",
+              data: null,
+            },
+            { status: 400 },
+          )
+        }
+
+        const replies = await dataStore.getRepliesByPostId(postId)
+
+        return NextResponse.json({
+          success: true,
+          data: replies || [],
+          message: "Replies retrieved successfully",
+        })
+      } catch (repliesError) {
+        console.error("❌ Error fetching replies:", repliesError)
         return NextResponse.json(
           {
             success: false,
-            error: "Post ID is required",
-            data: null,
+            error: "Failed to fetch replies",
+            details: repliesError instanceof Error ? repliesError.message : "Unknown error",
           },
-          { status: 400 },
+          { status: 500 },
         )
       }
-
-      const replies = await persistentForumDataStore.getRepliesByPostId(postId)
-
-      return NextResponse.json({
-        success: true,
-        data: replies,
-        message: "Replies retrieved successfully",
-      })
     } else {
       return NextResponse.json(
         {
@@ -146,6 +238,7 @@ export async function GET(request: NextRequest) {
       {
         success: false,
         error: `An error occurred: ${error instanceof Error ? error.message : "Unknown error"}`,
+        stack: error instanceof Error ? error.stack : undefined,
         data: null,
       },
       { status: 500 },
@@ -153,12 +246,22 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// POST method remains the same
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { type, shopId } = body
+    const { type } = body
 
-    console.log(`📝 Forum API POST request: ${type} for shop ${shopId}`)
+    console.log(`📝 Forum API POST request: ${type}`)
+
+    // Ensure data store is initialized
+    if (!(await dataStore.isInitialized())) {
+      console.log("🔄 Data store not initialized, initializing now...")
+      await dataStore.initialize()
+    }
+
+    // Rest of the POST method remains the same...
+    // (keeping the existing implementation)
 
     if (type === "create_post") {
       const { title, content, author, authorEmail, categoryId, tags } = body
@@ -180,9 +283,9 @@ export async function POST(request: NextRequest) {
       }
 
       // Check if category exists
-      const category = await persistentForumDataStore.getCategoryById(categoryId)
+      const category = await dataStore.getCategoryById(categoryId)
       if (!category) {
-        const categories = await persistentForumDataStore.getCategories()
+        const categories = await dataStore.getCategories()
         return NextResponse.json(
           {
             success: false,
@@ -193,7 +296,7 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const post = await persistentForumDataStore.createPost({
+      const post = await dataStore.createPost({
         title,
         content,
         author,
@@ -222,7 +325,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Check if post exists
-      const post = await persistentForumDataStore.getPostById(postId)
+      const post = await dataStore.getPostById(postId)
       if (!post) {
         return NextResponse.json(
           {
@@ -233,7 +336,7 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const reply = await persistentForumDataStore.addReply({
+      const reply = await dataStore.addReply({
         postId,
         content,
         author,
@@ -258,7 +361,7 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const result = await persistentForumDataStore.likePost(postId, userEmail)
+      const result = await dataStore.likePost(postId, userEmail)
 
       if (!result) {
         return NextResponse.json(
@@ -288,7 +391,7 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const result = await persistentForumDataStore.likeReply(replyId, userEmail)
+      const result = await dataStore.likeReply(replyId, userEmail)
 
       if (!result) {
         return NextResponse.json(
@@ -318,7 +421,7 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const result = await persistentForumDataStore.deletePost(postId, userEmail || "")
+      const result = await dataStore.deletePost(postId, userEmail || "")
 
       if (!result) {
         return NextResponse.json(
@@ -348,7 +451,7 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const result = await persistentForumDataStore.deleteReply(replyId, userEmail || "")
+      const result = await dataStore.deleteReply(replyId, userEmail || "")
 
       if (!result) {
         return NextResponse.json(
@@ -380,6 +483,7 @@ export async function POST(request: NextRequest) {
       {
         success: false,
         error: `An error occurred: ${error instanceof Error ? error.message : "Unknown error"}`,
+        stack: error instanceof Error ? error.stack : undefined,
       },
       { status: 500 },
     )

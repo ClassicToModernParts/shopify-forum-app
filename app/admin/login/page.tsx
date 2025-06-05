@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Shield, Eye, EyeOff, AlertCircle } from "lucide-react"
+import { Shield, Eye, EyeOff, AlertCircle, Info } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth"
 
 interface DebugInfo {
@@ -11,6 +11,8 @@ interface DebugInfo {
   receivedPasswordLength: number
   expectedUsername: string
   expectedPasswordLength: number
+  receivedPasswordHash?: string
+  storedPasswordHash?: string
 }
 
 export default function AdminLoginPage() {
@@ -75,6 +77,26 @@ export default function AdminLoginPage() {
         </div>
 
         <div className="p-6">
+          {/* Default credentials info */}
+          <div className="mb-4 p-3 bg-blue-50 rounded-md">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <Info className="h-5 w-5 text-blue-400" aria-hidden="true" />
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-blue-800">Default admin credentials</h3>
+                <div className="mt-2 text-sm text-blue-700">
+                  <p>
+                    Username: <strong>admin</strong>
+                  </p>
+                  <p>
+                    Password: <strong>admin123</strong>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <form onSubmit={handleLogin} className="space-y-4">
             {error && (
               <div className="flex items-center space-x-2 text-red-600 bg-red-50 p-3 rounded-lg">
@@ -90,6 +112,12 @@ export default function AdminLoginPage() {
                         Password length: {debugInfo.receivedPasswordLength} (expected:{" "}
                         {debugInfo.expectedPasswordLength})
                       </div>
+                      {debugInfo.receivedPasswordHash && (
+                        <>
+                          <div>Received hash: {debugInfo.receivedPasswordHash}</div>
+                          <div>Stored hash: {debugInfo.storedPasswordHash}</div>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -143,6 +171,12 @@ export default function AdminLoginPage() {
               {loading ? "Signing in..." : "Sign In"}
             </button>
           </form>
+
+          <div className="mt-4 text-center">
+            <a href="/api/debug/reinitialize-auth" className="text-sm text-blue-600 hover:text-blue-800">
+              Reset Authentication System
+            </a>
+          </div>
         </div>
       </div>
     </div>

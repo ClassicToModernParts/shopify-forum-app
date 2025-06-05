@@ -36,7 +36,19 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       console.log("❌ Login API: User not found:", username)
-      return NextResponse.json({ success: false, message: "Invalid username or password" }, { status: 401 })
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Invalid username or password",
+          debug: {
+            receivedUsername: username,
+            receivedPasswordLength: password.length,
+            expectedUsername: "admin or demo",
+            expectedPasswordLength: "admin123 or demo123".length,
+          },
+        },
+        { status: 401 },
+      )
     }
 
     console.log("👤 Login API: User found:", user.username, "| Active:", user.isActive)
@@ -59,7 +71,21 @@ export async function POST(request: NextRequest) {
 
     if (user.password !== hashedPassword) {
       console.log("❌ Login API: Password mismatch")
-      return NextResponse.json({ success: false, message: "Invalid username or password" }, { status: 401 })
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Invalid username or password",
+          debug: {
+            receivedUsername: username,
+            receivedPasswordLength: password.length,
+            expectedUsername: user.username,
+            expectedPasswordLength: "admin123 or demo123".length,
+            receivedPasswordHash: hashedPassword.substring(0, 10) + "...",
+            storedPasswordHash: user.password.substring(0, 10) + "...",
+          },
+        },
+        { status: 401 },
+      )
     }
 
     // Update last active
@@ -77,11 +103,13 @@ export async function POST(request: NextRequest) {
     // Send login notification email (non-blocking)
     try {
       console.log("📧 Login API: Sending login notification email")
-      await emailService.sendLoginNotificationEmail(
-        user.email,
-        user.name,
-        request.headers.get("user-agent") || "Unknown device",
-      )
+      if (emailService && typeof emailService.sendLoginNotificationEmail === "function") {
+        await emailService.sendLoginNotificationEmail(
+          user.email,
+          user.name,
+          request.headers.get("user-agent") || "Unknown device",
+        )
+      }
     } catch (emailError) {
       console.warn("⚠️ Login notification email error:", emailError)
       // Don't block login if email fails

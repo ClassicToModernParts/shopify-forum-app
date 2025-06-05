@@ -86,15 +86,35 @@ export async function POST(request: NextRequest) {
 
     if (emailResult.success) {
       console.log("✅ Forgot Password API: Password reset email sent successfully")
+      return NextResponse.json({
+        success: true,
+        message: "Password reset instructions have been sent to your email address",
+      })
     } else {
       console.error("❌ Forgot Password API: Failed to send password reset email:", emailResult.error)
-      // Still return success to user for security reasons
-    }
 
-    return NextResponse.json({
-      success: true,
-      message: "If your email is registered, you will receive password reset instructions",
-    })
+      // If it's a domain verification issue, provide specific guidance
+      if (emailResult.needsDomainVerification) {
+        return NextResponse.json(
+          {
+            success: false,
+            message:
+              "Email delivery is currently unavailable. Please contact support for assistance with password reset.",
+            error: "domain_verification_required",
+          },
+          { status: 503 },
+        )
+      }
+
+      // For other email errors
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Failed to send password reset email. Please try again or contact support.",
+        },
+        { status: 500 },
+      )
+    }
   } catch (error) {
     console.error("❌ Forgot Password API: Error:", error)
     return NextResponse.json(

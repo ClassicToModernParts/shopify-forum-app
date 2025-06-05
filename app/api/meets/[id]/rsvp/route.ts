@@ -1,21 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { persistentForumDataStore } from "@/lib/persistent-data-store"
+import { persistentForumDataStore } from "../../../../../data/persistent-forum-data-store"
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    console.log("🎫 RSVP API: POST request for meet", params.id)
-
-    const body = await request.json()
-    const { userEmail } = body
+    const { userEmail } = await request.json()
+    const meetId = params.id
 
     if (!userEmail) {
       return NextResponse.json({ error: "User email is required" }, { status: 400 })
-    }
-
-    // Initialize data store if needed
-    const isInit = await persistentForumDataStore.isInitialized()
-    if (!isInit) {
-      await persistentForumDataStore.initialize()
     }
 
     // Get user info
@@ -24,59 +16,40 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    const result = await persistentForumDataStore.rsvpToMeet(params.id, user.id, user.name || user.username, userEmail)
+    const updatedMeet = await persistentForumDataStore.rsvpToMeet(meetId, userEmail, user.name)
 
-    if (!result) {
+    if (!updatedMeet) {
       return NextResponse.json({ error: "Failed to RSVP - meet not found or at capacity" }, { status: 400 })
     }
 
-    console.log("✅ RSVP successful for meet", params.id)
-    return NextResponse.json(result)
+    return NextResponse.json(updatedMeet)
   } catch (error) {
-    console.error("❌ Error in RSVP API:", error)
-    return NextResponse.json(
-      { error: `RSVP failed: ${error instanceof Error ? error.message : "Unknown error"}` },
-      { status: 500 },
-    )
+    console.error("RSVP error:", error)
+    return NextResponse.json({ error: "Failed to RSVP" }, { status: 500 })
   }
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    console.log("🎫 Cancel RSVP API: DELETE request for meet", params.id)
-
-    const body = await request.json()
-    const { userEmail } = body
+    const { userEmail } = await request.json()
+    const meetId = params.id
 
     if (!userEmail) {
       return NextResponse.json({ error: "User email is required" }, { status: 400 })
     }
 
-    // Initialize data store if needed
-    const isInit = await persistentForumDataStore.isInitialized()
-    if (!isInit) {
-      await persistentForumDataStore.initialize()
+    const updatedMeet = await persistentForumDataStore.cancelRsvp(meetId, userEmail)
+
+    if (!updatedMeet) {
+      return NextResponse.json(
+        { error: "Failed to cancel RSVP - meet not found or user not attending" },
+        { status: 400 },
+      )
     }
 
-    // Get user info
-    const user = await persistentForumDataStore.getUserByEmail(userEmail)
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
-
-    const result = await persistentForumDataStore.cancelRsvp(params.id, user.id)
-
-    if (!result) {
-      return NextResponse.json({ error: "Failed to cancel RSVP - meet not found or user not RSVP'd" }, { status: 400 })
-    }
-
-    console.log("✅ RSVP cancelled for meet", params.id)
-    return NextResponse.json(result)
+    return NextResponse.json(updatedMeet)
   } catch (error) {
-    console.error("❌ Error in cancel RSVP API:", error)
-    return NextResponse.json(
-      { error: `Cancel RSVP failed: ${error instanceof Error ? error.message : "Unknown error"}` },
-      { status: 500 },
-    )
+    console.error("Cancel RSVP error:", error)
+    return NextResponse.json({ error: "Failed to cancel RSVP" }, { status: 500 })
   }
 }
