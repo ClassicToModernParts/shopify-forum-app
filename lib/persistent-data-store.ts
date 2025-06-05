@@ -27,30 +27,39 @@ interface Category {
   description: string
   postCount: number
   createdAt: string
+  color?: string
 }
 
 interface Post {
   id: string
   title: string
   content: string
+  author: string
+  authorEmail: string
   authorId: string
-  authorName: string
   categoryId: string
   createdAt: string
   updatedAt: string
-  replies: Reply[]
+  replies: number
   views: number
-  isSticky?: boolean
-  isLocked?: boolean
+  likes: number
+  isPinned?: boolean
+  tags?: string[]
+  status?: string
+  likedBy?: string[]
 }
 
 interface Reply {
   id: string
+  postId: string
   content: string
+  author: string
+  authorEmail: string
   authorId: string
-  authorName: string
   createdAt: string
   updatedAt: string
+  likes: number
+  likedBy?: string[]
 }
 
 interface Meet {
@@ -181,6 +190,7 @@ class PersistentDataStore {
           description: "General automotive discussions",
           postCount: 0,
           createdAt: new Date().toISOString(),
+          color: "#6B7280",
         },
         {
           id: "trucks",
@@ -188,6 +198,7 @@ class PersistentDataStore {
           description: "Truck discussions and modifications",
           postCount: 0,
           createdAt: new Date().toISOString(),
+          color: "#DC2626",
         },
         {
           id: "cars",
@@ -195,6 +206,7 @@ class PersistentDataStore {
           description: "Car discussions and modifications",
           postCount: 0,
           createdAt: new Date().toISOString(),
+          color: "#2563EB",
         },
         {
           id: "maintenance",
@@ -202,6 +214,7 @@ class PersistentDataStore {
           description: "Vehicle maintenance and repair discussions",
           postCount: 0,
           createdAt: new Date().toISOString(),
+          color: "#059669",
         },
       ]
 
@@ -235,6 +248,7 @@ class PersistentDataStore {
 
       // Initialize empty collections
       await this.set("forum:posts", [])
+      await this.set("forum:replies", [])
       await this.set("forum:meets", [])
 
       // Mark as initialized
@@ -262,6 +276,7 @@ class PersistentDataStore {
       await this.del("forum:categories")
       await this.del("forum:users")
       await this.del("forum:posts")
+      await this.del("forum:replies")
       await this.del("forum:meets")
 
       // Clear memory store as well
@@ -393,6 +408,29 @@ class PersistentDataStore {
     }
   }
 
+  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<boolean> {
+    try {
+      const user = await this.getUserById(userId)
+      if (!user) {
+        return false
+      }
+
+      // Verify current password
+      const hashedCurrentPassword = hashPassword(currentPassword)
+      if (user.password !== hashedCurrentPassword) {
+        return false
+      }
+
+      // Hash new password and update
+      const hashedNewPassword = hashPassword(newPassword)
+      const updated = await this.updateUser(userId, { password: hashedNewPassword })
+      return updated !== null
+    } catch (error) {
+      console.error("Error changing password:", error)
+      return false
+    }
+  }
+
   // Category management
   async getCategories(): Promise<Category[]> {
     try {
@@ -402,6 +440,295 @@ class PersistentDataStore {
     } catch (error) {
       console.error("Error getting categories:", error)
       return []
+    }
+  }
+
+  async getCategoryById(categoryId: string): Promise<Category | null> {
+    try {
+      const categories = await this.getCategories()
+      return categories.find((category) => category.id === categoryId) || null
+    } catch (error) {
+      console.error("Error getting category by ID:", error)
+      return null
+    }
+  }
+
+  // Post management
+  async getPosts(): Promise<Post[]> {
+    try {
+      await this.ensureInitialized()
+      const posts = await this.get("forum:posts")
+      return posts || []
+    } catch (error) {
+      console.error("Error getting posts:", error)
+      return []
+    }
+  }
+
+  async getPostById(postId: string): Promise<Post | null> {
+    try {
+      const posts = await this.getPosts()
+      return posts.find((post) => post.id === postId) || null
+    } catch (error) {
+      console.error("Error getting post by ID:", error)
+      return null
+    }
+  }
+
+  async getPostsByUserId(userId: string): Promise<Post[]> {
+    try {
+      const posts = await this.getPosts()
+      return posts.filter((post) => post.authorId === userId)
+    } catch (error) {
+      console.error("Error getting posts by user ID:", error)
+      return []
+    }
+  }
+
+  async createPost(postData: {
+    title: string
+    content: string
+    author: string
+    authorEmail: string
+    authorId: string
+    categoryId: string
+    tags?: string[]
+    status?: string
+  }): Promise<Post | null> {
+    try {
+      await this.ensureInitialized()
+      const posts = await this.getPosts()
+      const newPost: Post = {
+        ...postData,
+        id: `post-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        replies: 0,
+        views: 0,
+        likes: 0,
+        likedBy: [],
+        status: postData.status || "active",
+      }
+
+      posts.push(newPost)
+      await this.set("forum:posts", posts)
+      return newPost
+    } catch (error) {
+      console.error("Error creating post:", error)
+      return null
+    }
+  }
+
+  async incrementPostViews(postId: string): Promise<boolean> {
+    try {
+      const posts = await this.getPosts()
+      const postIndex = posts.findIndex((post) => post.id === postId)
+
+      if (postIndex === -1) {
+        return false
+      }
+
+      posts[postIndex].views = (posts[postIndex].views || 0) + 1
+      await this.set("forum:posts", posts)
+      return true
+    } catch (error) {
+      console.error("Error incrementing post views:", error)
+      return false
+    }
+  }
+
+  async likePost(postId: string, userEmail: string): Promise<Post | null> {
+    try {
+      const posts = await this.getPosts()
+      const postIndex = posts.findIndex((post) => post.id === postId)
+
+      if (postIndex === -1) {
+        return null
+      }
+
+      const post = posts[postIndex]
+      if (!post.likedBy) {
+        post.likedBy = []
+      }
+
+      // Toggle like
+      if (post.likedBy.includes(userEmail)) {
+        post.likedBy = post.likedBy.filter((email) => email !== userEmail)
+        post.likes = Math.max(0, (post.likes || 0) - 1)
+      } else {
+        post.likedBy.push(userEmail)
+        post.likes = (post.likes || 0) + 1
+      }
+
+      posts[postIndex] = post
+      await this.set("forum:posts", posts)
+      return post
+    } catch (error) {
+      console.error("Error liking post:", error)
+      return null
+    }
+  }
+
+  async deletePost(postId: string, userEmail: string): Promise<boolean> {
+    try {
+      const posts = await this.getPosts()
+      const postIndex = posts.findIndex((post) => post.id === postId)
+
+      if (postIndex === -1) {
+        return false
+      }
+
+      const post = posts[postIndex]
+
+      // Check if user owns the post or is admin
+      const user = await this.getUserByEmail(userEmail)
+      if (post.authorEmail !== userEmail && user?.role !== "admin") {
+        return false
+      }
+
+      // Remove the post
+      posts.splice(postIndex, 1)
+      await this.set("forum:posts", posts)
+
+      // Also remove associated replies
+      const replies = await this.getReplies()
+      const filteredReplies = replies.filter((reply) => reply.postId !== postId)
+      await this.set("forum:replies", filteredReplies)
+
+      return true
+    } catch (error) {
+      console.error("Error deleting post:", error)
+      return false
+    }
+  }
+
+  // Reply management
+  async getReplies(): Promise<Reply[]> {
+    try {
+      await this.ensureInitialized()
+      const replies = await this.get("forum:replies")
+      return replies || []
+    } catch (error) {
+      console.error("Error getting replies:", error)
+      return []
+    }
+  }
+
+  async getRepliesByPostId(postId: string): Promise<Reply[]> {
+    try {
+      const replies = await this.getReplies()
+      return replies.filter((reply) => reply.postId === postId)
+    } catch (error) {
+      console.error("Error getting replies by post ID:", error)
+      return []
+    }
+  }
+
+  async addReply(replyData: {
+    postId: string
+    content: string
+    author: string
+    authorEmail: string
+    authorId?: string
+  }): Promise<Reply | null> {
+    try {
+      await this.ensureInitialized()
+      const replies = await this.getReplies()
+      const posts = await this.getPosts()
+
+      const newReply: Reply = {
+        ...replyData,
+        authorId: replyData.authorId || `user-${replyData.authorEmail}`,
+        id: `reply-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        likes: 0,
+        likedBy: [],
+      }
+
+      replies.push(newReply)
+      await this.set("forum:replies", replies)
+
+      // Update post reply count
+      const postIndex = posts.findIndex((post) => post.id === replyData.postId)
+      if (postIndex !== -1) {
+        posts[postIndex].replies = (posts[postIndex].replies || 0) + 1
+        await this.set("forum:posts", posts)
+      }
+
+      return newReply
+    } catch (error) {
+      console.error("Error adding reply:", error)
+      return null
+    }
+  }
+
+  async likeReply(replyId: string, userEmail: string): Promise<Reply | null> {
+    try {
+      const replies = await this.getReplies()
+      const replyIndex = replies.findIndex((reply) => reply.id === replyId)
+
+      if (replyIndex === -1) {
+        return null
+      }
+
+      const reply = replies[replyIndex]
+      if (!reply.likedBy) {
+        reply.likedBy = []
+      }
+
+      // Toggle like
+      if (reply.likedBy.includes(userEmail)) {
+        reply.likedBy = reply.likedBy.filter((email) => email !== userEmail)
+        reply.likes = Math.max(0, (reply.likes || 0) - 1)
+      } else {
+        reply.likedBy.push(userEmail)
+        reply.likes = (reply.likes || 0) + 1
+      }
+
+      replies[replyIndex] = reply
+      await this.set("forum:replies", replies)
+      return reply
+    } catch (error) {
+      console.error("Error liking reply:", error)
+      return null
+    }
+  }
+
+  async deleteReply(replyId: string, userEmail: string): Promise<boolean> {
+    try {
+      const replies = await this.getReplies()
+      const replyIndex = replies.findIndex((reply) => reply.id === replyId)
+
+      if (replyIndex === -1) {
+        return false
+      }
+
+      const reply = replies[replyIndex]
+
+      // Check if user owns the reply or is admin
+      const user = await this.getUserByEmail(userEmail)
+      if (reply.authorEmail !== userEmail && user?.role !== "admin") {
+        return false
+      }
+
+      // Remove the reply
+      const postId = reply.postId
+      replies.splice(replyIndex, 1)
+      await this.set("forum:replies", replies)
+
+      // Update post reply count
+      const posts = await this.getPosts()
+      const postIndex = posts.findIndex((post) => post.id === postId)
+      if (postIndex !== -1) {
+        posts[postIndex].replies = Math.max(0, (posts[postIndex].replies || 0) - 1)
+        await this.set("forum:posts", posts)
+      }
+
+      return true
+    } catch (error) {
+      console.error("Error deleting reply:", error)
+      return false
     }
   }
 
@@ -512,40 +839,6 @@ class PersistentDataStore {
     }
   }
 
-  // Post management
-  async getPosts(): Promise<Post[]> {
-    try {
-      await this.ensureInitialized()
-      const posts = await this.get("forum:posts")
-      return posts || []
-    } catch (error) {
-      console.error("Error getting posts:", error)
-      return []
-    }
-  }
-
-  async createPost(postData: Omit<Post, "id" | "createdAt" | "updatedAt" | "replies" | "views">): Promise<Post | null> {
-    try {
-      await this.ensureInitialized()
-      const posts = await this.getPosts()
-      const newPost: Post = {
-        ...postData,
-        id: `post-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        replies: [],
-        views: 0,
-      }
-
-      posts.push(newPost)
-      await this.set("forum:posts", posts)
-      return newPost
-    } catch (error) {
-      console.error("Error creating post:", error)
-      return null
-    }
-  }
-
   // System status
   async getSystemStatus(): Promise<{
     isInitialized: boolean
@@ -555,6 +848,7 @@ class PersistentDataStore {
       users: number
       categories: number
       posts: number
+      replies: number
       meets: number
     }
   }> {
@@ -565,6 +859,7 @@ class PersistentDataStore {
       const users = await this.getUsers()
       const categories = await this.getCategories()
       const posts = await this.getPosts()
+      const replies = await this.getReplies()
       const meets = await this.getMeets()
 
       return {
@@ -575,6 +870,7 @@ class PersistentDataStore {
           users: users.length,
           categories: categories.length,
           posts: posts.length,
+          replies: replies.length,
           meets: meets.length,
         },
       }
@@ -587,6 +883,7 @@ class PersistentDataStore {
           users: 0,
           categories: 0,
           posts: 0,
+          replies: 0,
           meets: 0,
         },
       }
