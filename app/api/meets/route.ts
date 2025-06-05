@@ -1,88 +1,41 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { persistentForumDataStore } from "@/lib/persistent-data-store"
+import { dataStore } from "@/lib/persistent-data-store"
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    console.log("🚗 Meets API: GET request received")
-
-    // Initialize data store if needed
-    const isInit = await persistentForumDataStore.isInitialized()
-    if (!isInit) {
-      console.log("🔄 Initializing data store for meets...")
-      await persistentForumDataStore.initialize()
+    if (!(await dataStore.isInitialized())) {
+      await dataStore.initialize()
     }
 
-    const meets = await persistentForumDataStore.getMeets()
-    console.log(`📋 Returning ${meets.length} meets`)
-
-    // Sort meets by date (upcoming first)
-    const sortedMeets = meets.sort((a, b) => {
-      const dateA = new Date(`${a.date}T${a.time}`)
-      const dateB = new Date(`${b.date}T${b.time}`)
-      return dateA.getTime() - dateB.getTime()
-    })
-
-    return NextResponse.json(sortedMeets)
+    const meets = await dataStore.getMeets()
+    return NextResponse.json(meets)
   } catch (error) {
-    console.error("❌ Error in meets API:", error)
-    return NextResponse.json(
-      { error: `Failed to fetch meets: ${error instanceof Error ? error.message : "Unknown error"}` },
-      { status: 500 },
-    )
+    console.error("Get meets error:", error)
+    return NextResponse.json({ error: "Failed to fetch meets" }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    console.log("🚗 Meets API: POST request received")
+    const meetData = await request.json()
 
-    const body = await request.json()
-    console.log("📝 Meet creation data:", body)
-
-    // Initialize data store if needed
-    const isInit = await persistentForumDataStore.isInitialized()
-    if (!isInit) {
-      console.log("🔄 Initializing data store for meets...")
-      await persistentForumDataStore.initialize()
+    if (!meetData.title || !meetData.description || !meetData.date || !meetData.time || !meetData.location) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
-    // Validate required fields
-    const { title, description, organizer, organizerEmail, date, time, location } = body
-
-    if (!title || !description || !date || !time || !location || !organizerEmail) {
-      return NextResponse.json(
-        {
-          error: "Missing required fields",
-          required: ["title", "description", "date", "time", "location", "organizerEmail"],
-        },
-        { status: 400 },
-      )
+    if (!(await dataStore.isInitialized())) {
+      await dataStore.initialize()
     }
 
-    const meet = await persistentForumDataStore.createMeet({
-      title,
-      description,
-      organizer: organizer || "Anonymous",
-      organizerEmail,
-      date,
-      time,
-      location,
-      address: body.address || "",
-      vehicleTypes: body.vehicleTypes || [],
-      maxAttendees: body.maxAttendees ? Number.parseInt(body.maxAttendees) : undefined,
-      contactInfo: body.contactInfo || "",
-      requirements: body.requirements || "",
+    const meet = await dataStore.createMeet({
+      ...meetData,
       status: "upcoming",
-      tags: body.tags || [],
+      vehicleTypes: meetData.vehicleTypes || [],
     })
 
-    console.log("✅ Meet created successfully:", meet.id)
     return NextResponse.json(meet)
   } catch (error) {
-    console.error("❌ Error creating meet:", error)
-    return NextResponse.json(
-      { error: `Failed to create meet: ${error instanceof Error ? error.message : "Unknown error"}` },
-      { status: 500 },
-    )
+    console.error("Create meet error:", error)
+    return NextResponse.json({ error: "Failed to create meet" }, { status: 500 })
   }
 }

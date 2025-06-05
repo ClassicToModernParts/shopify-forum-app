@@ -1,46 +1,9 @@
 import { kv } from "@vercel/kv"
 import * as crypto from "crypto"
 
-interface Category {
-  id: string
-  name: string
-  description: string
-  color?: string
-  icon?: string
-  isPrivate?: boolean
-  moderators?: string[]
-  createdAt: string
-}
-
-interface Post {
-  id: string
-  title: string
-  content: string
-  author: string
-  authorEmail?: string
-  categoryId: string
-  createdAt: string
-  updatedAt: string
-  replies: number
-  views: number
-  likes: number
-  isPinned?: boolean
-  isLocked?: boolean
-  tags?: string[]
-  status?: string
-}
-
-interface Reply {
-  id: string
-  postId: string
-  content: string
-  author: string
-  authorEmail?: string
-  createdAt: string
-  updatedAt: string
-  likes: number
-  parentReplyId?: string
-  status?: string
+// Simple hash function
+function simpleHash(str: string): string {
+  return crypto.createHash("sha256").update(str).digest("hex")
 }
 
 interface User {
@@ -50,9 +13,12 @@ interface User {
   email: string
   password: string
   role: "admin" | "user" | "moderator"
+  isActive: boolean
   createdAt: string
-  lastActive?: string
-  isActive?: boolean
+  lastActive: string
+  emailVerified?: boolean
+  resetToken?: string
+  resetTokenExpiry?: string
 }
 
 interface Meet {
@@ -69,17 +35,72 @@ interface Meet {
   maxAttendees?: number
   contactInfo?: string
   requirements?: string
-  createdAt: string
-  updatedAt: string
-  status: "upcoming" | "ongoing" | "completed" | "cancelled"
-  attendees: {
+  status: "upcoming" | "completed" | "cancelled"
+  attendees: Array<{
     userId: string
     userName: string
     userEmail: string
     rsvpDate: string
-    vehicleInfo?: string
+  }>
+  createdAt: string
+  updatedAt: string
+}
+
+interface Post {
+  id: string
+  title: string
+  content: string
+  author: string
+  authorEmail: string
+  categoryId: string
+  createdAt: string
+  updatedAt: string
+  replies: number
+  views: number
+  likes: number
+  status: "active" | "deleted"
+}
+
+interface Category {
+  id: string
+  name: string
+  description: string
+  color: string
+  createdAt: string
+}
+
+interface Reply {
+  id: string
+  postId: string
+  content: string
+  author: string
+  authorEmail?: string
+  createdAt: string
+  updatedAt: string
+  likes: number
+  parentReplyId?: string
+  status: string
+}
+
+interface Group {
+  id: string
+  name: string
+  description: string
+  category: string
+  location: string
+  maxMembers?: number
+  requirements?: string
+  creatorEmail: string
+  creatorName: string
+  createdAt: string
+  updatedAt: string
+  status: "active" | "deleted"
+  members: {
+    email: string
+    name: string
+    joinedAt: string
+    role: "creator" | "member"
   }[]
-  tags?: string[]
 }
 
 interface RewardsSettings {
@@ -123,109 +144,61 @@ interface UserRewards {
   }[]
 }
 
-interface Group {
-  id: string
-  name: string
-  description: string
-  category: string
-  location: string
-  maxMembers?: number
-  requirements?: string
-  creatorEmail: string
-  creatorName: string
-  createdAt: string
-  updatedAt: string
-  status: "active" | "deleted"
-  members: {
-    email: string
-    name: string
-    joinedAt: string
-    role: "creator" | "member"
-  }[]
-}
+class PersistentDataStore {
+  private readonly USERS_KEY = "ctm:users"
+  private readonly MEETS_KEY = "ctm:meets"
+  private readonly POSTS_KEY = "ctm:posts"
+  private readonly CATEGORIES_KEY = "ctm:categories"
+  private readonly REPLIES_KEY = "ctm:replies"
+  private readonly GROUPS_KEY = "ctm:groups"
+  private readonly REWARDS_SETTINGS_KEY = "ctm:rewards:settings"
+  private readonly USER_REWARDS_KEY = "ctm:user:rewards"
+  private readonly INIT_KEY = "ctm:initialized"
 
-// Update the simpleHash function to use a more secure method
-function simpleHash(str: string): string {
-  return crypto.createHash("sha256").update(str).digest("hex")
-}
+  private memoryStore: Map<string, any> = new Map()
+  private useMemory = false
+  private initialized = false
 
-class MemoryStore {
-  private data: { [key: string]: any } = {}
-
-  async get<T>(key: string): Promise<T | null> {
-    return this.data[key] || null
-  }
-
-  async set<T>(key: string, value: T): Promise<void> {
-    this.data[key] = value
-  }
-
-  async del(key: string): Promise<void> {
-    delete this.data[key]
-  }
-
-  clear(): void {
-    this.data = {}
-  }
-}
-
-// Update the PersistentForumDataStore class to include better error handling and initialization
-class PersistentForumDataStore {
-  private readonly CATEGORIES_KEY = "forum:categories"
-  private readonly POSTS_KEY = "forum:posts"
-  private readonly REPLIES_KEY = "forum:replies"
-  private readonly INITIALIZED_KEY = "forum:initialized"
-  private readonly USERS_KEY = "forum:users"
-  private readonly REWARDS_SETTINGS_KEY = "forum:rewards:settings"
-  private readonly USER_REWARDS_KEY = "forum:user:rewards"
-  private readonly MEETS_KEY = "forum:meets"
-  private readonly GROUPS_KEY = "forum:groups"
-
-  private memoryStore = new MemoryStore()
-  private useMemoryFallback = false
-  private storeInstance: any = null
-
-  /**
-   * Gets the appropriate store instance (KV or memory fallback)
-   */
   private async getStore() {
-    // If we already have a store instance, return it
-    if (this.storeInstance) {
-      return this.storeInstance
-    }
-
-    // Check if KV environment variables are available
-    const hasKvUrl = process.env.KV_REST_API_URL || process.env.KV_URL
-    const hasKvToken = process.env.KV_REST_API_TOKEN || process.env.KV_REST_API_READ_ONLY_TOKEN
-
-    if (!hasKvUrl || !hasKvToken) {
-      console.warn("⚠️ KV environment variables not found, using memory fallback")
-      this.useMemoryFallback = true
-      this.storeInstance = this.memoryStore
-      return this.storeInstance
+    if (this.useMemory) {
+      return {
+        get: async (key: string) => this.memoryStore.get(key),
+        set: async (key: string, value: any) => {
+          this.memoryStore.set(key, value)
+          console.log(`💾 Memory store: Set ${key}`)
+        },
+        del: async (key: string) => this.memoryStore.delete(key),
+        ping: async () => "PONG",
+      }
     }
 
     try {
+      // Check if KV is available
+      if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
+        console.warn("⚠️ KV environment variables not found, using memory store")
+        this.useMemory = true
+        return this.getStore()
+      }
+
       // Test KV connection
-      await kv.get("test-connection")
-      this.storeInstance = kv
-      return this.storeInstance
+      await kv.ping()
+      console.log("✅ KV connection successful")
+      return kv
     } catch (error) {
-      console.warn("⚠️ KV connection failed, using memory fallback:", error)
-      this.useMemoryFallback = true
-      this.storeInstance = this.memoryStore
-      return this.storeInstance
+      console.warn("⚠️ KV connection failed, using memory store:", error)
+      this.useMemory = true
+      return this.getStore()
     }
   }
 
-  /**
-   * Checks if the data store has been initialized
-   */
   async isInitialized(): Promise<boolean> {
     try {
+      if (this.initialized) return true
+
       const store = await this.getStore()
-      const initialized = await store.get(this.INITIALIZED_KEY)
-      return initialized === true
+      const init = await store.get(this.INIT_KEY)
+      this.initialized = init === true
+      return this.initialized
     } catch (error) {
       console.error("Error checking initialization:", error)
       return false
@@ -234,236 +207,120 @@ class PersistentForumDataStore {
 
   async initialize(): Promise<void> {
     try {
-      const isInit = await this.isInitialized()
-      if (isInit) {
-        console.log("✅ Forum already initialized")
-        return
-      }
+      console.log("🔄 Initializing data store...")
 
-      console.log("🔄 Initializing persistent forum data store...")
-      if (this.useMemoryFallback) {
-        console.log("📝 Using memory storage (data will not persist between restarts)")
+      if (await this.isInitialized()) {
+        console.log("✅ Already initialized")
+        return
       }
 
       const store = await this.getStore()
 
+      // Create default admin user with proper hashing
+      const adminUser: User = {
+        id: "admin-1",
+        username: "admin",
+        name: "Administrator",
+        email: "admin@ctmparts.com",
+        password: simpleHash("admin123"),
+        role: "admin",
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        lastActive: new Date().toISOString(),
+        emailVerified: true,
+      }
+
+      // Create demo user
+      const demoUser: User = {
+        id: "demo-1",
+        username: "demo",
+        name: "Demo User",
+        email: "demo@example.com",
+        password: simpleHash("demo123"),
+        role: "user",
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        lastActive: new Date().toISOString(),
+        emailVerified: true,
+      }
+
       // Create default categories
-      const defaultCategories: Category[] = [
+      const categories: Category[] = [
         {
-          id: "installation-help",
-          name: "Installation Help",
-          description: "Get help with installing CTM parts and components",
+          id: "general",
+          name: "General Discussion",
+          description: "General topics and discussions about CTM parts",
           color: "#3B82F6",
-          icon: "Wrench",
           createdAt: new Date().toISOString(),
         },
         {
-          id: "project-showcase",
-          name: "Project Showcase",
-          description: "Share your CTM parts projects and builds",
+          id: "installation",
+          name: "Installation Help",
+          description: "Get help with installing CTM parts",
           color: "#10B981",
-          icon: "Camera",
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: "showcase",
+          name: "Project Showcase",
+          description: "Show off your CTM parts projects",
+          color: "#F59E0B",
           createdAt: new Date().toISOString(),
         },
         {
           id: "troubleshooting",
           name: "Troubleshooting",
-          description: "Get help troubleshooting CTM parts issues",
-          color: "#F59E0B",
-          icon: "AlertTriangle",
-          createdAt: new Date().toISOString(),
-        },
-        {
-          id: "general",
-          name: "General Discussion",
-          description: "General topics and discussions about CTM parts",
-          color: "#8B5CF6",
-          icon: "MessageSquare",
+          description: "Get help troubleshooting issues",
+          color: "#EF4444",
           createdAt: new Date().toISOString(),
         },
       ]
 
       // Create sample posts
-      const defaultPosts: Post[] = [
+      const posts: Post[] = [
         {
           id: "post-1",
           title: "Welcome to CTM Parts Community!",
           content:
-            "Welcome to the CTM Parts Community forum! This is your place to get help with installations, share your projects, troubleshoot issues, and connect with other CTM parts enthusiasts. Feel free to explore the different categories and start discussions!",
-          author: "CTM Admin",
-          authorEmail: "admin@store.com",
+            "Welcome to our community forum! This is your place to get help, share projects, and connect with other CTM parts enthusiasts.",
+          author: "Administrator",
+          authorEmail: "admin@ctmparts.com",
           categoryId: "general",
-          createdAt: new Date(Date.now() - 86400000).toISOString(),
-          updatedAt: new Date(Date.now() - 86400000).toISOString(),
-          replies: 3,
-          views: 47,
-          likes: 8,
-          isPinned: true,
-          tags: ["welcome", "introduction", "community"],
-          status: "active",
-        },
-        {
-          id: "post-2",
-          title: "Installation Guide: Getting Started with CTM Parts",
-          content:
-            "Here's a comprehensive guide to help you get started with your first CTM parts installation. We'll cover the basic tools you need, preparation steps, and common tips for success.",
-          author: "CTM Admin",
-          authorEmail: "admin@store.com",
-          categoryId: "installation-help",
-          createdAt: new Date(Date.now() - 172800000).toISOString(),
-          updatedAt: new Date(Date.now() - 172800000).toISOString(),
-          replies: 12,
-          views: 156,
-          likes: 23,
-          isPinned: true,
-          tags: ["guide", "installation", "beginner"],
-          status: "active",
-        },
-      ]
-
-      // Create sample replies
-      const defaultReplies: Reply[] = [
-        {
-          id: "reply-1",
-          postId: "post-1",
-          content:
-            "Thank you for the warm welcome! I'm excited to be part of this community and learn from everyone's experiences.",
-          author: "New Member",
-          authorEmail: "newmember@example.com",
-          createdAt: new Date(Date.now() - 21600000).toISOString(),
-          updatedAt: new Date(Date.now() - 21600000).toISOString(),
-          likes: 3,
-          status: "active",
-        },
-        {
-          id: "reply-2",
-          postId: "post-1",
-          content: "Great to have another member! Don't hesitate to ask questions - this community is very helpful.",
-          author: "Experienced User",
-          authorEmail: "experienced@example.com",
-          createdAt: new Date(Date.now() - 18000000).toISOString(),
-          updatedAt: new Date(Date.now() - 18000000).toISOString(),
-          likes: 2,
-          status: "active",
-        },
-        {
-          id: "reply-3",
-          postId: "post-2",
-          content:
-            "This guide was exactly what I needed! The step-by-step instructions made my first installation much easier.",
-          author: "DIY Enthusiast",
-          authorEmail: "diy@example.com",
-          createdAt: new Date(Date.now() - 86400000).toISOString(),
-          updatedAt: new Date(Date.now() - 86400000).toISOString(),
-          likes: 5,
-          status: "active",
-        },
-      ]
-
-      // Create default users with hashed passwords
-      const defaultUsers: User[] = [
-        {
-          id: "admin-user",
-          username: "ctm_admin",
-          name: "CTM Administrator",
-          email: "admin@store.com",
-          password: simpleHash("admin123"),
-          role: "admin",
           createdAt: new Date().toISOString(),
-          isActive: true,
-          lastActive: new Date().toISOString(),
-        },
-        {
-          id: "demo-user-1",
-          username: "new_member",
-          name: "New Member",
-          email: "newmember@example.com",
-          password: simpleHash("demo123"),
-          role: "user",
-          createdAt: new Date(Date.now() - 86400000).toISOString(),
-          isActive: true,
-          lastActive: new Date(Date.now() - 3600000).toISOString(),
-        },
-        {
-          id: "demo-user-2",
-          username: "experienced_user",
-          name: "Experienced User",
-          email: "experienced@example.com",
-          password: simpleHash("demo123"),
-          role: "user",
-          createdAt: new Date(Date.now() - 2592000000).toISOString(),
-          isActive: true,
-          lastActive: new Date(Date.now() - 7200000).toISOString(),
-        },
-        {
-          id: "demo-user-3",
-          username: "diy_enthusiast",
-          name: "DIY Enthusiast",
-          email: "diy@example.com",
-          password: simpleHash("demo123"),
-          role: "user",
-          createdAt: new Date(Date.now() - 1296000000).toISOString(),
-          isActive: true,
-          lastActive: new Date(Date.now() - 1800000).toISOString(),
+          updatedAt: new Date().toISOString(),
+          replies: 0,
+          views: 0,
+          likes: 0,
+          status: "active",
         },
       ]
 
-      // Create sample meets
-      const defaultMeets: Meet[] = [
+      // Create sample meet
+      const meets: Meet[] = [
         {
           id: "meet-1",
-          title: "Monthly Truck Meet - Downtown",
+          title: "Monthly CTM Parts Meetup",
           description:
-            "Join us for our monthly truck meet! Show off your rides, meet fellow enthusiasts, and enjoy some great food trucks. All truck types welcome!",
-          organizer: "CTM Admin",
-          organizerEmail: "admin@store.com",
-          date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0], // Next week
+            "Join us for our monthly meetup to discuss CTM parts, share experiences, and network with fellow enthusiasts!",
+          organizer: "Administrator",
+          organizerEmail: "admin@ctmparts.com",
+          date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
           time: "18:00",
-          location: "Downtown Parking Lot",
-          address: "123 Main St, Downtown",
-          vehicleTypes: ["Trucks", "Pickups", "SUVs"],
+          location: "Community Center",
+          address: "123 Main St, Anytown USA",
+          vehicleTypes: ["Cars", "Trucks", "Motorcycles"],
           maxAttendees: 50,
-          contactInfo: "admin@store.com",
-          requirements: "Valid driver's license and insurance required",
-          createdAt: new Date(Date.now() - 86400000).toISOString(),
-          updatedAt: new Date(Date.now() - 86400000).toISOString(),
-          status: "upcoming",
-          attendees: [
-            {
-              userId: "demo-user-1",
-              userName: "New Member",
-              userEmail: "newmember@example.com",
-              rsvpDate: new Date().toISOString(),
-              vehicleInfo: "2022 Ford F-150",
-            },
-          ],
-          tags: ["trucks", "monthly", "downtown"],
-        },
-        {
-          id: "meet-2",
-          title: "Classic Car Show & Shine",
-          description:
-            "Bring your classic cars for a show and shine event! Prizes for best in show, people's choice, and more categories.",
-          organizer: "Experienced User",
-          organizerEmail: "experienced@example.com",
-          date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0], // Two weeks
-          time: "10:00",
-          location: "City Park",
-          address: "456 Park Ave, City Center",
-          vehicleTypes: ["Classic Cars", "Vintage", "Muscle Cars"],
-          maxAttendees: 30,
-          contactInfo: "experienced@example.com",
-          requirements: "Vehicles must be 25+ years old",
-          createdAt: new Date(Date.now() - 172800000).toISOString(),
-          updatedAt: new Date(Date.now() - 172800000).toISOString(),
+          contactInfo: "admin@ctmparts.com",
+          requirements: "Bring your enthusiasm for CTM parts!",
           status: "upcoming",
           attendees: [],
-          tags: ["classic", "cars", "show"],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         },
       ]
 
-      // Create default rewards settings
-      const defaultRewardsSettings: RewardsSettings = {
+      // Default rewards settings
+      const rewardsSettings: RewardsSettings = {
         pointsPerPost: 10,
         pointsPerReply: 5,
         pointsPerLike: 1,
@@ -473,17 +330,17 @@ class PersistentForumDataStore {
         dailyPointsLimit: 100,
         coupons: [
           {
-            id: "coupon-5-off",
-            name: "$5 Off Coupon",
-            pointsRequired: 700,
+            id: "coupon-5",
+            name: "$5 Off Any Purchase",
+            pointsRequired: 500,
             discountAmount: 5,
             discountType: "fixed",
             isActive: true,
           },
           {
-            id: "coupon-10-off",
-            name: "$10 Off Coupon",
-            pointsRequired: 1400,
+            id: "coupon-10",
+            name: "$10 Off Orders Over $50",
+            pointsRequired: 1000,
             discountAmount: 10,
             discountType: "fixed",
             isActive: true,
@@ -492,43 +349,132 @@ class PersistentForumDataStore {
         lastUpdated: new Date().toISOString(),
       }
 
-      // Initialize user rewards for default users
-      const defaultUserRewards: UserRewards[] = defaultUsers.map((user) => ({
-        userId: user.id,
-        totalPoints: 0,
-        dailyPoints: 0,
-        lastDailyReset: new Date().toISOString(),
-        pointsHistory: [],
-        redeemedCoupons: [],
-      }))
+      // Save all data
+      await store.set(this.USERS_KEY, [adminUser, demoUser])
+      await store.set(this.CATEGORIES_KEY, categories)
+      await store.set(this.POSTS_KEY, posts)
+      await store.set(this.MEETS_KEY, meets)
+      await store.set(this.REPLIES_KEY, [])
+      await store.set(this.GROUPS_KEY, [])
+      await store.set(this.REWARDS_SETTINGS_KEY, rewardsSettings)
+      await store.set(this.USER_REWARDS_KEY, [])
+      await store.set(this.INIT_KEY, true)
 
-      // Save to store
-      await store.set(this.CATEGORIES_KEY, defaultCategories)
-      await store.set(this.POSTS_KEY, defaultPosts)
-      await store.set(this.REPLIES_KEY, defaultReplies)
-      await store.set(this.USERS_KEY, defaultUsers)
-      await store.set(this.MEETS_KEY, defaultMeets)
-      await store.set(this.REWARDS_SETTINGS_KEY, defaultRewardsSettings)
-      await store.set(this.USER_REWARDS_KEY, defaultUserRewards)
-      await store.set(this.INITIALIZED_KEY, true)
+      this.initialized = true
 
-      console.log("✅ Persistent forum data store initialized with CTM Parts content, meets, and rewards system")
-      if (this.useMemoryFallback) {
-        console.log("⚠️ Note: Using memory storage - data will be lost on restart")
+      console.log("✅ Data store initialized successfully")
+      console.log("👤 Default users created:")
+      console.log("   - admin / admin123 (Administrator)")
+      console.log("   - demo / demo123 (Demo User)")
+
+      if (this.useMemory) {
+        console.log("⚠️ Using memory storage - data will be lost on restart")
       }
     } catch (error) {
-      console.error("❌ Error initializing persistent store:", error)
+      console.error("❌ Failed to initialize data store:", error)
       throw error
     }
   }
 
-  // Meets Methods
+  // User methods
+  async getUsers(): Promise<User[]> {
+    try {
+      await this.ensureInitialized()
+      const store = await this.getStore()
+      const users = await store.get(this.USERS_KEY)
+      return users || []
+    } catch (error) {
+      console.error("Error getting users:", error)
+      return []
+    }
+  }
+
+  async getUserByUsername(username: string): Promise<User | null> {
+    try {
+      const users = await this.getUsers()
+      const user = users.find((u) => u.username.toLowerCase() === username.toLowerCase())
+      console.log(`🔍 Looking for user '${username}':`, user ? "Found" : "Not found")
+      return user || null
+    } catch (error) {
+      console.error("Error getting user by username:", error)
+      return null
+    }
+  }
+
+  async getUserByEmail(email: string): Promise<User | null> {
+    try {
+      const users = await this.getUsers()
+      const user = users.find((u) => u.email.toLowerCase() === email.toLowerCase())
+      return user || null
+    } catch (error) {
+      console.error("Error getting user by email:", error)
+      return null
+    }
+  }
+
+  async getUserById(id: string): Promise<User | null> {
+    try {
+      const users = await this.getUsers()
+      return users.find((u) => u.id === id) || null
+    } catch (error) {
+      console.error("Error getting user by ID:", error)
+      return null
+    }
+  }
+
+  async addUser(userData: Omit<User, "id" | "createdAt" | "lastActive">): Promise<User> {
+    try {
+      await this.ensureInitialized()
+      const store = await this.getStore()
+      const users = await this.getUsers()
+
+      const user: User = {
+        ...userData,
+        id: `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        createdAt: new Date().toISOString(),
+        lastActive: new Date().toISOString(),
+      }
+
+      users.push(user)
+      await store.set(this.USERS_KEY, users)
+
+      console.log("✅ User created:", user.username)
+      return user
+    } catch (error) {
+      console.error("Error creating user:", error)
+      throw error
+    }
+  }
+
+  async updateUser(userId: string, updates: Partial<User>): Promise<User | null> {
+    try {
+      const store = await this.getStore()
+      const users = await this.getUsers()
+      const index = users.findIndex((u) => u.id === userId)
+
+      if (index === -1) {
+        console.warn(`User not found: ${userId}`)
+        return null
+      }
+
+      users[index] = { ...users[index], ...updates }
+      await store.set(this.USERS_KEY, users)
+
+      console.log("✅ User updated:", users[index].username)
+      return users[index]
+    } catch (error) {
+      console.error("Error updating user:", error)
+      return null
+    }
+  }
+
+  // Meet methods
   async getMeets(): Promise<Meet[]> {
     try {
-      await this.initialize()
+      await this.ensureInitialized()
       const store = await this.getStore()
-      const meets = await store.get<Meet[]>(this.MEETS_KEY)
-      return (meets || []).filter((meet) => meet.status !== "cancelled")
+      const meets = await store.get(this.MEETS_KEY)
+      return meets || []
     } catch (error) {
       console.error("Error getting meets:", error)
       return []
@@ -538,38 +484,30 @@ class PersistentForumDataStore {
   async getMeetById(id: string): Promise<Meet | null> {
     try {
       const meets = await this.getMeets()
-      return meets.find((meet) => meet.id === id) || null
+      return meets.find((m) => m.id === id) || null
     } catch (error) {
       console.error("Error getting meet by ID:", error)
       return null
     }
   }
 
-  async createMeet(data: Omit<Meet, "id" | "createdAt" | "updatedAt" | "attendees">): Promise<Meet> {
+  async createMeet(meetData: Omit<Meet, "id" | "createdAt" | "updatedAt" | "attendees">): Promise<Meet> {
     try {
       const store = await this.getStore()
       const meets = await this.getMeets()
+
       const meet: Meet = {
+        ...meetData,
         id: `meet-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        attendees: [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        attendees: [],
-        ...data,
       }
 
       meets.push(meet)
       await store.set(this.MEETS_KEY, meets)
 
-      // Award points for creating a meet
-      if (data.organizerEmail) {
-        const user = await this.getUserByEmail(data.organizerEmail)
-        if (user) {
-          const settings = await this.getRewardsSettings()
-          await this.awardPoints(user.id, settings.pointsPerMeetCreation, "Created a meet", "meet_creation")
-        }
-      }
-
-      console.log("✅ Meet created and saved:", meet)
+      console.log("✅ Meet created:", meet.title)
       return meet
     } catch (error) {
       console.error("Error creating meet:", error)
@@ -577,118 +515,41 @@ class PersistentForumDataStore {
     }
   }
 
-  async updateMeet(meetId: string, updates: Partial<Meet>): Promise<Meet | null> {
-    try {
-      const store = await this.getStore()
-      const meets = await this.getMeets()
-      const meetIndex = meets.findIndex((meet) => meet.id === meetId)
-
-      if (meetIndex === -1) {
-        console.warn(`⚠️ Meet not found for update: ${meetId}`)
-        return null
-      }
-
-      meets[meetIndex] = {
-        ...meets[meetIndex],
-        ...updates,
-        updatedAt: new Date().toISOString(),
-      }
-      await store.set(this.MEETS_KEY, meets)
-
-      console.log(`✅ Meet ${meetId} updated successfully`)
-      return meets[meetIndex]
-    } catch (error) {
-      console.error(`Error updating meet ${meetId}:`, error)
-      return null
-    }
-  }
-
-  async deleteMeet(meetId: string, userEmail: string): Promise<boolean> {
+  async rsvpToMeet(meetId: string, userId: string, userName: string, userEmail: string): Promise<Meet | null> {
     try {
       const store = await this.getStore()
       const meets = await this.getMeets()
       const meetIndex = meets.findIndex((m) => m.id === meetId)
 
-      if (meetIndex === -1) {
-        console.warn(`⚠️ Meet not found for deletion: ${meetId}`)
-        return false
-      }
+      if (meetIndex === -1) return null
 
       const meet = meets[meetIndex]
 
-      // Check permissions
-      if (meet.organizerEmail !== userEmail && userEmail !== "admin@store.com") {
-        console.warn(`⚠️ User ${userEmail} not authorized to delete meet ${meetId}`)
-        return false
-      }
-
-      // Mark as cancelled instead of deleting
-      meets[meetIndex].status = "cancelled"
-      meets[meetIndex].updatedAt = new Date().toISOString()
-
-      await store.set(this.MEETS_KEY, meets)
-      console.log(`✅ Meet ${meetId} cancelled and saved`)
-      return true
-    } catch (error) {
-      console.error("Error deleting meet:", error)
-      return false
-    }
-  }
-
-  async rsvpToMeet(
-    meetId: string,
-    userId: string,
-    userName: string,
-    userEmail: string,
-    vehicleInfo?: string,
-  ): Promise<Meet | null> {
-    try {
-      const store = await this.getStore()
-      const meets = await this.getMeets()
-      const meetIndex = meets.findIndex((m) => m.id === meetId)
-
-      if (meetIndex === -1) {
-        console.warn(`⚠️ Meet not found for RSVP: ${meetId}`)
-        return null
-      }
-
-      const meet = meets[meetIndex]
-
-      // Check if user already RSVP'd
-      const existingRsvp = meet.attendees.find((a) => a.userId === userId)
-      if (existingRsvp) {
-        console.warn(`⚠️ User ${userId} already RSVP'd to meet ${meetId}`)
+      // Check if already RSVP'd
+      if (meet.attendees.some((a) => a.userId === userId)) {
         return meet
       }
 
       // Check capacity
       if (meet.maxAttendees && meet.attendees.length >= meet.maxAttendees) {
-        console.warn(`⚠️ Meet ${meetId} is at capacity`)
         return null
       }
 
-      // Add RSVP
       meet.attendees.push({
         userId,
         userName,
         userEmail,
         rsvpDate: new Date().toISOString(),
-        vehicleInfo,
       })
 
       meet.updatedAt = new Date().toISOString()
       meets[meetIndex] = meet
-
       await store.set(this.MEETS_KEY, meets)
 
-      // Award points for attending a meet
-      const settings = await this.getRewardsSettings()
-      await this.awardPoints(userId, settings.pointsPerMeetAttendance, "RSVP'd to a meet", "meet_attendance")
-
-      console.log(`✅ User ${userId} RSVP'd to meet ${meetId}`)
+      console.log("✅ RSVP added:", userName, "to", meet.title)
       return meet
     } catch (error) {
-      console.error("Error RSVP'ing to meet:", error)
+      console.error("Error adding RSVP:", error)
       return null
     }
   }
@@ -699,27 +560,16 @@ class PersistentForumDataStore {
       const meets = await this.getMeets()
       const meetIndex = meets.findIndex((m) => m.id === meetId)
 
-      if (meetIndex === -1) {
-        console.warn(`⚠️ Meet not found for RSVP cancellation: ${meetId}`)
-        return null
-      }
+      if (meetIndex === -1) return null
 
       const meet = meets[meetIndex]
-      const attendeeIndex = meet.attendees.findIndex((a) => a.userId === userId)
-
-      if (attendeeIndex === -1) {
-        console.warn(`⚠️ User ${userId} has not RSVP'd to meet ${meetId}`)
-        return meet
-      }
-
-      // Remove RSVP
-      meet.attendees.splice(attendeeIndex, 1)
+      meet.attendees = meet.attendees.filter((a) => a.userId !== userId)
       meet.updatedAt = new Date().toISOString()
-      meets[meetIndex] = meet
 
+      meets[meetIndex] = meet
       await store.set(this.MEETS_KEY, meets)
 
-      console.log(`✅ User ${userId} cancelled RSVP to meet ${meetId}`)
+      console.log("✅ RSVP cancelled for meet:", meet.title)
       return meet
     } catch (error) {
       console.error("Error cancelling RSVP:", error)
@@ -727,27 +577,168 @@ class PersistentForumDataStore {
     }
   }
 
-  /**
-   * Gets all groups from the data store
-   */
+  // Category methods
+  async getCategories(): Promise<Category[]> {
+    try {
+      await this.ensureInitialized()
+      const store = await this.getStore()
+      const categories = await store.get(this.CATEGORIES_KEY)
+      return categories || []
+    } catch (error) {
+      console.error("Error getting categories:", error)
+      return []
+    }
+  }
+
+  async getCategoryById(id: string): Promise<Category | null> {
+    try {
+      const categories = await this.getCategories()
+      return categories.find((c) => c.id === id) || null
+    } catch (error) {
+      console.error("Error getting category by ID:", error)
+      return null
+    }
+  }
+
+  // Post methods
+  async getPosts(): Promise<Post[]> {
+    try {
+      await this.ensureInitialized()
+      const store = await this.getStore()
+      const posts = await store.get(this.POSTS_KEY)
+      return ((posts || []) as Post[]).filter((p) => p.status === "active")
+    } catch (error) {
+      console.error("Error getting posts:", error)
+      return []
+    }
+  }
+
+  async getPostById(id: string): Promise<Post | null> {
+    try {
+      const posts = await this.getPosts()
+      return posts.find((p) => p.id === id) || null
+    } catch (error) {
+      console.error("Error getting post by ID:", error)
+      return null
+    }
+  }
+
+  async createPost(
+    postData: Omit<Post, "id" | "createdAt" | "updatedAt" | "replies" | "views" | "likes">,
+  ): Promise<Post> {
+    try {
+      const store = await this.getStore()
+      const posts = await this.getPosts()
+
+      const post: Post = {
+        ...postData,
+        id: `post-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        replies: 0,
+        views: 0,
+        likes: 0,
+        status: "active",
+      }
+
+      posts.push(post)
+      await store.set(this.POSTS_KEY, posts)
+
+      console.log("✅ Post created:", post.title)
+      return post
+    } catch (error) {
+      console.error("Error creating post:", error)
+      throw error
+    }
+  }
+
+  async incrementPostViews(postId: string): Promise<Post | null> {
+    try {
+      const store = await this.getStore()
+      const posts = await this.getPosts()
+      const postIndex = posts.findIndex((p) => p.id === postId)
+
+      if (postIndex === -1) return null
+
+      posts[postIndex].views = (posts[postIndex].views || 0) + 1
+      await store.set(this.POSTS_KEY, posts)
+      return posts[postIndex]
+    } catch (error) {
+      console.error("Error incrementing post views:", error)
+      return null
+    }
+  }
+
+  async likePost(postId: string, userEmail?: string): Promise<{ likes: number } | null> {
+    try {
+      const store = await this.getStore()
+      const posts = await this.getPosts()
+      const postIndex = posts.findIndex((p) => p.id === postId)
+
+      if (postIndex === -1) return null
+
+      posts[postIndex].likes = (posts[postIndex].likes || 0) + 1
+      await store.set(this.POSTS_KEY, posts)
+      return { likes: posts[postIndex].likes }
+    } catch (error) {
+      console.error("Error liking post:", error)
+      return null
+    }
+  }
+
+  // Reply methods
+  async getRepliesByPostId(postId: string): Promise<Reply[]> {
+    try {
+      await this.ensureInitialized()
+      const store = await this.getStore()
+      const replies = await store.get(this.REPLIES_KEY)
+      return ((replies || []) as Reply[]).filter((r) => r.postId === postId && r.status === "active")
+    } catch (error) {
+      console.error("Error getting replies:", error)
+      return []
+    }
+  }
+
+  async addReply(replyData: Omit<Reply, "id" | "createdAt" | "updatedAt" | "likes">): Promise<Reply> {
+    try {
+      const store = await this.getStore()
+      const replies = (await store.get(this.REPLIES_KEY)) || []
+
+      const reply: Reply = {
+        ...replyData,
+        id: `reply-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        likes: 0,
+        status: "active",
+      }
+
+      replies.push(reply)
+      await store.set(this.REPLIES_KEY, replies)
+
+      // Update post reply count
+      const posts = await this.getPosts()
+      const postIndex = posts.findIndex((p) => p.id === replyData.postId)
+      if (postIndex !== -1) {
+        posts[postIndex].replies++
+        await store.set(this.POSTS_KEY, posts)
+      }
+
+      console.log("✅ Reply added to post:", replyData.postId)
+      return reply
+    } catch (error) {
+      console.error("Error adding reply:", error)
+      throw error
+    }
+  }
+
+  // Group methods
   async getGroups(): Promise<Group[]> {
     try {
-      // Ensure initialization
-      const isInit = await this.isInitialized()
-      if (!isInit) {
-        await this.initialize()
-      }
-
+      await this.ensureInitialized()
       const store = await this.getStore()
-      const groups = await store.get<Group[]>(this.GROUPS_KEY)
-
-      // If groups is null or undefined, return an empty array
-      if (!groups) {
-        console.log("⚠️ No groups found in data store, returning empty array")
-        return []
-      }
-
-      return groups.filter((group) => group.status !== "deleted")
+      const groups = await store.get(this.GROUPS_KEY)
+      return ((groups || []) as Group[]).filter((g) => g.status === "active")
     } catch (error) {
       console.error("Error getting groups:", error)
       return []
@@ -757,43 +748,38 @@ class PersistentForumDataStore {
   async getGroupById(id: string): Promise<Group | null> {
     try {
       const groups = await this.getGroups()
-      return groups.find((group) => group.id === id) || null
+      return groups.find((g) => g.id === id) || null
     } catch (error) {
       console.error("Error getting group by ID:", error)
       return null
     }
   }
 
-  /**
-   * Creates a new group
-   */
-  async createGroup(data: Omit<Group, "id" | "createdAt" | "updatedAt" | "members">): Promise<Group> {
+  async createGroup(groupData: Omit<Group, "id" | "createdAt" | "updatedAt" | "members">): Promise<Group> {
     try {
       const store = await this.getStore()
-
-      // Get existing groups or initialize with empty array
-      const groups = (await store.get<Group[]>(this.GROUPS_KEY)) || []
+      const groups = await this.getGroups()
 
       const group: Group = {
+        ...groupData,
         id: `group-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         members: [
           {
-            email: data.creatorEmail,
-            name: data.creatorName,
+            email: groupData.creatorEmail,
+            name: groupData.creatorName,
             joinedAt: new Date().toISOString(),
             role: "creator",
           },
         ],
         status: "active",
-        ...data,
       }
 
-      groups.unshift(group) // Add to beginning of array
+      groups.push(group)
       await store.set(this.GROUPS_KEY, groups)
 
-      console.log("✅ Group created and saved:", group)
+      console.log("✅ Group created:", group.name)
       return group
     } catch (error) {
       console.error("Error creating group:", error)
@@ -801,104 +787,15 @@ class PersistentForumDataStore {
     }
   }
 
-  async joinGroup(groupId: string, userEmail: string, userName: string): Promise<Group | null> {
-    try {
-      const store = await this.getStore()
-      const groups = await this.getGroups()
-      const groupIndex = groups.findIndex((g) => g.id === groupId)
-
-      if (groupIndex === -1) {
-        console.warn(`⚠️ Group not found for join: ${groupId}`)
-        return null
-      }
-
-      const group = groups[groupIndex]
-
-      // Check if user already joined
-      const existingMember = group.members.find((m) => m.email === userEmail)
-      if (existingMember) {
-        console.warn(`⚠️ User ${userEmail} already in group ${groupId}`)
-        return group
-      }
-
-      // Check capacity
-      if (group.maxMembers && group.members.length >= group.maxMembers) {
-        console.warn(`⚠️ Group ${groupId} is at capacity`)
-        return null
-      }
-
-      // Add member
-      group.members.push({
-        email: userEmail,
-        name: userName,
-        joinedAt: new Date().toISOString(),
-        role: "member",
-      })
-
-      group.updatedAt = new Date().toISOString()
-      groups[groupIndex] = group
-
-      await store.set("forum:groups", groups)
-
-      console.log(`✅ User ${userEmail} joined group ${groupId}`)
-      return group
-    } catch (error) {
-      console.error("Error joining group:", error)
-      return null
-    }
-  }
-
-  async leaveGroup(groupId: string, userEmail: string): Promise<Group | null> {
-    try {
-      const store = await this.getStore()
-      const groups = await this.getGroups()
-      const groupIndex = groups.findIndex((g) => g.id === groupId)
-
-      if (groupIndex === -1) {
-        console.warn(`⚠️ Group not found for leave: ${groupId}`)
-        return null
-      }
-
-      const group = groups[groupIndex]
-      const memberIndex = group.members.findIndex((m) => m.email === userEmail)
-
-      if (memberIndex === -1) {
-        console.warn(`⚠️ User ${userEmail} not in group ${groupId}`)
-        return group
-      }
-
-      // Don't allow creator to leave
-      if (group.members[memberIndex].role === "creator") {
-        console.warn(`⚠️ Creator cannot leave group ${groupId}`)
-        return null
-      }
-
-      // Remove member
-      group.members.splice(memberIndex, 1)
-      group.updatedAt = new Date().toISOString()
-      groups[groupIndex] = group
-
-      await store.set("forum:groups", groups)
-
-      console.log(`✅ User ${userEmail} left group ${groupId}`)
-      return group
-    } catch (error) {
-      console.error("Error leaving group:", error)
-      return null
-    }
-  }
-
-  // Rewards System Methods
+  // Rewards methods
   async getRewardsSettings(): Promise<RewardsSettings> {
     try {
-      console.log("🎁 Getting rewards settings...")
-      await this.initialize()
+      await this.ensureInitialized()
       const store = await this.getStore()
-      const settings = await store.get<RewardsSettings>(this.REWARDS_SETTINGS_KEY)
+      let settings = await store.get(this.REWARDS_SETTINGS_KEY)
 
       if (!settings) {
-        console.log("⚠️ No rewards settings found, creating default...")
-        const defaultSettings: RewardsSettings = {
+        settings = {
           pointsPerPost: 10,
           pointsPerReply: 5,
           pointsPerLike: 1,
@@ -906,68 +803,27 @@ class PersistentForumDataStore {
           pointsPerMeetCreation: 25,
           pointsPerMeetAttendance: 15,
           dailyPointsLimit: 100,
-          coupons: [
-            {
-              id: "coupon-5-off",
-              name: "$5 Off Coupon",
-              pointsRequired: 700,
-              discountAmount: 5,
-              discountType: "fixed",
-              isActive: true,
-            },
-            {
-              id: "coupon-10-off",
-              name: "$10 Off Coupon",
-              pointsRequired: 1400,
-              discountAmount: 10,
-              discountType: "fixed",
-              isActive: true,
-            },
-          ],
+          coupons: [],
           lastUpdated: new Date().toISOString(),
         }
-        await store.set(this.REWARDS_SETTINGS_KEY, defaultSettings)
-        return defaultSettings
+        await store.set(this.REWARDS_SETTINGS_KEY, settings)
       }
 
-      console.log("✅ Rewards settings retrieved successfully")
       return settings
     } catch (error) {
-      console.error("❌ Error getting rewards settings:", error)
-      throw error
-    }
-  }
-
-  async updateRewardsSettings(settings: Partial<RewardsSettings>): Promise<RewardsSettings> {
-    try {
-      console.log("💾 Updating rewards settings...")
-      const store = await this.getStore()
-      const currentSettings = await this.getRewardsSettings()
-      const updatedSettings: RewardsSettings = {
-        ...currentSettings,
-        ...settings,
-        lastUpdated: new Date().toISOString(),
-      }
-
-      await store.set(this.REWARDS_SETTINGS_KEY, updatedSettings)
-      console.log("✅ Rewards settings updated successfully")
-      return updatedSettings
-    } catch (error) {
-      console.error("❌ Error updating rewards settings:", error)
+      console.error("Error getting rewards settings:", error)
       throw error
     }
   }
 
   async getUserRewards(userId: string): Promise<UserRewards | null> {
     try {
-      console.log("🏆 Getting user rewards for:", userId)
+      await this.ensureInitialized()
       const store = await this.getStore()
-      const allRewards = (await store.get<UserRewards[]>(this.USER_REWARDS_KEY)) || []
-      let userRewards = allRewards.find((r) => r.userId === userId)
+      const allRewards = (await store.get(this.USER_REWARDS_KEY)) || []
+      let userRewards = allRewards.find((r: UserRewards) => r.userId === userId)
 
       if (!userRewards) {
-        console.log("⚠️ No rewards found for user, creating new...")
-        // Create new user rewards if doesn't exist
         userRewards = {
           userId,
           totalPoints: 0,
@@ -980,685 +836,9 @@ class PersistentForumDataStore {
         await store.set(this.USER_REWARDS_KEY, allRewards)
       }
 
-      // Check if daily reset is needed
-      const lastReset = new Date(userRewards.lastDailyReset)
-      const now = new Date()
-      const isNewDay = now.toDateString() !== lastReset.toDateString()
-
-      if (isNewDay) {
-        console.log("🔄 Resetting daily points for user:", userId)
-        userRewards.dailyPoints = 0
-        userRewards.lastDailyReset = now.toISOString()
-
-        const updatedRewards = allRewards.map((r) => (r.userId === userId ? userRewards! : r))
-        await store.set(this.USER_REWARDS_KEY, updatedRewards)
-      }
-
-      console.log("✅ User rewards retrieved successfully")
       return userRewards
     } catch (error) {
-      console.error("❌ Error getting user rewards:", error)
-      return null
-    }
-  }
-
-  async getAllUserRewards(): Promise<UserRewards[]> {
-    try {
-      console.log("📊 Getting all user rewards...")
-      await this.initialize()
-      const store = await this.getStore()
-      const rewards = await store.get<UserRewards[]>(this.USER_REWARDS_KEY)
-      const result = rewards || []
-      console.log("✅ All user rewards retrieved:", result.length, "users")
-      return result
-    } catch (error) {
-      console.error("❌ Error getting all user rewards:", error)
-      return []
-    }
-  }
-
-  async awardPoints(userId: string, points: number, reason: string, actionType: string): Promise<UserRewards | null> {
-    try {
-      console.log("🏆 Awarding points:", { userId, points, reason, actionType })
-      const settings = await this.getRewardsSettings()
-      const userRewards = await this.getUserRewards(userId)
-
-      if (!userRewards) {
-        console.error("❌ User rewards not found for user:", userId)
-        return null
-      }
-
-      // Check daily limit
-      if (userRewards.dailyPoints + points > settings.dailyPointsLimit) {
-        const remainingPoints = Math.max(0, settings.dailyPointsLimit - userRewards.dailyPoints)
-        if (remainingPoints === 0) {
-          console.log(`⚠️ User ${userId} has reached daily points limit`)
-          return userRewards
-        }
-        points = remainingPoints
-      }
-
-      // Add points
-      userRewards.totalPoints += points
-      userRewards.dailyPoints += points
-
-      // Add to history
-      const historyEntry = {
-        id: `history-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        points,
-        reason,
-        actionType,
-        createdAt: new Date().toISOString(),
-      }
-      userRewards.pointsHistory.unshift(historyEntry)
-
-      // Keep only last 50 history entries
-      if (userRewards.pointsHistory.length > 50) {
-        userRewards.pointsHistory = userRewards.pointsHistory.slice(0, 50)
-      }
-
-      // Update in storage
-      const store = await this.getStore()
-      const allRewards = await this.getAllUserRewards()
-      const updatedRewards = allRewards.map((r) => (r.userId === userId ? userRewards : r))
-      await store.set(this.USER_REWARDS_KEY, updatedRewards)
-
-      console.log(`✅ Awarded ${points} points to user ${userId} for ${reason}`)
-      return userRewards
-    } catch (error) {
-      console.error("❌ Error awarding points:", error)
-      return null
-    }
-  }
-
-  async redeemCoupon(userId: string, couponId: string): Promise<{ success: boolean; data?: any; error?: string }> {
-    try {
-      console.log("🎫 Redeeming coupon:", { userId, couponId })
-      const settings = await this.getRewardsSettings()
-      const userRewards = await this.getUserRewards(userId)
-
-      if (!userRewards) {
-        return { success: false, error: "User rewards not found" }
-      }
-
-      const coupon = settings.coupons.find((c) => c.id === couponId && c.isActive)
-      if (!coupon) {
-        return { success: false, error: "Coupon not found or inactive" }
-      }
-
-      if (userRewards.totalPoints < coupon.pointsRequired) {
-        return {
-          success: false,
-          error: `Insufficient points. Need ${coupon.pointsRequired}, have ${userRewards.totalPoints}`,
-        }
-      }
-
-      // Deduct points
-      userRewards.totalPoints -= coupon.pointsRequired
-
-      // Generate coupon code
-      const couponCode = `CTM${coupon.discountAmount}OFF${Date.now().toString().slice(-6)}`
-
-      // Add to redeemed coupons
-      const redeemedCoupon = {
-        id: `redeemed-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        couponId: coupon.id,
-        couponName: coupon.name,
-        pointsSpent: coupon.pointsRequired,
-        redeemedAt: new Date().toISOString(),
-        couponCode,
-      }
-      userRewards.redeemedCoupons.unshift(redeemedCoupon)
-
-      // Add to history
-      const historyEntry = {
-        id: `history-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        points: -coupon.pointsRequired,
-        reason: `Redeemed ${coupon.name}`,
-        actionType: "coupon_redemption",
-        createdAt: new Date().toISOString(),
-      }
-      userRewards.pointsHistory.unshift(historyEntry)
-
-      // Update in storage
-      const store = await this.getStore()
-      const allRewards = await this.getAllUserRewards()
-      const updatedRewards = allRewards.map((r) => (r.userId === userId ? userRewards : r))
-      await store.set(this.USER_REWARDS_KEY, updatedRewards)
-
-      console.log(`✅ User ${userId} redeemed ${coupon.name} for ${coupon.pointsRequired} points`)
-      return {
-        success: true,
-        data: {
-          couponCode,
-          couponName: coupon.name,
-          discountAmount: coupon.discountAmount,
-          remainingPoints: userRewards.totalPoints,
-        },
-      }
-    } catch (error) {
-      console.error("❌ Error redeeming coupon:", error)
-      return { success: false, error: "Failed to redeem coupon" }
-    }
-  }
-
-  async getRewardsLeaderboard(limit = 10): Promise<any[]> {
-    try {
-      console.log("🏆 Getting rewards leaderboard...")
-      const allRewards = await this.getAllUserRewards()
-      const users = await this.getUsers()
-
-      const leaderboard = allRewards
-        .sort((a, b) => b.totalPoints - a.totalPoints)
-        .slice(0, limit)
-        .map((reward) => {
-          const user = users.find((u) => u.id === reward.userId)
-          return {
-            userId: reward.userId,
-            username: user?.username || "Unknown",
-            name: user?.name || "Unknown User",
-            totalPoints: reward.totalPoints,
-            rank: 0, // Will be set below
-          }
-        })
-
-      // Set ranks
-      leaderboard.forEach((entry, index) => {
-        entry.rank = index + 1
-      })
-
-      console.log("✅ Rewards leaderboard retrieved:", leaderboard.length, "entries")
-      return leaderboard
-    } catch (error) {
-      console.error("❌ Error getting rewards leaderboard:", error)
-      return []
-    }
-  }
-
-  // Categories
-  async getCategories(): Promise<Category[]> {
-    try {
-      await this.initialize()
-      const store = await this.getStore()
-      const categories = await store.get<Category[]>(this.CATEGORIES_KEY)
-      return categories || []
-    } catch (error) {
-      console.error("Error getting categories:", error)
-      return []
-    }
-  }
-
-  async getCategoryById(id: string): Promise<Category | null> {
-    try {
-      const categories = await this.getCategories()
-      return categories.find((cat) => cat.id === id) || null
-    } catch (error) {
-      console.error("Error getting category by ID:", error)
-      return null
-    }
-  }
-
-  async createCategory(data: Omit<Category, "id" | "createdAt">): Promise<Category> {
-    try {
-      const store = await this.getStore()
-      const categories = await this.getCategories()
-      const category: Category = {
-        id: `cat-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        createdAt: new Date().toISOString(),
-        ...data,
-      }
-
-      categories.push(category)
-      await store.set(this.CATEGORIES_KEY, categories)
-
-      console.log("✅ Category created and saved:", category)
-      return category
-    } catch (error) {
-      console.error("Error creating category:", error)
-      throw error
-    }
-  }
-
-  async updateCategory(categoryId: string, updates: Partial<Category>): Promise<Category | null> {
-    try {
-      const store = await this.getStore()
-      const categories = await this.getCategories()
-      const categoryIndex = categories.findIndex((cat) => cat.id === categoryId)
-
-      if (categoryIndex === -1) {
-        console.warn(`⚠️ Category not found for update: ${categoryId}`)
-        return null
-      }
-
-      categories[categoryIndex] = { ...categories[categoryIndex], ...updates }
-      await store.set(this.CATEGORIES_KEY, categories)
-
-      console.log(`✅ Category ${categoryId} updated successfully`)
-      return categories[categoryIndex]
-    } catch (error) {
-      console.error(`Error updating category ${categoryId}:`, error)
-      return null
-    }
-  }
-
-  async deleteCategory(categoryId: string): Promise<boolean> {
-    try {
-      const store = await this.getStore()
-      const categories = await this.getCategories()
-      const updatedCategories = categories.filter((cat) => cat.id !== categoryId)
-      await store.set(this.CATEGORIES_KEY, updatedCategories)
-
-      console.log(`✅ Category ${categoryId} deleted from persistent store`)
-      return true
-    } catch (error) {
-      console.error("Error deleting category:", error)
-      return false
-    }
-  }
-
-  // Posts
-  async getPosts(): Promise<Post[]> {
-    try {
-      await this.initialize()
-      const store = await this.getStore()
-      const posts = await store.get<Post[]>(this.POSTS_KEY)
-      return (posts || []).filter((post) => post.status === "active")
-    } catch (error) {
-      console.error("Error getting posts:", error)
-      return []
-    }
-  }
-
-  async getPostById(id: string): Promise<Post | null> {
-    try {
-      const store = await this.getStore()
-      const posts = await store.get<Post[]>(this.POSTS_KEY)
-      return (posts || []).find((post) => post.id === id && post.status === "active") || null
-    } catch (error) {
-      console.error("Error getting post by ID:", error)
-      return null
-    }
-  }
-
-  async createPost(data: Omit<Post, "id" | "createdAt" | "updatedAt" | "replies" | "views" | "likes">): Promise<Post> {
-    try {
-      const store = await this.getStore()
-      const posts = (await store.get<Post[]>(this.POSTS_KEY)) || []
-      const post: Post = {
-        id: `post-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        replies: 0,
-        views: 0,
-        likes: 0,
-        isPinned: false,
-        isLocked: false,
-        tags: data.tags || [],
-        status: "active",
-        ...data,
-      }
-
-      posts.push(post)
-      await store.set(this.POSTS_KEY, posts)
-
-      // Award points for creating a post
-      if (data.authorEmail) {
-        const user = await this.getUserByEmail(data.authorEmail)
-        if (user) {
-          const settings = await this.getRewardsSettings()
-          await this.awardPoints(user.id, settings.pointsPerPost, "Created a post", "post_creation")
-        }
-      }
-
-      console.log("✅ Post created and saved:", post)
-      return post
-    } catch (error) {
-      console.error("Error creating post:", error)
-      throw error
-    }
-  }
-
-  async deletePost(postId: string, userEmail: string): Promise<boolean> {
-    try {
-      const store = await this.getStore()
-      const posts = (await store.get<Post[]>(this.POSTS_KEY)) || []
-      const postIndex = posts.findIndex((p) => p.id === postId)
-
-      if (postIndex === -1) {
-        console.warn(`⚠️ Post not found for deletion: ${postId}`)
-        return false
-      }
-
-      const post = posts[postIndex]
-
-      // Check permissions
-      if (post.authorEmail !== userEmail && userEmail !== "admin@store.com") {
-        console.warn(`⚠️ User ${userEmail} not authorized to delete post ${postId}`)
-        return false
-      }
-
-      // Soft delete
-      posts[postIndex].status = "deleted"
-      posts[postIndex].updatedAt = new Date().toISOString()
-
-      // Also delete replies
-      const replies = (await store.get<Reply[]>(this.REPLIES_KEY)) || []
-      const updatedReplies = replies.map((reply) =>
-        reply.postId === postId ? { ...reply, status: "deleted", updatedAt: new Date().toISOString() } : reply,
-      )
-
-      await store.set(this.POSTS_KEY, posts)
-      await store.set(this.REPLIES_KEY, updatedReplies)
-
-      console.log(`✅ Post ${postId} deleted and saved`)
-      return true
-    } catch (error) {
-      console.error("Error deleting post:", error)
-      return false
-    }
-  }
-
-  async incrementPostViews(postId: string): Promise<Post | null> {
-    try {
-      const store = await this.getStore()
-      const posts = (await store.get<Post[]>(this.POSTS_KEY)) || []
-      const postIndex = posts.findIndex((p) => p.id === postId && p.status === "active")
-
-      if (postIndex === -1) return null
-
-      posts[postIndex].views = (posts[postIndex].views || 0) + 1
-      posts[postIndex].updatedAt = new Date().toISOString()
-
-      await store.set(this.POSTS_KEY, posts)
-      console.log(`👁️ Post ${postId} views incremented to ${posts[postIndex].views}`)
-
-      return posts[postIndex]
-    } catch (error) {
-      console.error(`Error incrementing views for post ${postId}:`, error)
-      return null
-    }
-  }
-
-  async likePost(postId: string, userEmail?: string): Promise<{ likes: number } | null> {
-    try {
-      const store = await this.getStore()
-      const posts = (await store.get<Post[]>(this.POSTS_KEY)) || []
-      const postIndex = posts.findIndex((p) => p.id === postId && p.status === "active")
-
-      if (postIndex === -1) return null
-
-      posts[postIndex].likes = (posts[postIndex].likes || 0) + 1
-      posts[postIndex].updatedAt = new Date().toISOString()
-
-      await store.set(this.POSTS_KEY, posts)
-
-      // Award points for liking and receiving likes
-      if (userEmail) {
-        const liker = await this.getUserByEmail(userEmail)
-        const postAuthor = await this.getUserByEmail(posts[postIndex].authorEmail || "")
-        const settings = await this.getRewardsSettings()
-
-        if (liker) {
-          await this.awardPoints(liker.id, settings.pointsPerLike, "Liked a post", "like_given")
-        }
-
-        if (postAuthor && postAuthor.email !== userEmail) {
-          await this.awardPoints(
-            postAuthor.id,
-            settings.pointsPerReceivingLike,
-            "Received a like on post",
-            "like_received",
-          )
-        }
-      }
-
-      console.log(`👍 Post ${postId} likes incremented to ${posts[postIndex].likes}`)
-
-      return { likes: posts[postIndex].likes }
-    } catch (error) {
-      console.error(`Error liking post ${postId}:`, error)
-      return null
-    }
-  }
-
-  // Replies
-  async getRepliesByPostId(postId: string): Promise<Reply[]> {
-    try {
-      await this.initialize()
-      const store = await this.getStore()
-      const replies = await store.get<Reply[]>(this.REPLIES_KEY)
-      return (replies || []).filter((reply) => reply.postId === postId && reply.status === "active")
-    } catch (error) {
-      console.error("Error getting replies:", error)
-      return []
-    }
-  }
-
-  async addReply(data: Omit<Reply, "id" | "createdAt" | "updatedAt" | "likes">): Promise<Reply> {
-    try {
-      const store = await this.getStore()
-      const replies = (await store.get<Reply[]>(this.REPLIES_KEY)) || []
-      const posts = (await store.get<Post[]>(this.POSTS_KEY)) || []
-
-      const reply: Reply = {
-        id: `reply-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        likes: 0,
-        status: "active",
-        ...data,
-      }
-
-      replies.push(reply)
-
-      // Update post reply count
-      const postIndex = posts.findIndex((p) => p.id === data.postId)
-      if (postIndex !== -1) {
-        posts[postIndex].replies = (posts[postIndex].replies || 0) + 1
-        posts[postIndex].updatedAt = new Date().toISOString()
-      }
-
-      await store.set(this.REPLIES_KEY, replies)
-      await store.set(this.POSTS_KEY, posts)
-
-      // Award points for creating a reply
-      if (data.authorEmail) {
-        const user = await this.getUserByEmail(data.authorEmail)
-        if (user) {
-          const settings = await this.getRewardsSettings()
-          await this.awardPoints(user.id, settings.pointsPerReply, "Created a reply", "reply_creation")
-        }
-      }
-
-      console.log("✅ Reply created and saved:", reply)
-      return reply
-    } catch (error) {
-      console.error("Error creating reply:", error)
-      throw error
-    }
-  }
-
-  async likeReply(replyId: string, userEmail?: string): Promise<{ likes: number } | null> {
-    try {
-      const store = await this.getStore()
-      const replies = (await store.get<Reply[]>(this.REPLIES_KEY)) || []
-      const replyIndex = replies.findIndex((r) => r.id === replyId && r.status === "active")
-
-      if (replyIndex === -1) return null
-
-      replies[replyIndex].likes = (replies[replyIndex].likes || 0) + 1
-      replies[replyIndex].updatedAt = new Date().toISOString()
-
-      await store.set(this.REPLIES_KEY, replies)
-
-      // Award points for liking and receiving likes
-      if (userEmail) {
-        const liker = await this.getUserByEmail(userEmail)
-        const replyAuthor = await this.getUserByEmail(replies[replyIndex].authorEmail || "")
-        const settings = await this.getRewardsSettings()
-
-        if (liker) {
-          await this.awardPoints(liker.id, settings.pointsPerLike, "Liked a reply", "like_given")
-        }
-
-        if (replyAuthor && replyAuthor.email !== userEmail) {
-          await this.awardPoints(
-            replyAuthor.id,
-            settings.pointsPerReceivingLike,
-            "Received a like on reply",
-            "like_received",
-          )
-        }
-      }
-
-      console.log(`👍 Reply ${replyId} likes incremented to ${replies[replyIndex].likes}`)
-
-      return { likes: replies[replyIndex].likes }
-    } catch (error) {
-      console.error(`Error liking reply ${replyId}:`, error)
-      return null
-    }
-  }
-
-  async deleteReply(replyId: string, userEmail: string): Promise<boolean> {
-    try {
-      const store = await this.getStore()
-      const replies = (await store.get<Reply[]>(this.REPLIES_KEY)) || []
-      const replyIndex = replies.findIndex((r) => r.id === replyId)
-
-      if (replyIndex === -1) {
-        console.warn(`⚠️ Reply not found for deletion: ${replyId}`)
-        return false
-      }
-
-      const reply = replies[replyIndex]
-
-      // Check permissions
-      if (reply.authorEmail !== userEmail && userEmail !== "admin@store.com") {
-        console.warn(`⚠️ User ${userEmail} not authorized to delete reply ${replyId}`)
-        return false
-      }
-
-      // Soft delete
-      replies[replyIndex].status = "deleted"
-      replies[replyIndex].updatedAt = new Date().toISOString()
-
-      // Update post reply count
-      const posts = (await store.get<Post[]>(this.POSTS_KEY)) || []
-      const postIndex = posts.findIndex((p) => p.id === reply.postId)
-
-      if (postIndex !== -1 && posts[postIndex].replies > 0) {
-        posts[postIndex].replies--
-        posts[postIndex].updatedAt = new Date().toISOString()
-        await store.set(this.POSTS_KEY, posts)
-      }
-
-      await store.set(this.REPLIES_KEY, replies)
-      console.log(`✅ Reply ${replyId} deleted and saved`)
-      return true
-    } catch (error) {
-      console.error(`Error deleting reply ${replyId}:`, error)
-      return false
-    }
-  }
-
-  // Users
-  async getUsers(): Promise<User[]> {
-    try {
-      await this.initialize()
-      const store = await this.getStore()
-      const users = await store.get<User[]>(this.USERS_KEY)
-      return users || []
-    } catch (error) {
-      console.error("Error getting users:", error)
-      return []
-    }
-  }
-
-  async getUserById(id: string): Promise<User | null> {
-    try {
-      const users = await this.getUsers()
-      return users.find((user) => user.id === id) || null
-    } catch (error) {
-      console.error("Error getting user by ID:", error)
-      return null
-    }
-  }
-
-  async getUserByEmail(email: string): Promise<User | null> {
-    try {
-      const users = await this.getUsers()
-      return users.find((user) => user.email === email) || null
-    } catch (error) {
-      console.error("Error getting user by email:", error)
-      return null
-    }
-  }
-
-  async getUserByUsername(username: string): Promise<User | null> {
-    try {
-      const users = await this.getUsers()
-      return users.find((user) => user.username === username) || null
-    } catch (error) {
-      console.error("Error getting user by username:", error)
-      return null
-    }
-  }
-
-  async addUser(data: Omit<User, "id" | "createdAt">): Promise<User> {
-    try {
-      const store = await this.getStore()
-      const users = await this.getUsers()
-      const user: User = {
-        id: `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        createdAt: new Date().toISOString(),
-        isActive: true,
-        ...data,
-      }
-
-      users.push(user)
-      await store.set(this.USERS_KEY, users)
-
-      // Initialize user rewards
-      const userRewards: UserRewards = {
-        userId: user.id,
-        totalPoints: 0,
-        dailyPoints: 0,
-        lastDailyReset: new Date().toISOString(),
-        pointsHistory: [],
-        redeemedCoupons: [],
-      }
-
-      const allRewards = await this.getAllUserRewards()
-      allRewards.push(userRewards)
-      await store.set(this.USER_REWARDS_KEY, allRewards)
-
-      console.log("✅ User created and saved:", user.email)
-      return user
-    } catch (error) {
-      console.error("Error creating user:", error)
-      throw error
-    }
-  }
-
-  async updateUser(userId: string, updates: Partial<User>): Promise<User | null> {
-    try {
-      const store = await this.getStore()
-      const users = await this.getUsers()
-      const userIndex = users.findIndex((user) => user.id === userId)
-
-      if (userIndex === -1) {
-        console.warn(`⚠️ User not found for update: ${userId}`)
-        return null
-      }
-
-      users[userIndex] = { ...users[userIndex], ...updates }
-      await store.set(this.USERS_KEY, users)
-
-      console.log(`✅ User ${userId} updated successfully`)
-      return users[userIndex]
-    } catch (error) {
-      console.error(`Error updating user ${userId}:`, error)
+      console.error("Error getting user rewards:", error)
       return null
     }
   }
@@ -1669,21 +849,19 @@ class PersistentForumDataStore {
       const categories = await this.getCategories()
       const posts = await this.getPosts()
       const meets = await this.getMeets()
-      const store = await this.getStore()
-      const replies = (await store.get<Reply[]>(this.REPLIES_KEY)) || []
       const users = await this.getUsers()
-      const activeReplies = replies.filter((r) => r.status === "active")
-      const upcomingMeets = meets.filter((m) => m.status === "upcoming")
+      const groups = await this.getGroups()
 
       return {
         totalCategories: categories.length,
         totalPosts: posts.length,
-        totalReplies: activeReplies.length,
+        totalReplies: 0,
         totalUsers: users.length,
         totalMeets: meets.length,
-        upcomingMeets: upcomingMeets.length,
-        activeToday: Math.ceil(users.length * 0.3), // 30% of users active today
-        onlineUsers: Math.ceil(users.length * 0.1), // 10% of users online now
+        totalGroups: groups.length,
+        upcomingMeets: meets.filter((m) => m.status === "upcoming").length,
+        activeToday: Math.ceil(users.length * 0.3),
+        onlineUsers: Math.ceil(users.length * 0.1),
       }
     } catch (error) {
       console.error("Error getting stats:", error)
@@ -1693,6 +871,7 @@ class PersistentForumDataStore {
         totalReplies: 0,
         totalUsers: 0,
         totalMeets: 0,
+        totalGroups: 0,
         upcomingMeets: 0,
         activeToday: 0,
         onlineUsers: 0,
@@ -1700,84 +879,45 @@ class PersistentForumDataStore {
     }
   }
 
-  // Clear all data
-  async clearAllData(): Promise<boolean> {
+  // Utility methods
+  private async ensureInitialized(): Promise<void> {
+    if (!(await this.isInitialized())) {
+      await this.initialize()
+    }
+  }
+
+  async clearAllData(): Promise<void> {
     try {
       const store = await this.getStore()
-      await store.del(this.CATEGORIES_KEY)
-      await store.del(this.POSTS_KEY)
-      await store.del(this.REPLIES_KEY)
       await store.del(this.USERS_KEY)
       await store.del(this.MEETS_KEY)
+      await store.del(this.POSTS_KEY)
+      await store.del(this.CATEGORIES_KEY)
+      await store.del(this.REPLIES_KEY)
+      await store.del(this.GROUPS_KEY)
       await store.del(this.REWARDS_SETTINGS_KEY)
       await store.del(this.USER_REWARDS_KEY)
-      await store.del(this.INITIALIZED_KEY)
-
-      if (this.useMemoryFallback) {
-        this.memoryStore.clear()
-      }
-
-      console.log("✅ All forum data cleared from persistent storage")
-      return true
+      await store.del(this.INIT_KEY)
+      this.memoryStore.clear()
+      this.initialized = false
+      console.log("✅ All data cleared")
     } catch (error) {
       console.error("Error clearing data:", error)
-      return false
     }
   }
 
-  // For debugging - get all data including deleted items
-  async getAllDataWithDeleted() {
-    try {
-      const store = await this.getStore()
-      const categories = (await store.get<Category[]>(this.CATEGORIES_KEY)) || []
-      const posts = (await store.get<Post[]>(this.POSTS_KEY)) || []
-      const replies = (await store.get<Reply[]>(this.REPLIES_KEY)) || []
-      const users = (await store.get<User[]>(this.USERS_KEY)) || []
-      const meets = (await store.get<Meet[]>(this.MEETS_KEY)) || []
-      const rewardsSettings = (await store.get<RewardsSettings>(this.REWARDS_SETTINGS_KEY)) || null
-      const userRewards = (await store.get<UserRewards[]>(this.USER_REWARDS_KEY)) || []
-      const initialized = await store.get(this.INITIALIZED_KEY)
-
-      return {
-        categories,
-        posts,
-        replies,
-        users,
-        meets,
-        rewardsSettings,
-        userRewards,
-        initialized,
-        usingMemoryFallback: this.useMemoryFallback,
-      }
-    } catch (error) {
-      console.error("Error getting all data:", error)
-      return {
-        categories: [],
-        posts: [],
-        replies: [],
-        users: [],
-        meets: [],
-        rewardsSettings: null,
-        userRewards: [],
-        initialized: false,
-        usingMemoryFallback: this.useMemoryFallback,
-      }
-    }
-  }
-
-  // Force reinitialization
-  async forceReinitialize(): Promise<boolean> {
-    try {
-      const store = await this.getStore()
-      await store.del(this.INITIALIZED_KEY)
-      await this.initialize()
-      return true
-    } catch (error) {
-      console.error("Error reinitializing:", error)
-      return false
-    }
+  async forceReinitialize(): Promise<void> {
+    await this.clearAllData()
+    await this.initialize()
   }
 }
 
-// Export singleton instance
-export const persistentForumDataStore = new PersistentForumDataStore()
+// Create the instance
+const persistentDataStoreInstance = new PersistentDataStore()
+
+// Export both names for compatibility
+export const persistentForumDataStore = persistentDataStoreInstance
+export const dataStore = persistentDataStoreInstance
+
+// Default export
+export default persistentDataStoreInstance
