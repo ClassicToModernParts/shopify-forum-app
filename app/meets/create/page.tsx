@@ -1,8 +1,7 @@
 "use client"
 
 import type React from "react"
-
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Calendar, MapPin, Clock, Car, Truck, Users, ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -12,11 +11,12 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import UserNavigation from "@/components/UserNavigation"
+import { useAuth } from "@/hooks/useAuth"
 
 export default function CreateMeet() {
   const router = useRouter()
+  const { user, loading: authLoading } = useAuth({ redirectTo: "/login?redirect=/meets/create" })
   const [loading, setLoading] = useState(false)
-  const [userInfo, setUserInfo] = useState({ email: "", name: "" })
 
   const [formData, setFormData] = useState({
     title: "",
@@ -31,22 +31,22 @@ export default function CreateMeet() {
     requirements: "",
   })
 
-  // Get user info from localStorage
-  useEffect(() => {
-    const userEmail = localStorage.getItem("userEmail")
-    const userName = localStorage.getItem("userName")
+  // Show loading while checking authentication
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Checking authentication...</p>
+        </div>
+      </div>
+    )
+  }
 
-    if (!userEmail) {
-      alert("Please log in to create a meet")
-      router.push("/login")
-      return
-    }
-
-    setUserInfo({
-      email: userEmail,
-      name: userName || "User",
-    })
-  }, [router])
+  // Don't render if not authenticated (useAuth will handle redirect)
+  if (!user) {
+    return null
+  }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -66,8 +66,9 @@ export default function CreateMeet() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!userInfo.email) {
+    if (!user) {
       alert("Please log in to create a meet")
+      router.push("/login?redirect=/meets/create")
       return
     }
 
@@ -81,22 +82,33 @@ export default function CreateMeet() {
     try {
       const meetData = {
         ...formData,
-        organizer: userInfo.name,
-        organizerEmail: userInfo.email,
+        organizer: user.name || user.username,
+        organizerEmail: user.email,
+        organizerId: user.id,
         maxAttendees: formData.maxAttendees ? Number.parseInt(formData.maxAttendees) : undefined,
       }
 
       console.log("🔄 Creating meet:", meetData)
 
+      // Get auth token for API call
+      const authToken = localStorage.getItem("authToken")
+
       const response = await fetch("/api/meets", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
         },
         body: JSON.stringify(meetData),
       })
 
       if (!response.ok) {
+        if (response.status === 401) {
+          alert("Your session has expired. Please log in again.")
+          router.push("/login?redirect=/meets/create")
+          return
+        }
+
         const errorData = await response.json()
         throw new Error(errorData.error || "Failed to create meet")
       }
@@ -117,7 +129,7 @@ export default function CreateMeet() {
   return (
     <div className="min-h-screen bg-gray-50">
       <UserNavigation currentPage="meets" />
-      <div className="container mx-auto py-8 px-4">
+      <div className="container mx-auto py-4 px-4 sm:py-8">
         <div className="max-w-2xl mx-auto">
           <div className="flex items-center mb-6">
             <Button variant="ghost" onClick={() => router.push("/meets")} className="mr-4">
@@ -125,7 +137,7 @@ export default function CreateMeet() {
               Back to Meets
             </Button>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Create New Meet</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Create New Meet</h1>
               <p className="text-gray-600 mt-1">Organize a car or truck meetup</p>
             </div>
           </div>
@@ -133,6 +145,9 @@ export default function CreateMeet() {
           <Card>
             <CardHeader>
               <CardTitle>Meet Details</CardTitle>
+              <p className="text-sm text-gray-600">
+                Creating as: <span className="font-medium">{user.name || user.username}</span>
+              </p>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">
@@ -319,11 +334,16 @@ export default function CreateMeet() {
                 </div>
 
                 {/* Submit */}
-                <div className="flex justify-end space-x-4 pt-6 border-t">
-                  <Button type="button" variant="outline" onClick={() => router.push("/meets")}>
+                <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-4 pt-6 border-t">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => router.push("/meets")}
+                    className="w-full sm:w-auto"
+                  >
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={loading}>
+                  <Button type="submit" disabled={loading} className="w-full sm:w-auto">
                     {loading ? "Creating..." : "Create Meet"}
                   </Button>
                 </div>

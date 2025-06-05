@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 
 interface User {
   id: string
@@ -16,6 +16,7 @@ export function useAuth(options: { redirectTo?: string; requiredRole?: "admin" |
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   useEffect(() => {
     async function checkAuth() {
@@ -60,7 +61,9 @@ export function useAuth(options: { redirectTo?: string; requiredRole?: "admin" |
             const data = await response.json()
             if (data.success && data.user) {
               localStorage.setItem("user", JSON.stringify(data.user))
-              localStorage.setItem("authToken", data.token)
+              if (data.token) {
+                localStorage.setItem("authToken", data.token)
+              }
               setUser(data.user)
             } else if (options.redirectTo) {
               router.push(options.redirectTo)
@@ -106,7 +109,14 @@ export function useAuth(options: { redirectTo?: string; requiredRole?: "admin" |
     localStorage.removeItem("userName")
 
     setUser(null)
-    router.push("/login")
+
+    // Check if there's a redirect parameter
+    const redirect = searchParams.get("redirect")
+    if (redirect) {
+      router.push(`/login?redirect=${encodeURIComponent(redirect)}`)
+    } else {
+      router.push("/login")
+    }
   }
 
   return { user, loading, error, logout, isAuthenticated: !!user }
