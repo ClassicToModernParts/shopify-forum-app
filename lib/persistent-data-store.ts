@@ -468,6 +468,108 @@ class PersistentDataStore {
     }
   }
 
+  // Password reset token methods
+  async storePasswordResetToken(userId: string, token: string, expiry: string): Promise<boolean> {
+    try {
+      console.log("🎫 Storing password reset token for user:", userId)
+      const users = await this.getUsers()
+      const userIndex = users.findIndex((u) => u.id === userId)
+
+      if (userIndex === -1) {
+        console.warn(`User not found for token storage: ${userId}`)
+        return false
+      }
+
+      users[userIndex].resetToken = token
+      users[userIndex].resetTokenExpiry = expiry
+
+      const store = await this.getStore()
+      await store.set(this.USERS_KEY, users)
+
+      console.log("✅ Password reset token stored successfully")
+      return true
+    } catch (error) {
+      console.error("Error storing password reset token:", error)
+      return false
+    }
+  }
+
+  async getUserByResetToken(token: string): Promise<User | null> {
+    try {
+      console.log("🔍 Looking up user by reset token")
+      const users = await this.getUsers()
+      const user = users.find((u) => u.resetToken === token)
+
+      if (!user) {
+        console.log("❌ No user found with reset token")
+        return null
+      }
+
+      // Check if token is expired
+      if (user.resetTokenExpiry && new Date(user.resetTokenExpiry) < new Date()) {
+        console.log("❌ Reset token has expired")
+        return null
+      }
+
+      console.log("✅ Valid reset token found for user:", user.username)
+      return user
+    } catch (error) {
+      console.error("Error getting user by reset token:", error)
+      return null
+    }
+  }
+
+  async clearPasswordResetToken(userId: string): Promise<boolean> {
+    try {
+      console.log("🧹 Clearing password reset token for user:", userId)
+      const users = await this.getUsers()
+      const userIndex = users.findIndex((u) => u.id === userId)
+
+      if (userIndex === -1) {
+        console.warn(`User not found for token clearing: ${userId}`)
+        return false
+      }
+
+      users[userIndex].resetToken = undefined
+      users[userIndex].resetTokenExpiry = undefined
+
+      const store = await this.getStore()
+      await store.set(this.USERS_KEY, users)
+
+      console.log("✅ Password reset token cleared successfully")
+      return true
+    } catch (error) {
+      console.error("Error clearing password reset token:", error)
+      return false
+    }
+  }
+
+  async updatePassword(userId: string, newPasswordHash: string): Promise<boolean> {
+    try {
+      console.log("🔐 Updating password for user:", userId)
+      const users = await this.getUsers()
+      const userIndex = users.findIndex((u) => u.id === userId)
+
+      if (userIndex === -1) {
+        console.warn(`User not found for password update: ${userId}`)
+        return false
+      }
+
+      users[userIndex].password = newPasswordHash
+      users[userIndex].resetToken = undefined
+      users[userIndex].resetTokenExpiry = undefined
+
+      const store = await this.getStore()
+      await store.set(this.USERS_KEY, users)
+
+      console.log("✅ Password updated successfully")
+      return true
+    } catch (error) {
+      console.error("Error updating password:", error)
+      return false
+    }
+  }
+
   // Meet methods
   async getMeets(): Promise<Meet[]> {
     try {

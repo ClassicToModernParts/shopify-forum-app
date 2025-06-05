@@ -4,6 +4,7 @@ interface EmailResult {
   error?: string
   messageId?: string
   provider?: string
+  fallback?: boolean
 }
 
 interface EmailOptions {
@@ -41,6 +42,16 @@ class EmailService {
 
       if (result.error) {
         console.error("❌ Resend API error:", result.error)
+
+        // Check for specific domain verification error
+        if (result.error.message?.includes("You can only send testing emails to your own email address")) {
+          return {
+            success: false,
+            error: `Resend domain not verified. Can only send to verified addresses.`,
+            provider: "resend",
+          }
+        }
+
         return {
           success: false,
           error: `Resend error: ${result.error.message}`,
@@ -64,8 +75,11 @@ class EmailService {
     }
   }
 
-  private logEmail(options: EmailOptions): EmailResult {
+  private logEmail(options: EmailOptions, reason?: string): EmailResult {
     console.log("📧 EMAIL LOG (Console Mode):")
+    if (reason) {
+      console.log("Reason:", reason)
+    }
     console.log("To:", options.to)
     console.log("Subject:", options.subject)
     console.log("Content Preview:", options.text?.substring(0, 100) || options.html.substring(0, 100))
@@ -75,6 +89,7 @@ class EmailService {
       success: true,
       messageId: `console-${Date.now()}`,
       provider: "console",
+      fallback: !!reason,
     }
   }
 
@@ -90,15 +105,36 @@ class EmailService {
       return { success: false, error: "Invalid email address format" }
     }
 
-    // Try Resend first
+    // Check if this is the verified email address for Resend
+    const verifiedEmail = "info@classictomodernparts.com"
+    const isVerifiedEmail = options.to.toLowerCase() === verifiedEmail.toLowerCase()
+
+    // Try Resend first, but only if it's the verified email or we want to test the error
     const resendResult = await this.tryResend(options)
+
     if (resendResult.success) {
       return resendResult
     }
 
-    // Fall back to console logging
+    // Check if it's a domain verification issue
+    if (
+      resendResult.error?.includes("domain not verified") ||
+      resendResult.error?.includes("You can only send testing emails")
+    ) {
+      if (isVerifiedEmail) {
+        console.warn("⚠️ Even verified email failed, falling back to console")
+      } else {
+        console.warn(
+          `⚠️ Resend domain not verified. To send real emails, verify domain at resend.com/domains or use ${verifiedEmail}`,
+        )
+      }
+
+      return this.logEmail(options, `Resend domain not verified - ${resendResult.error}`)
+    }
+
+    // Fall back to console logging for other errors
     console.warn("⚠️ Resend failed, falling back to console logging:", resendResult.error)
-    return this.logEmail(options)
+    return this.logEmail(options, resendResult.error)
   }
 
   async sendWelcomeEmail(userEmail: string, userName: string): Promise<EmailResult> {
@@ -349,15 +385,16 @@ Need help? Contact our support team.
     })
   }
 
-  getStatus(): { configured: boolean; provider: string; details: string } {
+  getStatus(): { configured: boolean; provider: string; details: string; verifiedEmail?: string } {
     const hasKey = !!process.env.RESEND_API_KEY
     const validKey = process.env.RESEND_API_KEY?.startsWith("re_")
 
     if (hasKey && validKey) {
       return {
         configured: true,
-        provider: "Resend",
-        details: "Resend API key is properly configured",
+        provider: "Resend (Limited)",
+        details: "Resend API key configured but domain not verified. Can only send to info@classictomodernparts.com",
+        verifiedEmail: "info@classictomodernparts.com",
       }
     } else if (hasKey && !validKey) {
       return {

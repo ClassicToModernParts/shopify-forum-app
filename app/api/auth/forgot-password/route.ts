@@ -63,7 +63,22 @@ export async function POST(request: NextRequest) {
 
     // Store reset token
     console.log("💾 Forgot Password API: Storing reset token")
-    await persistentForumDataStore.storePasswordResetToken(user.id, resetToken, tokenExpiry.toISOString())
+    const tokenStored = await persistentForumDataStore.storePasswordResetToken(
+      user.id,
+      resetToken,
+      tokenExpiry.toISOString(),
+    )
+
+    if (!tokenStored) {
+      console.error("❌ Forgot Password API: Failed to store reset token")
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Failed to process password reset request",
+        },
+        { status: 500 },
+      )
+    }
 
     // Send password reset email
     console.log("📧 Forgot Password API: Sending password reset email")
