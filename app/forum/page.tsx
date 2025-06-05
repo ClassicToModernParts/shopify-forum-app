@@ -251,49 +251,26 @@ export default function ForumPage() {
       <UserNavigation currentPage="forum" />
       <div className="container mx-auto py-8 px-4">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Community Forum</h1>
-            <p className="text-gray-600 mt-2">Share knowledge, ask questions, and connect with the community</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Community Forum</h1>
+            <p className="text-gray-600 mt-1 sm:mt-2 text-sm sm:text-base">
+              Share knowledge, ask questions, and connect with the community
+            </p>
             {userInfo.email && (
-              <p className="text-sm text-blue-600 mt-1">
+              <p className="text-xs sm:text-sm text-blue-600 mt-1">
                 Logged in as: {userInfo.name} ({userInfo.email})
               </p>
             )}
           </div>
-          <Button onClick={handleCreatePost} className="flex items-center">
+          <Button onClick={handleCreatePost} className="flex items-center w-full sm:w-auto">
             <Plus className="mr-2 h-4 w-4" />
             Create Post
           </Button>
         </div>
 
-        {/* Categories */}
-        {categories.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-xl font-semibold mb-4">Categories</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {categories.map((category) => (
-                <Card
-                  key={category.id}
-                  className="hover:shadow-md transition-shadow cursor-pointer"
-                  onClick={() => setSelectedCategory(selectedCategory === category.id ? "" : category.id)}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-center mb-2">
-                      <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: category.color }}></div>
-                      <h3 className="font-medium">{category.name}</h3>
-                    </div>
-                    <p className="text-sm text-gray-600 mb-2">{category.description}</p>
-                    <div className="text-xs text-gray-500">{category.postCount || 0} posts</div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Search and Filters */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-6">
+        <div className="flex flex-col gap-4 mb-6">
           <div className="flex-1">
             <Input
               placeholder="Search posts..."
@@ -302,12 +279,12 @@ export default function ForumPage() {
               className="w-full"
             />
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm">
+          <div className="flex gap-2 overflow-x-auto pb-2">
+            <Button variant="outline" size="sm" className="whitespace-nowrap">
               <Filter className="h-4 w-4 mr-2" />
               Filter
             </Button>
-            <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+            <Button variant="outline" size="sm" className="whitespace-nowrap" onClick={() => window.location.reload()}>
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
             </Button>
@@ -326,88 +303,228 @@ export default function ForumPage() {
           </div>
         )}
 
-        {/* Posts */}
-        <div className="space-y-4">
-          {filteredPosts.length === 0 ? (
-            <div className="text-center py-12">
-              <MessageSquare className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                {searchTerm || selectedCategory ? "No posts found" : "No posts yet"}
-              </h3>
-              <p className="text-gray-600 mb-4">
-                {searchTerm || selectedCategory
-                  ? "Try adjusting your search or filter criteria"
-                  : "Be the first to start a discussion!"}
-              </p>
-              {!searchTerm && !selectedCategory && <Button onClick={handleCreatePost}>Create First Post</Button>}
-            </div>
-          ) : (
-            filteredPosts.map((post) => (
-              <Card key={post.id} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Badge
-                          variant="secondary"
-                          style={{
-                            backgroundColor: getCategoryColor(post.categoryId) + "20",
-                            color: getCategoryColor(post.categoryId),
-                          }}
-                        >
-                          {getCategoryName(post.categoryId)}
-                        </Badge>
-                        {post.isPinned && <Badge variant="outline">Pinned</Badge>}
+        {/* Mobile: Posts first, then categories */}
+        <div className="block md:hidden">
+          {/* Posts section for mobile */}
+          <div className="space-y-4 mb-8">
+            {filteredPosts.length === 0 ? (
+              <div className="text-center py-12">
+                <MessageSquare className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  {searchTerm || selectedCategory ? "No posts found" : "No posts yet"}
+                </h3>
+                <p className="text-gray-600 mb-4">
+                  {searchTerm || selectedCategory
+                    ? "Try adjusting your search or filter criteria"
+                    : "Be the first to start a discussion!"}
+                </p>
+                {!searchTerm && !selectedCategory && <Button onClick={handleCreatePost}>Create First Post</Button>}
+              </div>
+            ) : (
+              filteredPosts.map((post) => (
+                <Card key={post.id} className="hover:shadow-md transition-shadow">
+                  <CardContent className="p-6">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge
+                            variant="secondary"
+                            style={{
+                              backgroundColor: getCategoryColor(post.categoryId) + "20",
+                              color: getCategoryColor(post.categoryId),
+                            }}
+                          >
+                            {getCategoryName(post.categoryId)}
+                          </Badge>
+                          {post.isPinned && <Badge variant="outline">Pinned</Badge>}
+                        </div>
+
+                        <Link href={`/forum/post/${post.id}`}>
+                          <h3 className="text-lg font-semibold text-gray-900 hover:text-blue-600 cursor-pointer mb-2">
+                            {post.title}
+                          </h3>
+                        </Link>
+
+                        <p className="text-gray-600 mb-3 line-clamp-2">{post.content.substring(0, 200)}...</p>
+
+                        <div className="flex items-center justify-between text-sm text-gray-500">
+                          <div className="flex items-center gap-4">
+                            <span>By {post.author}</span>
+                            <div className="flex items-center">
+                              <Calendar className="h-4 w-4 mr-1" />
+                              {new Date(post.createdAt).toLocaleDateString()}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-4">
+                            <div className="flex items-center">
+                              <MessageSquare className="h-4 w-4 mr-1" />
+                              {post.replies}
+                            </div>
+                            <div className="flex items-center">
+                              <Eye className="h-4 w-4 mr-1" />
+                              {post.views}
+                            </div>
+                            <div className="flex items-center">
+                              <ThumbsUp className="h-4 w-4 mr-1" />
+                              {post.likes}
+                            </div>
+                          </div>
+                        </div>
+
+                        {post.tags && post.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-3">
+                            {post.tags.map((tag, index) => (
+                              <Badge key={index} variant="outline" className="text-xs">
+                                {tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
                       </div>
-
-                      <Link href={`/forum/post/${post.id}`}>
-                        <h3 className="text-lg font-semibold text-gray-900 hover:text-blue-600 cursor-pointer mb-2">
-                          {post.title}
-                        </h3>
-                      </Link>
-
-                      <p className="text-gray-600 mb-3 line-clamp-2">{post.content.substring(0, 200)}...</p>
-
-                      <div className="flex items-center justify-between text-sm text-gray-500">
-                        <div className="flex items-center gap-4">
-                          <span>By {post.author}</span>
-                          <div className="flex items-center">
-                            <Calendar className="h-4 w-4 mr-1" />
-                            {new Date(post.createdAt).toLocaleDateString()}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-4">
-                          <div className="flex items-center">
-                            <MessageSquare className="h-4 w-4 mr-1" />
-                            {post.replies}
-                          </div>
-                          <div className="flex items-center">
-                            <Eye className="h-4 w-4 mr-1" />
-                            {post.views}
-                          </div>
-                          <div className="flex items-center">
-                            <ThumbsUp className="h-4 w-4 mr-1" />
-                            {post.likes}
-                          </div>
-                        </div>
-                      </div>
-
-                      {post.tags && post.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-3">
-                          {post.tags.map((tag, index) => (
-                            <Badge key={index} variant="outline" className="text-xs">
-                              {tag}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+
+          {/* Categories below posts on mobile */}
+          {categories.length > 0 && (
+            <div className="mb-8">
+              <h2 className="text-xl font-semibold mb-4">Categories</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {categories.map((category) => (
+                  <Card
+                    key={category.id}
+                    className="hover:shadow-md transition-shadow cursor-pointer"
+                    onClick={() => setSelectedCategory(selectedCategory === category.id ? "" : category.id)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-center mb-2">
+                        <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: category.color }}></div>
+                        <h3 className="font-medium">{category.name}</h3>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-2">{category.description}</p>
+                      <div className="text-xs text-gray-500">{category.postCount || 0} posts</div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
           )}
+        </div>
+
+        {/* Desktop: Categories first, then posts */}
+        <div className="hidden md:block">
+          {/* Categories section for desktop */}
+          {categories.length > 0 && (
+            <div className="mb-8">
+              <h2 className="text-xl font-semibold mb-4">Categories</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {categories.map((category) => (
+                  <Card
+                    key={category.id}
+                    className="hover:shadow-md transition-shadow cursor-pointer"
+                    onClick={() => setSelectedCategory(selectedCategory === category.id ? "" : category.id)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-center mb-2">
+                        <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: category.color }}></div>
+                        <h3 className="font-medium">{category.name}</h3>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-2">{category.description}</p>
+                      <div className="text-xs text-gray-500">{category.postCount || 0} posts</div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Posts section for desktop */}
+          <div className="space-y-4">
+            {filteredPosts.length === 0 ? (
+              <div className="text-center py-12">
+                <MessageSquare className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  {searchTerm || selectedCategory ? "No posts found" : "No posts yet"}
+                </h3>
+                <p className="text-gray-600 mb-4">
+                  {searchTerm || selectedCategory
+                    ? "Try adjusting your search or filter criteria"
+                    : "Be the first to start a discussion!"}
+                </p>
+                {!searchTerm && !selectedCategory && <Button onClick={handleCreatePost}>Create First Post</Button>}
+              </div>
+            ) : (
+              filteredPosts.map((post) => (
+                <Card key={post.id} className="hover:shadow-md transition-shadow">
+                  <CardContent className="p-6">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge
+                            variant="secondary"
+                            style={{
+                              backgroundColor: getCategoryColor(post.categoryId) + "20",
+                              color: getCategoryColor(post.categoryId),
+                            }}
+                          >
+                            {getCategoryName(post.categoryId)}
+                          </Badge>
+                          {post.isPinned && <Badge variant="outline">Pinned</Badge>}
+                        </div>
+
+                        <Link href={`/forum/post/${post.id}`}>
+                          <h3 className="text-lg font-semibold text-gray-900 hover:text-blue-600 cursor-pointer mb-2">
+                            {post.title}
+                          </h3>
+                        </Link>
+
+                        <p className="text-gray-600 mb-3 line-clamp-2">{post.content.substring(0, 200)}...</p>
+
+                        <div className="flex items-center justify-between text-sm text-gray-500">
+                          <div className="flex items-center gap-4">
+                            <span>By {post.author}</span>
+                            <div className="flex items-center">
+                              <Calendar className="h-4 w-4 mr-1" />
+                              {new Date(post.createdAt).toLocaleDateString()}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-4">
+                            <div className="flex items-center">
+                              <MessageSquare className="h-4 w-4 mr-1" />
+                              {post.replies}
+                            </div>
+                            <div className="flex items-center">
+                              <Eye className="h-4 w-4 mr-1" />
+                              {post.views}
+                            </div>
+                            <div className="flex items-center">
+                              <ThumbsUp className="h-4 w-4 mr-1" />
+                              {post.likes}
+                            </div>
+                          </div>
+                        </div>
+
+                        {post.tags && post.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-3">
+                            {post.tags.map((tag, index) => (
+                              <Badge key={index} variant="outline" className="text-xs">
+                                {tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
         </div>
       </div>
     </div>
